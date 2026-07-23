@@ -64,7 +64,7 @@ var renderPackingList, renderPayments, renderTodayView, resetDayForm, resetEditD
 var saveEditActivity, saveEditDay, saveEditMember, saveEditPayment, saveFundLink, saveLinkToAct;
 var savePackingItem, savePayment, saveTripInfo, saveTripLoc, selectAvatarSeed, selectCategory, selectCity;
 var setAdvanceOverviewFilter, setInitialEditorCode, setPaymentFilter, showToast, spinRandomizer, suppressNextDayClick;
-var switchGalleryTab, switchItineraryTab, switchRandomMode, switchSubTab, switchWelcomeTab, syncToFirebase;
+var switchDashboardTab, switchGalleryTab, switchItineraryTab, switchRandomMode, switchSubTab, switchWelcomeTab, syncToFirebase;
 var toastTimer, toggleAllParticipants, toggleDayCollapse, toggleEditMultiPayerMode, toggleEstimateMode, toggleFab;
 var toggleFinishTrip, toggleHistoryTab, toggleIsland, toggleMultiPayerMode, togglePackingItem, togglePaymentPaid;
 var toggleShareTrip, triggerSwipeHint, unlinkPaymentFromAct, unlockEditor, updateEditMultiTotal, updateIsland;
@@ -362,10 +362,31 @@ window.selectCategory = selectCategory = (prefix, key) => {
 // --- 🤖 TRỢ LÝ AI (GEMINI) — GỢI Ý MÓN NGON / ĐỊA ĐIỂM HOT ---
 const GEMINI_MODEL = 'gemini-2.0-flash';
 const GEMINI_KEY_STORAGE = 'gemini_api_key';
+// Key cấu hình sẵn qua Environment Variable trên Vercel (build-time, nhúng vào bundle JS công khai).
+const GEMINI_ENV_KEY = (import.meta.env.VITE_GEMINI_API_KEY || '').trim();
 let _aiSuggestCache = {};
 
-function getGeminiApiKey() {
+function getManualGeminiKey() {
     return (localStorage.getItem(GEMINI_KEY_STORAGE) || '').trim();
+}
+
+// Ưu tiên key cá nhân người dùng tự dán (nếu có), rồi mới rơi về key server cấu hình sẵn.
+function getGeminiApiKey() {
+    return getManualGeminiKey() || GEMINI_ENV_KEY;
+}
+
+function refreshGeminiKeyUI() {
+    const input = document.getElementById('settingGeminiKey');
+    const status = document.getElementById('geminiKeyStatus');
+    if (!input) return;
+    const hasManual = !!getManualGeminiKey();
+    input.value = '';
+    input.placeholder = hasManual ? '••••••••• (Đã lưu — dán key mới để đổi)' : 'Dán API Key riêng (không bắt buộc)...';
+    if (status) {
+        if (hasManual) status.textContent = '🔑 Đang dùng key riêng bạn đã lưu trên máy này.';
+        else if (GEMINI_ENV_KEY) status.textContent = '✅ Đã có key cấu hình sẵn trên server (Environment Variable) — không cần nhập gì thêm.';
+        else status.textContent = '⚠️ Chưa có key nào. Dán key riêng ở trên, hoặc nhờ Admin cấu hình biến VITE_GEMINI_API_KEY trên Vercel.';
+    }
 }
 
 window.saveGeminiKey = saveGeminiKey = () => {
@@ -373,16 +394,14 @@ window.saveGeminiKey = saveGeminiKey = () => {
     const val = input ? input.value.trim() : '';
     if (!val) return showToast("Vui lòng nhập API Key trước khi lưu", "error");
     localStorage.setItem(GEMINI_KEY_STORAGE, val);
-    input.value = '';
-    input.placeholder = '••••••••• (Đã lưu — dán key mới để đổi)';
-    showToast("Đã lưu Gemini API Key trên máy này", "success");
+    showToast("Đã lưu Gemini API Key riêng trên máy này", "success");
+    refreshGeminiKeyUI();
 };
 
 window.clearGeminiKey = clearGeminiKey = () => {
     localStorage.removeItem(GEMINI_KEY_STORAGE);
-    const input = document.getElementById('settingGeminiKey');
-    if (input) { input.value = ''; input.placeholder = 'Dán API Key Gemini...'; }
-    showToast("Đã xóa API Key khỏi máy này", "info");
+    showToast(GEMINI_ENV_KEY ? "Đã xóa key riêng — chuyển về dùng key server" : "Đã xóa API Key khỏi máy này", "info");
+    refreshGeminiKeyUI();
 };
 
 function renderAiSuggestList(items) {
@@ -412,7 +431,7 @@ window.askAiSuggestions = askAiSuggestions = async (forceRefresh = false) => {
 
     const apiKey = getGeminiApiKey();
     if (!apiKey) {
-        showToast("Chưa có Gemini API Key! Vào Cài đặt để dán key trước.", "error");
+        showToast("Chưa có Gemini API Key! Vào Cài đặt để dán key riêng, hoặc nhờ Admin cấu hình trên Vercel.", "error");
         openSettingsPage();
         return;
     }
@@ -1370,6 +1389,18 @@ window.setPaymentFilter = setPaymentFilter = (filter) => {
     renderPayments(); // Gọi lại hàm render để cập nhật ngay lập tức
 };
 
+window.switchDashboardTab = switchDashboardTab = (tab) => {
+    const overviewBtn = document.getElementById('dbTabBtn_overview');
+    const categoryBtn = document.getElementById('dbTabBtn_category');
+    const overviewContent = document.getElementById('dbTabContent_overview');
+    const categoryContent = document.getElementById('dbTabContent_category');
+    if (!overviewBtn || !categoryBtn || !overviewContent || !categoryContent) return;
+    overviewBtn.classList.toggle('active', tab === 'overview');
+    categoryBtn.classList.toggle('active', tab === 'category');
+    overviewContent.style.display = tab === 'overview' ? 'block' : 'none';
+    categoryContent.style.display = tab === 'category' ? 'block' : 'none';
+};
+
 window.renderPayments = renderPayments = (flash = false) => {
     const list = document.getElementById('paymentList');
     if (!list) return; // Bảo vệ: Nếu chưa có chỗ vẽ thì không chạy
@@ -1476,93 +1507,99 @@ window.renderPayments = renderPayments = (flash = false) => {
     // 2. GIAO DIỆN DASHBOARD ĐÃ GỘP DÒNG THEO Ý BÁC
     const statsUI = styleTag + `
         <div class="section-header section-title" style="margin-top: 10px; border: none;">Dashboard Đau Ví</div>
-        
-        <div class="metric-card stat-card wide highlight ${animationClass}" onclick="openTotalExpenseModal()" style="padding: 22px; border-color: ${barColor}40; cursor: pointer; transition: 0.3s; margin-bottom: 25px; border-radius: 20px;">
-            
-            <div style="text-align: center; margin-bottom: 15px;">
+
+        <div class="metric-card stat-card wide highlight ${animationClass}" style="padding: 22px; border-color: ${barColor}40; transition: 0.3s; margin-bottom: 25px; border-radius: 20px;">
+
+            <div style="text-align: center; margin-bottom: 15px; cursor: pointer;" onclick="openTotalExpenseModal()">
                 <div style="font-size: 0.65rem; color: var(--text3); text-transform: uppercase; letter-spacing: 2px; margin-bottom: 5px;">Thực chi</div>
                 <div class="stat-value gold" style="font-size: 2.3rem; text-shadow: 0 0 25px ${barColor}30;">${formatVND(actualTotal)}</div>
                 <div style="font-size: 0.62rem; color: var(--text3); margin-top: 4px;">Tổng toàn bộ chi tiêu của cả chuyến đi</div>
             </div>
 
-            <div class="db-container">
-                <div class="db-chart" style="background: conic-gradient(${barColor} ${displayPercent}%, var(--surface3) 0); box-shadow: 0 0 20px ${barColor}30;">
-                    <div style="width: 70px; height: 70px; border-radius: 50%; background: #0a0a0a; display: flex; flex-direction: column; align-items: center; justify-content: center; line-height: 1;">
-                        <span style="font-size: 1rem; font-weight: 900; color: ${barColor};">${Math.round(percent)}%</span>
-                        <span style="font-size: 0.4rem; color: var(--text3); margin-top: 4px; text-transform: uppercase;">Máu</span>
-                    </div>
-                </div>
-
-                <div class="db-stats">
-                    <div style="font-size: 0.75rem; font-weight: 800; color: ${barColor}; margin-bottom: 2px; display: flex; align-items: center; gap: 5px;">
-                        <span>${statusIcon}</span> ${funnyMsg}
-                    </div>
-                    
-                    <div class="db-box" style="border-color: var(--blue);">
-                        <div style="display: flex; justify-content: space-between; font-size: 0.55rem; color: var(--text3); margin-bottom: 4px; opacity: 0.8;">
-                            <span>Dự trù ban đầu:</span>
-                            <span>${formatVND(estimateTotal)}</span>
-                        </div>
-                        <div style="display: flex; justify-content: space-between; align-items: center; font-size: 0.8rem; font-weight: 900; color: ${budgetRemain < 0 ? 'var(--red)' : 'var(--blue)'};">
-                            <span style="font-size: 0.65rem; opacity: 0.9;">Ngân sách còn lại:</span>
-                            <span>${formatVND(Math.abs(budgetRemain))}</span>
-                        </div>
-                    </div>
-
-                    <div class="db-box" style="border-color: var(--green);">
-                        <div style="display: flex; justify-content: space-between; font-size: 0.55rem; color: var(--text3); margin-bottom: 4px; opacity: 0.8;">
-                            <span>🏦 Quỹ chung — Đã đóng:</span>
-                            <span>${formatVND(totalFund)}</span>
-                        </div>
-                        <div style="display: flex; justify-content: space-between; align-items: center; font-size: 0.8rem; font-weight: 900; color: ${cashInHand < 0 ? 'var(--red)' : 'var(--accent)'};">
-                            <span style="font-size: 0.65rem; opacity: 0.9;">Quỹ chung còn lại:</span>
-                            <span>${formatVND(Math.max(0, cashInHand))}</span>
-                        </div>
-                    </div>
-
-                    ${personalAdvance > 0 ? `
-                    <div class="db-box" style="border-color: var(--blue);">
-                        <div style="display: flex; justify-content: space-between; align-items: center; font-size: 0.7rem;">
-                            <span style="color: var(--text2);">💳 Ứng cá nhân (ngoài quỹ)</span>
-                            <span style="font-weight: 900; color: var(--blue);">${formatVND(personalAdvance)}</span>
-                        </div>
-                        <div style="font-size: 0.55rem; color: var(--text3); margin-top: 4px; line-height: 1.4;">Khoản này KHÔNG thuộc quỹ chung — là tiền thành viên tự bỏ ra trả hộ nhóm, chưa được hoàn lại.</div>
-                    </div>
-                    ` : ''}
-                </div>
+            <div class="tab-bar" style="margin-bottom: 15px;">
+                <button class="tab active" id="dbTabBtn_overview" onclick="switchDashboardTab('overview')">💰 Tổng quan</button>
+                <button class="tab" id="dbTabBtn_category" onclick="switchDashboardTab('category')">🍕 Danh mục</button>
             </div>
 
-            ${cashInHand < 0 ? `
-                <div style="margin-top: 15px; background: var(--red-bg); color: var(--red); font-size: 0.75rem; padding: 12px; border-radius: 12px; text-align: center; font-weight: 800; border: 1px dashed var(--red); animation: pulse-fast 1s infinite;">
-                    🚨 QUỸ CHUNG ĐÃ CẠN! Cần góp thêm vào quỹ: ${formatVND(Math.abs(cashInHand))}!
-                </div>
-            ` : ''}
-        </div>
+            <div id="dbTabContent_overview">
+                <div class="db-container">
+                    <div class="db-chart" style="background: conic-gradient(${barColor} ${displayPercent}%, var(--surface3) 0); box-shadow: 0 0 20px ${barColor}30;">
+                        <div style="width: 70px; height: 70px; border-radius: 50%; background: #0a0a0a; display: flex; flex-direction: column; align-items: center; justify-content: center; line-height: 1;">
+                            <span style="font-size: 1rem; font-weight: 900; color: ${barColor};">${Math.round(percent)}%</span>
+                            <span style="font-size: 0.4rem; color: var(--text3); margin-top: 4px; text-transform: uppercase;">Máu</span>
+                        </div>
+                    </div>
 
-        ${catEntries.length ? `
-        <div class="metric-card stat-card wide" style="padding: 20px; border-radius: 20px; margin-bottom: 25px;">
-            <div class="section-header section-title" style="margin: 0 0 15px; border: none; padding: 0;">🍕 Chi tiêu theo danh mục</div>
-            <div class="db-container">
-                <div class="db-chart" style="background: conic-gradient(${pieGradient}); box-shadow: 0 0 20px rgba(0,0,0,0.3);">
-                    <div style="width: 70px; height: 70px; border-radius: 50%; background: #0a0a0a; display: flex; flex-direction: column; align-items: center; justify-content: center; line-height: 1;">
-                        <span style="font-size: 0.78rem; font-weight: 900; color: var(--text);">${formatVND(catTotal)}</span>
+                    <div class="db-stats">
+                        <div style="font-size: 0.75rem; font-weight: 800; color: ${barColor}; margin-bottom: 2px; display: flex; align-items: center; gap: 5px;">
+                            <span>${statusIcon}</span> ${funnyMsg}
+                        </div>
+
+                        <div class="db-box" style="border-color: var(--blue);">
+                            <div style="display: flex; justify-content: space-between; font-size: 0.55rem; color: var(--text3); margin-bottom: 4px; opacity: 0.8;">
+                                <span>Dự trù ban đầu:</span>
+                                <span>${formatVND(estimateTotal)}</span>
+                            </div>
+                            <div style="display: flex; justify-content: space-between; align-items: center; font-size: 0.8rem; font-weight: 900; color: ${budgetRemain < 0 ? 'var(--red)' : 'var(--blue)'};">
+                                <span style="font-size: 0.65rem; opacity: 0.9;">Ngân sách còn lại:</span>
+                                <span>${formatVND(Math.abs(budgetRemain))}</span>
+                            </div>
+                        </div>
+
+                        <div class="db-box" style="border-color: var(--green);">
+                            <div style="display: flex; justify-content: space-between; font-size: 0.55rem; color: var(--text3); margin-bottom: 4px; opacity: 0.8;">
+                                <span>🏦 Quỹ chung — Đã đóng:</span>
+                                <span>${formatVND(totalFund)}</span>
+                            </div>
+                            <div style="display: flex; justify-content: space-between; align-items: center; font-size: 0.8rem; font-weight: 900; color: ${cashInHand < 0 ? 'var(--red)' : 'var(--accent)'};">
+                                <span style="font-size: 0.65rem; opacity: 0.9;">Quỹ chung còn lại:</span>
+                                <span>${formatVND(Math.max(0, cashInHand))}</span>
+                            </div>
+                        </div>
+
+                        ${personalAdvance > 0 ? `
+                        <div class="db-box" style="border-color: var(--blue);">
+                            <div style="display: flex; justify-content: space-between; align-items: center; font-size: 0.7rem;">
+                                <span style="color: var(--text2);">💳 Ứng cá nhân (ngoài quỹ)</span>
+                                <span style="font-weight: 900; color: var(--blue);">${formatVND(personalAdvance)}</span>
+                            </div>
+                            <div style="font-size: 0.55rem; color: var(--text3); margin-top: 4px; line-height: 1.4;">Khoản này KHÔNG thuộc quỹ chung — là tiền thành viên tự bỏ ra trả hộ nhóm, chưa được hoàn lại.</div>
+                        </div>
+                        ` : ''}
                     </div>
                 </div>
-                <div class="db-stats">
-                    ${catEntries.map(([key, amt]) => {
-                        const cat = EXPENSE_CATEGORIES[key];
-                        const pct = catTotal > 0 ? Math.round((amt / catTotal) * 100) : 0;
-                        return `<div style="display: flex; align-items: center; gap: 8px; font-size: 0.68rem;">
-                            <span style="width: 10px; height: 10px; border-radius: 50%; background: ${cat.color}; flex-shrink: 0;"></span>
-                            <span style="flex: 1; color: var(--text2);">${cat.icon} ${cat.label}</span>
-                            <span style="font-weight: 800; color: ${cat.color};">${pct}%</span>
-                            <span style="color: var(--text3); min-width: 72px; text-align: right;">${formatVND(amt)}</span>
-                        </div>`;
-                    }).join('')}
+
+                ${cashInHand < 0 ? `
+                    <div style="margin-top: 15px; background: var(--red-bg); color: var(--red); font-size: 0.75rem; padding: 12px; border-radius: 12px; text-align: center; font-weight: 800; border: 1px dashed var(--red); animation: pulse-fast 1s infinite;">
+                        🚨 QUỸ CHUNG ĐÃ CẠN! Cần góp thêm vào quỹ: ${formatVND(Math.abs(cashInHand))}!
+                    </div>
+                ` : ''}
+            </div>
+
+            <div id="dbTabContent_category" style="display: none;">
+                ${catEntries.length ? `
+                <div class="db-container">
+                    <div class="db-chart" style="background: conic-gradient(${pieGradient}); box-shadow: 0 0 20px rgba(0,0,0,0.3);">
+                        <div style="width: 70px; height: 70px; border-radius: 50%; background: #0a0a0a; display: flex; flex-direction: column; align-items: center; justify-content: center; line-height: 1.15; padding: 4px; box-sizing: border-box; overflow: hidden;">
+                            <span style="font-size: 0.6rem; font-weight: 900; color: var(--text); text-align: center; word-break: break-word; max-width: 58px;">${formatVND(catTotal)}</span>
+                        </div>
+                    </div>
+                    <div class="db-stats">
+                        ${catEntries.map(([key, amt]) => {
+                            const cat = EXPENSE_CATEGORIES[key];
+                            const pct = catTotal > 0 ? Math.round((amt / catTotal) * 100) : 0;
+                            return `<div style="display: flex; align-items: center; gap: 8px; font-size: 0.68rem;">
+                                <span style="width: 10px; height: 10px; border-radius: 50%; background: ${cat.color}; flex-shrink: 0;"></span>
+                                <span style="flex: 1; color: var(--text2);">${cat.icon} ${cat.label}</span>
+                                <span style="font-weight: 800; color: ${cat.color};">${pct}%</span>
+                                <span style="color: var(--text3); min-width: 72px; text-align: right;">${formatVND(amt)}</span>
+                            </div>`;
+                        }).join('')}
+                    </div>
                 </div>
+                ` : `<div class="today-muted" style="text-align:center; padding: 20px 0;">Chưa có chi tiêu để phân loại.</div>`}
             </div>
         </div>
-        ` : ''}
     `;
 
     if (!payments.length) { 
@@ -6516,12 +6553,7 @@ window.openSettingsPage = openSettingsPage = () => {
   if (settingsPage) settingsPage.classList.add('active');
   currentPage = 'settings';
   if (window.updateManagementUI) window.updateManagementUI();
-
-  const geminiInput = document.getElementById('settingGeminiKey');
-  if (geminiInput) {
-      geminiInput.value = '';
-      geminiInput.placeholder = getGeminiApiKey() ? '••••••••• (Đã lưu — dán key mới để đổi)' : 'Dán API Key Gemini...';
-  }
+  refreshGeminiKeyUI();
 };
 
 window.niceConfirm = niceConfirm = (title, text, type = 'danger') => {
