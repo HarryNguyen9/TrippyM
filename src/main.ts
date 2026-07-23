@@ -222,6 +222,7 @@ async function handleCityInput(val) {
         } catch (e) { console.error(e); }
     }, 400);
 }
+window.handleCityInput = handleCityInput;
 
 // Hàm này chạy khi bạn bấm vào một dòng trong dropdown
 window.selectCity = selectCity = (fullName, lat, lon) => {
@@ -384,12 +385,20 @@ function getGeminiModel() {
 function refreshGeminiKeyUI() {
     const input = document.getElementById('settingGeminiKey');
     const status = document.getElementById('geminiKeyStatus');
-    const modelInput = document.getElementById('settingGeminiModel');
-    if (modelInput) modelInput.value = getGeminiModel();
-    if (!input) return;
+    const manualBlock = document.getElementById('geminiManualKeyBlock');
+    const modelSelect = document.getElementById('settingGeminiModel');
+    if (modelSelect) modelSelect.value = localStorage.getItem(GEMINI_MODEL_STORAGE) || '';
+
     const hasManual = !!getManualGeminiKey();
-    input.value = '';
-    input.placeholder = hasManual ? '••••••••• (Đã lưu — dán key mới để đổi)' : 'Dán API Key riêng (không bắt buộc)...';
+
+    // Đã có key cấu hình sẵn từ server (Vercel env) thì không cần hiện ô nhập key thủ công nữa —
+    // chỉ hiện lại nếu người dùng đã từng tự lưu 1 key riêng (để họ còn xóa được).
+    if (manualBlock) manualBlock.style.display = (GEMINI_ENV_KEY && !hasManual) ? 'none' : 'block';
+
+    if (input) {
+        input.value = '';
+        input.placeholder = hasManual ? '••••••••• (Đã lưu — dán key mới để đổi)' : 'Dán API Key riêng (không bắt buộc)...';
+    }
     if (status) {
         if (hasManual) status.textContent = '🔑 Đang dùng key riêng bạn đã lưu trên máy này.';
         else if (GEMINI_ENV_KEY) status.textContent = '✅ Đã có key cấu hình sẵn trên server (Environment Variable) — không cần nhập gì thêm.';

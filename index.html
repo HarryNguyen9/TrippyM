@@ -328,7 +328,7 @@
   <div class="section-header section-title">🤖 Trợ lý AI (Gợi ý du lịch)</div>
   <div class="trip-card" style="padding:16px;margin-bottom:12px;">
     <div id="geminiKeyStatus" style="font-size: 0.68rem; color: var(--accent); margin-bottom: 10px; line-height: 1.5;"></div>
-    <div class="form-group">
+    <div class="form-group" id="geminiManualKeyBlock">
       <label class="form-label">API KEY RIÊNG (KHÔNG BẮT BUỘC — GHI ĐÈ KEY SERVER)</label>
       <div style="display: flex; gap: 8px;">
         <input class="form-input" id="settingGeminiKey" type="password" placeholder="Dán API Key riêng (không bắt buộc)..." style="flex: 1;">
@@ -344,12 +344,18 @@
 
     <div class="form-group">
       <label class="form-label">MODEL AI (ĐỔI KHI BỊ LỖI HẾT QUOTA)</label>
-      <div style="display: flex; gap: 8px;">
-        <input class="form-input" id="settingGeminiModel" placeholder="gemini-2.0-flash" style="flex: 1;">
-        <button class="btn btn-primary" onclick="saveGeminiModel()" style="width: auto; padding: 0 15px;">💾</button>
-      </div>
+      <select class="form-input" id="settingGeminiModel" onchange="saveGeminiModel()">
+        <option value="">Mặc định (gemini-2.0-flash)</option>
+        <option value="gemini-2.0-flash">gemini-2.0-flash</option>
+        <option value="gemini-2.0-flash-lite">gemini-2.0-flash-lite</option>
+        <option value="gemini-2.5-flash">gemini-2.5-flash</option>
+        <option value="gemini-2.5-flash-lite">gemini-2.5-flash-lite</option>
+        <option value="gemini-2.5-pro">gemini-2.5-pro</option>
+        <option value="gemini-flash-latest">gemini-flash-latest</option>
+        <option value="gemini-pro-latest">gemini-pro-latest</option>
+      </select>
       <div style="font-size: 0.65rem; color: var(--text3); margin-top: 6px; line-height: 1.5;">
-        Nếu gặp lỗi "exceeded quota" / "limit: 0" nghĩa là tài khoản Google của bạn chưa được cấp quota free cho model đó — hãy thử đổi tên model khác (vd. <code>gemini-2.5-flash</code>, <code>gemini-flash-latest</code>) hoặc kiểm tra billing tại <a href="https://aistudio.google.com/apikey" target="_blank" rel="noopener noreferrer" style="color: var(--accent);">Google AI Studio</a>. Để trống rồi lưu để dùng lại model mặc định.
+        Nếu gặp lỗi "exceeded quota" / "limit: 0" nghĩa là tài khoản Google của bạn chưa được cấp quota free cho model đó — hãy thử chọn model khác ở đây, hoặc kiểm tra billing tại <a href="https://aistudio.google.com/apikey" target="_blank" rel="noopener noreferrer" style="color: var(--accent);">Google AI Studio</a>.
       </div>
     </div>
 
