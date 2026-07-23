@@ -462,6 +462,41 @@ body.trip-finished .swipe-content {
     border-color: var(--blue);
 }
 
+/* --- UI CHỌN DANH MỤC CHI TIÊU --- */
+.category-grid {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 8px;
+    margin-top: 6px;
+}
+.category-chip {
+    flex: 1;
+    min-width: 70px;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 4px;
+    padding: 8px 6px;
+    background: var(--surface2);
+    color: var(--text3);
+    border-radius: var(--radius-sm);
+    font-size: 0.65rem;
+    font-weight: 600;
+    cursor: pointer;
+    border: 1px solid transparent;
+    transition: 0.2s;
+    user-select: none;
+    text-align: center;
+}
+.category-chip-icon {
+    font-size: 1.1rem;
+}
+.category-chip.selected {
+    background: var(--accent-glow);
+    color: var(--accent);
+    border-color: var(--accent);
+}
+
 *,*::before,*::after{box-sizing:border-box;margin:0;padding:0}
 :root{
   --bg:#0a0a0a;--surface:#141414;--surface2:#1c1c1c;--surface3:#242424;

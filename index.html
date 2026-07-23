@@ -531,7 +531,19 @@
         <div class="form-section-body">
           <div class="form-group"><label class="form-label">Mô tả</label><input class="form-input" id="pmDesc" placeholder="VD: Khách sạn"></div>
           <div class="form-group"><label class="form-label">Số tiền</label><input class="form-input" id="pmAmount" type="number" placeholder="0"></div>
-          
+
+          <div class="form-group">
+            <label class="form-label">Danh mục</label>
+            <div class="category-grid" id="pmCategoryGrid">
+              <div class="category-chip selected" data-category="food" onclick="selectCategory('pm','food')"><span class="category-chip-icon">🍔</span><span>Ăn uống</span></div>
+              <div class="category-chip" data-category="transport" onclick="selectCategory('pm','transport')"><span class="category-chip-icon">🚕</span><span>Đi lại</span></div>
+              <div class="category-chip" data-category="hotel" onclick="selectCategory('pm','hotel')"><span class="category-chip-icon">🏨</span><span>Khách sạn</span></div>
+              <div class="category-chip" data-category="fun" onclick="selectCategory('pm','fun')"><span class="category-chip-icon">🎟️</span><span>Vui chơi</span></div>
+              <div class="category-chip" data-category="other" onclick="selectCategory('pm','other')"><span class="category-chip-icon">🧾</span><span>Khác</span></div>
+            </div>
+            <input type="hidden" id="pmCategory" value="food">
+          </div>
+
           <div class="option-group" style="margin-top: -5px; margin-bottom: 15px;">
             <label class="chip-checkbox">
               <input type="checkbox" id="pmIsEstimate" onchange="toggleEstimateMode('pm')">
@@ -615,7 +627,19 @@
         <div class="form-section-body">
           <div class="form-group"><label class="form-label">Mô tả</label><input class="form-input" id="editPmDesc"></div>
           <div class="form-group"><label class="form-label">Số tiền</label><input class="form-input" id="editPmAmount" type="number"></div>
-          
+
+          <div class="form-group">
+            <label class="form-label">Danh mục</label>
+            <div class="category-grid" id="editPmCategoryGrid">
+              <div class="category-chip selected" data-category="food" onclick="selectCategory('editPm','food')"><span class="category-chip-icon">🍔</span><span>Ăn uống</span></div>
+              <div class="category-chip" data-category="transport" onclick="selectCategory('editPm','transport')"><span class="category-chip-icon">🚕</span><span>Đi lại</span></div>
+              <div class="category-chip" data-category="hotel" onclick="selectCategory('editPm','hotel')"><span class="category-chip-icon">🏨</span><span>Khách sạn</span></div>
+              <div class="category-chip" data-category="fun" onclick="selectCategory('editPm','fun')"><span class="category-chip-icon">🎟️</span><span>Vui chơi</span></div>
+              <div class="category-chip" data-category="other" onclick="selectCategory('editPm','other')"><span class="category-chip-icon">🧾</span><span>Khác</span></div>
+            </div>
+            <input type="hidden" id="editPmCategory" value="food">
+          </div>
+
           <div class="form-group">
               <label class="form-label">Liên kết hoạt động</label>
               <select class="form-input" id="editPmLinkedActId" style="background: var(--surface2); color: var(--accent); font-weight: 600;">

@@ -61,7 +61,7 @@ var pendingReturnToHistoryIdx, playCinematicIntro, playTing, randomizeAvatarInMo
 var removeEditPmReceipt, removeFundQr, removeTripCover, renderCollection, renderGallery;
 var renderPackingList, renderPayments, renderTodayView, resetDayForm, resetEditDayForm, saveAvatar;
 var saveEditActivity, saveEditDay, saveEditMember, saveEditPayment, saveFundLink, saveLinkToAct;
-var savePackingItem, savePayment, saveTripInfo, saveTripLoc, selectAvatarSeed, selectCity;
+var savePackingItem, savePayment, saveTripInfo, saveTripLoc, selectAvatarSeed, selectCategory, selectCity;
 var setAdvanceOverviewFilter, setInitialEditorCode, setPaymentFilter, showToast, spinRandomizer, suppressNextDayClick;
 var switchGalleryTab, switchItineraryTab, switchRandomMode, switchSubTab, switchWelcomeTab, syncToFirebase;
 var toastTimer, toggleAllParticipants, toggleDayCollapse, toggleEditMultiPayerMode, toggleEstimateMode, toggleFab;
@@ -339,6 +339,24 @@ function getTripTheme() {
   const key = DATA && DATA.trip && DATA.trip.vibe ? DATA.trip.vibe : "beach";
   return TRIP_THEMES[key] || TRIP_THEMES.beach;
 }
+
+const EXPENSE_CATEGORIES = {
+  food: { icon: "🍔", label: "Ăn uống", color: "#f97316" },
+  transport: { icon: "🚕", label: "Đi lại", color: "#38bdf8" },
+  hotel: { icon: "🏨", label: "Khách sạn", color: "#a78bfa" },
+  fun: { icon: "🎟️", label: "Vui chơi", color: "#4ade80" },
+  other: { icon: "🧾", label: "Khác", color: "#94a3b8" }
+};
+
+window.selectCategory = selectCategory = (prefix, key) => {
+    const grid = document.getElementById(`${prefix}CategoryGrid`);
+    const input = document.getElementById(`${prefix}Category`);
+    if (!grid || !input) return;
+    grid.querySelectorAll('.category-chip').forEach(chip => {
+        chip.classList.toggle('selected', chip.getAttribute('data-category') === key);
+    });
+    input.value = key;
+};
 
 function applyTripTheme() {
   const theme = getTripTheme();
@@ -1303,6 +1321,24 @@ window.renderPayments = renderPayments = (flash = false) => {
         }
     }
 
+    // --- BIỂU ĐỒ TRÒN: CHI TIÊU THEO DANH MỤC ---
+    const categoryTotals = {};
+    payments.forEach(p => {
+        if (p.isPaid && !p.isEstimate) {
+            const key = p.category && EXPENSE_CATEGORIES[p.category] ? p.category : 'other';
+            categoryTotals[key] = (categoryTotals[key] || 0) + (p.amount || 0);
+        }
+    });
+    const catEntries = Object.entries(categoryTotals).filter(([, amt]) => amt > 0).sort((a, b) => b[1] - a[1]);
+    const catTotal = catEntries.reduce((s, [, amt]) => s + amt, 0);
+    let catCumulative = 0;
+    const pieGradient = catEntries.map(([key, amt]) => {
+        const pct = catTotal > 0 ? (amt / catTotal) * 100 : 0;
+        const start = catCumulative;
+        catCumulative += pct;
+        return `${EXPENSE_CATEGORIES[key].color} ${start}% ${catCumulative}%`;
+    }).join(', ');
+
     const styleTag = `
     <style>
         @keyframes vibrate { 0%{transform:translate(0)} 25%{transform:translate(-2px,2px)} 50%{transform:translate(2px,-2px)} 75%{transform:translate(-2px,-2px)} 100%{transform:translate(0)} }
@@ -1386,6 +1422,31 @@ window.renderPayments = renderPayments = (flash = false) => {
                 </div>
             ` : ''}
         </div>
+
+        ${catEntries.length ? `
+        <div class="metric-card stat-card wide" style="padding: 20px; border-radius: 20px; margin-bottom: 25px;">
+            <div class="section-header section-title" style="margin: 0 0 15px; border: none; padding: 0;">🍕 Chi tiêu theo danh mục</div>
+            <div class="db-container">
+                <div class="db-chart" style="background: conic-gradient(${pieGradient}); box-shadow: 0 0 20px rgba(0,0,0,0.3);">
+                    <div style="width: 70px; height: 70px; border-radius: 50%; background: #0a0a0a; display: flex; flex-direction: column; align-items: center; justify-content: center; line-height: 1;">
+                        <span style="font-size: 0.78rem; font-weight: 900; color: var(--text);">${formatVND(catTotal)}</span>
+                    </div>
+                </div>
+                <div class="db-stats">
+                    ${catEntries.map(([key, amt]) => {
+                        const cat = EXPENSE_CATEGORIES[key];
+                        const pct = catTotal > 0 ? Math.round((amt / catTotal) * 100) : 0;
+                        return `<div style="display: flex; align-items: center; gap: 8px; font-size: 0.68rem;">
+                            <span style="width: 10px; height: 10px; border-radius: 50%; background: ${cat.color}; flex-shrink: 0;"></span>
+                            <span style="flex: 1; color: var(--text2);">${cat.icon} ${cat.label}</span>
+                            <span style="font-weight: 800; color: ${cat.color};">${pct}%</span>
+                            <span style="color: var(--text3); min-width: 72px; text-align: right;">${formatVND(amt)}</span>
+                        </div>`;
+                    }).join('')}
+                </div>
+            </div>
+        </div>
+        ` : ''}
     `;
 
     if (!payments.length) { 
@@ -3537,6 +3598,8 @@ window.savePayment = savePayment = () => {
     const desc = document.getElementById('pmDesc').value.trim();
     const amount = parseFloat(document.getElementById('pmAmount').value) || 0;
     const isEstimate = document.getElementById('pmIsEstimate').checked;
+    const categoryInput = document.getElementById('pmCategory');
+    const category = (categoryInput && categoryInput.value) || 'other';
 
     if (!desc || amount <= 0) return showToast("Nhập mô tả và số tiền", "error");
 
@@ -3584,7 +3647,7 @@ window.savePayment = savePayment = () => {
         const receiptUrl = document.getElementById('pmReceiptUrl').value;
 
         // 3. LƯU VÀO DATA
-        const newPayment = { desc, amount, payer, isPaid, fromFund, participants, linkedActId: actId, isEstimate, receiptUrl };
+        const newPayment = { desc, amount, category, payer, isPaid, fromFund, participants, linkedActId: actId, isEstimate, receiptUrl };
         if (multiPayers) newPayment.multiPayers = multiPayers; // Nhúng cục góp chung vào dữ liệu
         
         DATA.payments.push(newPayment);
@@ -3738,6 +3801,7 @@ window.openEditPayment = openEditPayment = (i) => {
   document.getElementById('editPmIdx').value = i;
   document.getElementById('editPmDesc').value = p.desc;
   document.getElementById('editPmAmount').value = p.amount;
+  selectCategory('editPm', p.category && EXPENSE_CATEGORIES[p.category] ? p.category : 'other');
 
   // Bơm dữ liệu hoạt động vào dropdown
   const actSelect = document.getElementById('editPmLinkedActId');
@@ -3841,6 +3905,8 @@ window.saveEditPayment = saveEditPayment = () => {
     const amount = parseFloat(document.getElementById('editPmAmount').value) || 0;
     const isEstimate = document.getElementById('editPmIsEstimate').checked;
     const editPmReceiptUrl = document.getElementById('editPmReceiptUrl').value;
+    const editCategoryInput = document.getElementById('editPmCategory');
+    const category = (editCategoryInput && editCategoryInput.value) || 'other';
 
     if (!desc || amount <= 0) return showToast("Nhập mô tả và số tiền", "error");
     
@@ -3877,10 +3943,10 @@ window.saveEditPayment = saveEditPayment = () => {
 
     try {
         const keptLinkedActId = document.getElementById('editPmLinkedActId').value;
-        const updatedPayment = { 
-            desc, amount, payer, isPaid, fromFund, 
-            participants, linkedActId: keptLinkedActId, 
-            isEstimate, receiptUrl: editPmReceiptUrl 
+        const updatedPayment = {
+            desc, amount, category, payer, isPaid, fromFund,
+            participants, linkedActId: keptLinkedActId,
+            isEstimate, receiptUrl: editPmReceiptUrl
         };
         
         if (multiPayers) updatedPayment.multiPayers = multiPayers;
@@ -4464,6 +4530,7 @@ window.openAddPaymentModal = openAddPaymentModal = (prefillName = "", linkedActI
   
     document.getElementById('pmDesc').value = prefillName;
     document.getElementById('pmAmount').value = '';
+    selectCategory('pm', 'food');
     if(document.getElementById('pmLinkedActId')) document.getElementById('pmLinkedActId').value = linkedActId;
     
     // Mặc định reset Dự trù về Tắt
