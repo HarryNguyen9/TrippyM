@@ -75,6 +75,22 @@ var uploadTripCover, viewPublicTrip;
 // TỪ ĐÂY TRỞ XUỐNG: TOÀN BỘ LOGIC GỐC CỦA APP (không đổi 1 dòng nào)
 // =====================================================================
 
+// --- Khôi phục hành vi "classic script": tự động gắn các function
+// declaration top-level vào window (giống hệt cách trình duyệt tự làm
+// với <script> thường, nhưng ES module thì KHÔNG tự làm việc này).
+// Bắt buộc phải có để các đoạn code sau này (vd: monkey-patch renderAll,
+// closeModal...) đọc được window.tenHam gốc mà không bị undefined. ---
+  window._doConnect = _doConnect; window.applyTripTheme = applyTripTheme; window.applyVNDFormat = applyVNDFormat; window.autoJoinTripFromUrl = autoJoinTripFromUrl; window.autoSync = autoSync; window.cleanupPendingActivityExpense = cleanupPendingActivityExpense;
+  window.closeModal = closeModal; window.computeAdvanceOverviewData = computeAdvanceOverviewData; window.esc = esc; window.formatVND = formatVND; window.getActivityDateTime = getActivityDateTime; window.getDayCollapseKey = getDayCollapseKey;
+  window.getDaySmartStatus = getDaySmartStatus; window.getEmojiForCode = getEmojiForCode; window.getFundRemaining = getFundRemaining; window.getOverviewCurrentDayLabel = getOverviewCurrentDayLabel; window.getOverviewNextActivity = getOverviewNextActivity; window.getPaymentActivityContext = getPaymentActivityContext;
+  window.getPaymentFromFundText = getPaymentFromFundText; window.getPaymentPayerText = getPaymentPayerText; window.getSafeExcelName = getSafeExcelName; window.getTodayPayments = getTodayPayments; window.getTodayTripContext = getTodayTripContext; window.getTripDayEntries = getTripDayEntries;
+  window.getTripTheme = getTripTheme; window.getUrlTripCode = getUrlTripCode; window.guidedEmptyState = guidedEmptyState; window.init = init; window.initDraggableModals = initDraggableModals; window.isModalContentScrolled = isModalContentScrolled;
+  window.isSameCalendarDay = isSameCalendarDay; window.isTripEditable = isTripEditable; window.openModal = openModal; window.parseTripDateValue = parseTripDateValue; window.renderAdvanceOverview = renderAdvanceOverview; window.renderAll = renderAll;
+  window.renderItinerary = renderItinerary; window.resetActivityExpenseFlowUI = resetActivityExpenseFlowUI; window.resetLightboxZoom = resetLightboxZoom; window.resetModalScroll = resetModalScroll; window.save = save; window.setupNav = setupNav;
+  window.setupTimePicker = setupTimePicker; window.showApp = showApp; window.showWelcome = showWelcome; window.startRealtimeListener = startRealtimeListener; window.stopRealtimeListener = stopRealtimeListener; window.updateTripCountdown = updateTripCountdown;
+  window.updateTripCoverPreview = updateTripCoverPreview; window.updateTripOverview = updateTripOverview; window.updateUrlTripCode = updateUrlTripCode; window.verifyRole = verifyRole;
+
+
 async function loadPublicTrips() {
   if (!window._firebaseDb) return;
   const sdk = window._fbSDK;
