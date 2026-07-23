@@ -339,6 +339,20 @@
         Lấy key miễn phí tại <a href="https://aistudio.google.com/apikey" target="_blank" rel="noopener noreferrer" style="color: var(--accent);">aistudio.google.com/apikey</a>. Key riêng chỉ lưu cục bộ trên trình duyệt này, không đồng bộ lên server hay chia sẻ với người khác.
       </div>
     </div>
+
+    <div style="height: 1px; background: rgba(255,255,255,0.06); margin: 15px 0;"></div>
+
+    <div class="form-group">
+      <label class="form-label">MODEL AI (ĐỔI KHI BỊ LỖI HẾT QUOTA)</label>
+      <div style="display: flex; gap: 8px;">
+        <input class="form-input" id="settingGeminiModel" placeholder="gemini-2.0-flash" style="flex: 1;">
+        <button class="btn btn-primary" onclick="saveGeminiModel()" style="width: auto; padding: 0 15px;">💾</button>
+      </div>
+      <div style="font-size: 0.65rem; color: var(--text3); margin-top: 6px; line-height: 1.5;">
+        Nếu gặp lỗi "exceeded quota" / "limit: 0" nghĩa là tài khoản Google của bạn chưa được cấp quota free cho model đó — hãy thử đổi tên model khác (vd. <code>gemini-2.5-flash</code>, <code>gemini-flash-latest</code>) hoặc kiểm tra billing tại <a href="https://aistudio.google.com/apikey" target="_blank" rel="noopener noreferrer" style="color: var(--accent);">Google AI Studio</a>. Để trống rồi lưu để dùng lại model mặc định.
+      </div>
+    </div>
+
     <button class="btn" style="background: var(--surface2); color: var(--accent); border: 1px dashed var(--accent);" onclick="askAiSuggestions()">
       🤖 Hỏi AI: Món ngon &amp; địa điểm hot tại <span id="aiTripLocLabel">chuyến đi này</span>
     </button>

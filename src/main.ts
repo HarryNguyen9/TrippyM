@@ -53,7 +53,7 @@ var enableEditName, exitRoom, exportItineraryToImage, exportMasterDataToExcel, e
 var exportPaymentsToExcel, finalActId, getLinkedPaymentIndices, handleQrUpload, importMasterDataFromExcel, initSwipeActions;
 var isEditMultiPayerMode, isMultiPayerMode, isOpeningExpenseFlow, isSavingActivityFlow, isUploadingImage, joinTrip;
 var loadWeatherForItinerary, logoutEditor, manualDayCollapseState, moveGalleryItem, niceConfirm, nicePrompt;
-var askAiSuggestions, clearGeminiKey, saveGeminiKey;
+var askAiSuggestions, clearGeminiKey, saveGeminiKey, saveGeminiModel;
 var openActModal, openAddActivityChoose, openAddMemberModal, openAddModal, openAddPaymentModal, openAdvanceOverviewModal;
 var openAvatarModal, openDayExpenseModal, openEditActivity, openEditDay, openEditMember, openEditPayment;
 var openExpenseFlow, openFullScheduleFromToday, openFundLink, openHistoryModal, openLightbox, openLinkToActModal;
@@ -360,8 +360,9 @@ window.selectCategory = selectCategory = (prefix, key) => {
 };
 
 // --- 🤖 TRỢ LÝ AI (GEMINI) — GỢI Ý MÓN NGON / ĐỊA ĐIỂM HOT ---
-const GEMINI_MODEL = 'gemini-2.0-flash';
+const GEMINI_MODEL_DEFAULT = 'gemini-2.0-flash';
 const GEMINI_KEY_STORAGE = 'gemini_api_key';
+const GEMINI_MODEL_STORAGE = 'gemini_model_override';
 // Key cấu hình sẵn qua Environment Variable trên Vercel (build-time, nhúng vào bundle JS công khai).
 const GEMINI_ENV_KEY = (import.meta.env.VITE_GEMINI_API_KEY || '').trim();
 let _aiSuggestCache = {};
@@ -375,9 +376,16 @@ function getGeminiApiKey() {
     return getManualGeminiKey() || GEMINI_ENV_KEY;
 }
 
+// Cho phép người dùng tự đổi model (vd. khi model mặc định bị hết quota trên tài khoản của họ).
+function getGeminiModel() {
+    return (localStorage.getItem(GEMINI_MODEL_STORAGE) || '').trim() || GEMINI_MODEL_DEFAULT;
+}
+
 function refreshGeminiKeyUI() {
     const input = document.getElementById('settingGeminiKey');
     const status = document.getElementById('geminiKeyStatus');
+    const modelInput = document.getElementById('settingGeminiModel');
+    if (modelInput) modelInput.value = getGeminiModel();
     if (!input) return;
     const hasManual = !!getManualGeminiKey();
     input.value = '';
@@ -395,6 +403,19 @@ window.saveGeminiKey = saveGeminiKey = () => {
     if (!val) return showToast("Vui lòng nhập API Key trước khi lưu", "error");
     localStorage.setItem(GEMINI_KEY_STORAGE, val);
     showToast("Đã lưu Gemini API Key riêng trên máy này", "success");
+    refreshGeminiKeyUI();
+};
+
+window.saveGeminiModel = saveGeminiModel = () => {
+    const input = document.getElementById('settingGeminiModel');
+    const val = input ? input.value.trim() : '';
+    if (!val) {
+        localStorage.removeItem(GEMINI_MODEL_STORAGE);
+        showToast(`Đã reset về model mặc định (${GEMINI_MODEL_DEFAULT})`, "info");
+    } else {
+        localStorage.setItem(GEMINI_MODEL_STORAGE, val);
+        showToast(`Đã đổi sang model "${val}"`, "success");
+    }
     refreshGeminiKeyUI();
 };
 
@@ -459,7 +480,7 @@ Trả lời NGẮN GỌN bằng tiếng Việt. CHỈ trả về DUY NHẤT mộ
 [{"type":"food hoặc place","icon":"1 emoji phù hợp","name":"Tên món/địa điểm","desc":"Mô tả 1 câu ngắn dưới 20 từ"}]`;
 
     try {
-        const res = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/${GEMINI_MODEL}:generateContent?key=${encodeURIComponent(apiKey)}`, {
+        const res = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/${getGeminiModel()}:generateContent?key=${encodeURIComponent(apiKey)}`, {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({
