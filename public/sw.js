@@ -1,5 +1,11 @@
 const CACHE_NAME = 'trippy-v6'; // Đổi số này để ép máy cập nhật bản mới
-const assets = ['./', './index.html', './manifest.json', './config.js', './image.png'];
+// LƯU Ý: sau khi build bằng Vite, file JS/CSS chính sẽ có tên dạng
+// /assets/main-[hash].js (hash đổi mỗi lần build) nên không thể liệt kê cứng
+// ở đây. File này vẫn được cache tự động ở lần đầu người dùng mở app
+// (nhờ browser cache HTTP), nhưng sẽ KHÔNG được precache offline ngay từ
+// install như trước. Nếu cần precache đầy đủ 100% offline-first, nên dùng
+// plugin "vite-plugin-pwa" để tự sinh sw.js với danh sách file đã build.
+const assets = ['./', './index.html', './manifest.json', './image.png'];
 
 self.addEventListener('install', (e) => {
     e.waitUntil(caches.open(CACHE_NAME).then((cache) => cache.addAll(assets)));
