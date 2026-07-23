@@ -53,6 +53,7 @@ var enableEditName, exitRoom, exportItineraryToImage, exportMasterDataToExcel, e
 var exportPaymentsToExcel, finalActId, getLinkedPaymentIndices, handleQrUpload, importMasterDataFromExcel, initSwipeActions;
 var isEditMultiPayerMode, isMultiPayerMode, isOpeningExpenseFlow, isSavingActivityFlow, isUploadingImage, joinTrip;
 var loadWeatherForItinerary, logoutEditor, manualDayCollapseState, moveGalleryItem, niceConfirm, nicePrompt;
+var askAiSuggestions, clearGeminiKey, saveGeminiKey;
 var openActModal, openAddActivityChoose, openAddMemberModal, openAddModal, openAddPaymentModal, openAdvanceOverviewModal;
 var openAvatarModal, openDayExpenseModal, openEditActivity, openEditDay, openEditMember, openEditPayment;
 var openExpenseFlow, openFullScheduleFromToday, openFundLink, openHistoryModal, openLightbox, openLinkToActModal;
@@ -356,6 +357,117 @@ window.selectCategory = selectCategory = (prefix, key) => {
         chip.classList.toggle('selected', chip.getAttribute('data-category') === key);
     });
     input.value = key;
+};
+
+// --- 🤖 TRỢ LÝ AI (GEMINI) — GỢI Ý MÓN NGON / ĐỊA ĐIỂM HOT ---
+const GEMINI_MODEL = 'gemini-2.0-flash';
+const GEMINI_KEY_STORAGE = 'gemini_api_key';
+let _aiSuggestCache = {};
+
+function getGeminiApiKey() {
+    return (localStorage.getItem(GEMINI_KEY_STORAGE) || '').trim();
+}
+
+window.saveGeminiKey = saveGeminiKey = () => {
+    const input = document.getElementById('settingGeminiKey');
+    const val = input ? input.value.trim() : '';
+    if (!val) return showToast("Vui lòng nhập API Key trước khi lưu", "error");
+    localStorage.setItem(GEMINI_KEY_STORAGE, val);
+    input.value = '';
+    input.placeholder = '••••••••• (Đã lưu — dán key mới để đổi)';
+    showToast("Đã lưu Gemini API Key trên máy này", "success");
+};
+
+window.clearGeminiKey = clearGeminiKey = () => {
+    localStorage.removeItem(GEMINI_KEY_STORAGE);
+    const input = document.getElementById('settingGeminiKey');
+    if (input) { input.value = ''; input.placeholder = 'Dán API Key Gemini...'; }
+    showToast("Đã xóa API Key khỏi máy này", "info");
+};
+
+function renderAiSuggestList(items) {
+    const listEl = document.getElementById('aiSuggestList');
+    if (!listEl) return;
+    if (!Array.isArray(items) || !items.length) {
+        listEl.innerHTML = `<div class="today-muted">AI chưa tìm ra gợi ý nào, thử lại xem!</div>`;
+        return;
+    }
+    listEl.innerHTML = items.map(item => `
+        <div class="ai-suggest-item">
+            <div class="ai-suggest-icon">${esc(item.icon || (item.type === 'food' ? '🍜' : '📍'))}</div>
+            <div class="ai-suggest-body">
+                <div class="ai-suggest-name">${esc(item.name || '')}</div>
+                <div class="ai-suggest-desc">${esc(item.desc || '')}</div>
+            </div>
+        </div>
+    `).join('');
+}
+
+window.askAiSuggestions = askAiSuggestions = async (forceRefresh = false) => {
+    const location = ((DATA && DATA.trip && DATA.trip.location) || '').trim();
+    if (!location) {
+        showToast("Chuyến đi chưa có địa điểm! Vào Cài đặt để nhập trước.", "info");
+        return;
+    }
+
+    const apiKey = getGeminiApiKey();
+    if (!apiKey) {
+        showToast("Chưa có Gemini API Key! Vào Cài đặt để dán key trước.", "error");
+        openSettingsPage();
+        return;
+    }
+
+    openModal('aiSuggestModal');
+    const locLabel = document.getElementById('aiSuggestLocation');
+    if (locLabel) locLabel.textContent = location;
+
+    const listEl = document.getElementById('aiSuggestList');
+    const cacheKey = location.toLowerCase();
+
+    if (!forceRefresh && _aiSuggestCache[cacheKey]) {
+        renderAiSuggestList(_aiSuggestCache[cacheKey]);
+        return;
+    }
+
+    if (listEl) listEl.innerHTML = `
+        <div style="text-align:center; padding: 30px 10px; color: var(--text3);">
+            <div style="font-size: 2rem; margin-bottom: 10px;">🤖</div>
+            <div style="font-size: 0.8rem;">Đang hỏi AI về ${esc(location)}...</div>
+        </div>`;
+
+    const prompt = `Bạn là trợ lý du lịch. Gợi ý 6 mục HOT nhất khi đi du lịch tại "${location}" (Việt Nam), trộn giữa món ăn đặc sản ngon và địa điểm vui chơi/tham quan nổi tiếng.
+Trả lời NGẮN GỌN bằng tiếng Việt. CHỈ trả về DUY NHẤT một JSON array (không markdown, không giải thích thêm), đúng cấu trúc:
+[{"type":"food hoặc place","icon":"1 emoji phù hợp","name":"Tên món/địa điểm","desc":"Mô tả 1 câu ngắn dưới 20 từ"}]`;
+
+    try {
+        const res = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/${GEMINI_MODEL}:generateContent?key=${encodeURIComponent(apiKey)}`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+                contents: [{ parts: [{ text: prompt }] }],
+                generationConfig: { responseMimeType: 'application/json', temperature: 0.8 }
+            })
+        });
+
+        const data = await res.json();
+        if (!res.ok) throw new Error((data && data.error && data.error.message) || `Lỗi HTTP ${res.status}`);
+
+        const rawText = data?.candidates?.[0]?.content?.parts?.[0]?.text || '';
+        const items = JSON.parse(rawText);
+        if (!Array.isArray(items)) throw new Error("AI trả về sai định dạng");
+
+        _aiSuggestCache[cacheKey] = items;
+        renderAiSuggestList(items);
+
+    } catch (e) {
+        console.error(e);
+        if (listEl) listEl.innerHTML = `
+            <div style="text-align:center; padding: 30px 10px; color: var(--red);">
+                <div style="font-size: 2rem; margin-bottom: 10px;">😵</div>
+                <div style="font-size: 0.8rem; line-height:1.5;">Không hỏi được AI: ${esc(e.message || 'Lỗi không xác định')}</div>
+                <div style="font-size: 0.65rem; color: var(--text3); margin-top: 6px;">Kiểm tra lại API Key trong Cài đặt hoặc thử lại sau.</div>
+            </div>`;
+    }
 };
 
 function applyTripTheme() {
@@ -780,6 +892,9 @@ function renderAll(flashUpdate = false) {
   }
   // -------------------------
 
+  const aiLocLabel = document.getElementById('aiTripLocLabel');
+  if (aiLocLabel) aiLocLabel.textContent = DATA.trip.location || 'chuyến đi này';
+
   if (window.cancelEditName) cancelEditName();
   if (window.cancelEditCode) cancelEditCode();
   if (window.cancelEditLoc) cancelEditLoc();
@@ -1020,6 +1135,7 @@ window.renderTodayView = renderTodayView = () => {
               <button class="today-action-btn primary" ${canAddBill ? `onclick='openAddPaymentModal(${jsAttr(billName)}, ${jsAttr(billActId)})'` : 'disabled'}>💳 Thêm bill</button>
               <button class="today-action-btn" onclick="openModal('qrModal')">💸 QR quỹ</button>
               <button class="today-action-btn" onclick="openFullScheduleFromToday()">📅 Lịch đầy đủ</button>
+              <button class="today-action-btn" ${DATA.trip?.location ? `onclick="askAiSuggestions()"` : 'disabled'}>🤖 Gợi ý AI</button>
             </div>
           </div>
         </div>
@@ -6400,6 +6516,12 @@ window.openSettingsPage = openSettingsPage = () => {
   if (settingsPage) settingsPage.classList.add('active');
   currentPage = 'settings';
   if (window.updateManagementUI) window.updateManagementUI();
+
+  const geminiInput = document.getElementById('settingGeminiKey');
+  if (geminiInput) {
+      geminiInput.value = '';
+      geminiInput.placeholder = getGeminiApiKey() ? '••••••••• (Đã lưu — dán key mới để đổi)' : 'Dán API Key Gemini...';
+  }
 };
 
 window.niceConfirm = niceConfirm = (title, text, type = 'danger') => {

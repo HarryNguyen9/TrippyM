@@ -497,6 +497,34 @@ body.trip-finished .swipe-content {
     border-color: var(--accent);
 }
 
+/* --- GỢI Ý AI (MÓN NGON / ĐỊA ĐIỂM HOT) --- */
+.ai-suggest-item {
+    display: flex;
+    gap: 10px;
+    align-items: flex-start;
+    padding: 10px 12px;
+    background: var(--surface2);
+    border-radius: 12px;
+    margin-bottom: 8px;
+    border: 1px solid rgba(255,255,255,0.05);
+}
+.ai-suggest-icon {
+    font-size: 1.4rem;
+    flex-shrink: 0;
+    line-height: 1.2;
+}
+.ai-suggest-name {
+    font-weight: 700;
+    font-size: 0.8rem;
+    color: var(--text);
+    margin-bottom: 2px;
+}
+.ai-suggest-desc {
+    font-size: 0.7rem;
+    color: var(--text3);
+    line-height: 1.4;
+}
+
 *,*::before,*::after{box-sizing:border-box;margin:0;padding:0}
 :root{
   --bg:#0a0a0a;--surface:#141414;--surface2:#1c1c1c;--surface3:#242424;

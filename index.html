@@ -325,6 +325,24 @@
     </div>
   </div>
 
+  <div class="section-header section-title">🤖 Trợ lý AI (Gợi ý du lịch)</div>
+  <div class="trip-card" style="padding:16px;margin-bottom:12px;">
+    <div class="form-group">
+      <label class="form-label">GEMINI API KEY (LƯU RIÊNG TRÊN MÁY NÀY)</label>
+      <div style="display: flex; gap: 8px;">
+        <input class="form-input" id="settingGeminiKey" type="password" placeholder="Dán API Key Gemini..." style="flex: 1;">
+        <button class="btn btn-primary" onclick="saveGeminiKey()" style="width: auto; padding: 0 15px;">💾</button>
+        <button class="btn btn-secondary" onclick="clearGeminiKey()" style="width: auto; padding: 0 15px;">✖</button>
+      </div>
+      <div style="font-size: 0.65rem; color: var(--text3); margin-top: 6px; line-height: 1.5;">
+        Lấy key miễn phí tại <a href="https://aistudio.google.com/apikey" target="_blank" rel="noopener noreferrer" style="color: var(--accent);">aistudio.google.com/apikey</a>. Key chỉ lưu cục bộ trên trình duyệt này, không đồng bộ lên server hay chia sẻ với người khác.
+      </div>
+    </div>
+    <button class="btn" style="background: var(--surface2); color: var(--accent); border: 1px dashed var(--accent);" onclick="askAiSuggestions()">
+      🤖 Hỏi AI: Món ngon &amp; địa điểm hot tại <span id="aiTripLocLabel">chuyến đi này</span>
+    </button>
+  </div>
+
   <div class="section-header section-title editor-only">Thông tin chuyến đi</div>
   <div class="trip-card editor-only" style="padding:16px;margin-bottom:12px;">
     
@@ -723,6 +741,15 @@
 
     <button class="btn btn-primary" onclick="saveEditPayment()">Lưu thay đổi</button>
     <button class="btn btn-secondary" onclick="closeModal('editPaymentModal')" style="margin-top:8px">Hủy</button>
+  </div>
+</div>
+
+<div class="modal-overlay" id="aiSuggestModal">
+  <div class="modal bottom-sheet">
+    <div class="modal-title modal-title-balanced"><span class="title-icon">🤖</span><span>Gợi ý AI tại <span id="aiSuggestLocation">đây</span></span></div>
+    <div id="aiSuggestList" style="max-height: 55vh; overflow-y: auto; margin: 10px 0;"></div>
+    <button class="btn" style="background: var(--surface2); color: var(--accent); border: 1px dashed var(--accent); margin-bottom: 8px;" onclick="askAiSuggestions(true)">🔄 Tạo gợi ý mới</button>
+    <button class="btn btn-secondary" onclick="closeModal('aiSuggestModal')">Đóng</button>
   </div>
 </div>
 
