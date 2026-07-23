@@ -53,8 +53,9 @@ var enableEditName, exitRoom, exportItineraryToImage, exportMasterDataToExcel, e
 var exportPaymentsToExcel, finalActId, getLinkedPaymentIndices, handleQrUpload, importMasterDataFromExcel, initSwipeActions;
 var isEditMultiPayerMode, isMultiPayerMode, isOpeningExpenseFlow, isSavingActivityFlow, isUploadingImage, joinTrip;
 var loadWeatherForItinerary, logoutEditor, manualDayCollapseState, moveGalleryItem, niceConfirm, nicePrompt;
-var askAiSuggestions, clearGeminiKey, saveGeminiKey, saveGeminiModel;
+var askAiSuggestions, clearGeminiKey, generateAiItinerary, saveGeminiKey, saveGeminiModel;
 var openActModal, openAddActivityChoose, openAddMemberModal, openAddModal, openAddPaymentModal, openAdvanceOverviewModal;
+var openAiItineraryModal, selectAiItnStyle, updateAiItnNightsLabel;
 var openAvatarModal, openDayExpenseModal, openEditActivity, openEditDay, openEditMember, openEditPayment;
 var openExpenseFlow, openFullScheduleFromToday, openFundLink, openHistoryModal, openLightbox, openLinkToActModal;
 var openMapModal, openPackingModal, openRandomModal, openSettingsPage, openTotalExpenseModal, pendingReturnToAct;
@@ -173,8 +174,11 @@ let cityTimeout = null;
 async function handleCityInput(val) {
     const input = document.getElementById('settingTripLoc');
     const suggBox = document.getElementById('customSuggestions');
-    
-    if (val.trim().length < 2) { 
+
+    // Mỗi lần gõ tay là hủy xác nhận cũ — buộc phải bấm chọn lại từ danh sách gợi ý mới được Lưu.
+    window._locationConfirmed = false;
+
+    if (val.trim().length < 2) {
         suggBox.style.display = 'none'; 
         document.body.classList.remove('searching-city');
         return; 
@@ -246,6 +250,7 @@ window.selectCity = selectCity = (fullName, lat, lon) => {
     DATA.trip.fullAddress = fullName; // Lưu full chuẩn: "Da Lat, Lam Dong..."
     DATA.trip.lat = lat;
     DATA.trip.lon = lon;
+    window._locationConfirmed = true; // Đã chọn từ danh sách gợi ý -> hợp lệ để Lưu.
 
     save(); autoSync(); renderAll();
 };
@@ -458,6 +463,9 @@ window.askAiSuggestions = askAiSuggestions = async (forceRefresh = false) => {
         showToast("Chuyến đi chưa có địa điểm! Vào Cài đặt để nhập trước.", "info");
         return;
     }
+    // Dùng địa chỉ đầy đủ (có tỉnh/quốc gia, VD "Kon Tum, Kon Tum, Vietnam") thay vì chỉ tên ngắn
+    // để AI khỏi đoán mò khi tên ngắn trùng với địa điểm khác (VD "Ko" cũng khớp 1 vùng ở Nga).
+    const fullLocation = ((DATA.trip.fullAddress) || location).trim();
 
     const apiKey = getGeminiApiKey();
     if (!apiKey) {
@@ -471,7 +479,7 @@ window.askAiSuggestions = askAiSuggestions = async (forceRefresh = false) => {
     if (locLabel) locLabel.textContent = location;
 
     const listEl = document.getElementById('aiSuggestList');
-    const cacheKey = location.toLowerCase();
+    const cacheKey = fullLocation.toLowerCase();
 
     if (!forceRefresh && _aiSuggestCache[cacheKey]) {
         renderAiSuggestList(_aiSuggestCache[cacheKey]);
@@ -484,7 +492,7 @@ window.askAiSuggestions = askAiSuggestions = async (forceRefresh = false) => {
             <div style="font-size: 0.8rem;">Đang hỏi AI về ${esc(location)}...</div>
         </div>`;
 
-    const prompt = `Bạn là trợ lý du lịch. Gợi ý 6 mục HOT nhất khi đi du lịch tại "${location}" (Việt Nam), trộn giữa món ăn đặc sản ngon và địa điểm vui chơi/tham quan nổi tiếng.
+    const prompt = `Bạn là trợ lý du lịch. Gợi ý 6 mục HOT nhất khi đi du lịch tại "${fullLocation}" (xác định đúng địa danh này theo tên đầy đủ, không đoán sang địa danh khác trùng tên), trộn giữa món ăn đặc sản ngon và địa điểm vui chơi/tham quan nổi tiếng.
 Trả lời NGẮN GỌN bằng tiếng Việt. CHỈ trả về DUY NHẤT một JSON array (không markdown, không giải thích thêm), đúng cấu trúc:
 [{"type":"food hoặc place","icon":"1 emoji phù hợp","name":"Tên món/địa điểm","desc":"Mô tả 1 câu ngắn dưới 20 từ"}]`;
 
@@ -516,6 +524,155 @@ Trả lời NGẮN GỌN bằng tiếng Việt. CHỈ trả về DUY NHẤT mộ
                 <div style="font-size: 0.8rem; line-height:1.5;">Không hỏi được AI: ${esc(e.message || 'Lỗi không xác định')}</div>
                 <div style="font-size: 0.65rem; color: var(--text3); margin-top: 6px;">Kiểm tra lại API Key trong Cài đặt hoặc thử lại sau.</div>
             </div>`;
+    }
+};
+
+// --- 🤖 AI TỰ ĐỘNG LẬP LỊCH TRÌNH ---
+const AI_ITN_STYLE_LABELS = {
+    relax: 'Relax / nghỉ dưỡng — đi chậm, không dí giờ, ưu tiên thư giãn, ít di chuyển',
+    phuot: 'Đi phượt / khám phá — mạo hiểm, trải nghiệm nhiều địa điểm, lịch trình dày',
+    food: 'Ăn uống / food tour — ưu tiên quán ăn, đặc sản, món ngon nổi tiếng tại điểm đến'
+};
+
+window.selectAiItnStyle = selectAiItnStyle = (style) => {
+    const grid = document.getElementById('aiItnStyleGrid');
+    const input = document.getElementById('aiItnStyle');
+    if (!grid || !input) return;
+    grid.querySelectorAll('.category-chip').forEach(chip => {
+        chip.classList.toggle('selected', chip.getAttribute('data-style') === style);
+    });
+    input.value = style;
+};
+
+window.updateAiItnNightsLabel = updateAiItnNightsLabel = () => {
+    const daysInput = document.getElementById('aiItnDays');
+    const label = document.getElementById('aiItnNightsLabel');
+    if (!daysInput || !label) return;
+    const numDays = Math.max(1, Math.min(14, parseInt(daysInput.value, 10) || 1));
+    label.textContent = numDays <= 1 ? `${numDays} ngày` : `${numDays} ngày ${numDays - 1} đêm`;
+};
+
+window.openAiItineraryModal = openAiItineraryModal = () => {
+    const location = ((DATA && DATA.trip && DATA.trip.location) || '').trim();
+    if (!location) {
+        showToast("Chuyến đi chưa có địa điểm! Vào Cài đặt để nhập trước.", "info");
+        return;
+    }
+    if ((DATA.days || []).length > 0) {
+        showToast("Đã có lịch trình rồi — AI chỉ xếp lịch khi lịch trình đang trống.", "info");
+        return;
+    }
+
+    const locLabel = document.getElementById('aiItnLocationLabel');
+    if (locLabel) locLabel.textContent = location;
+
+    const daysInput = document.getElementById('aiItnDays');
+    if (daysInput) daysInput.value = 3;
+    updateAiItnNightsLabel();
+    selectAiItnStyle('relax');
+
+    const startInput = document.getElementById('aiItnStartDate');
+    if (startInput) {
+        const today = new Date();
+        startInput.value = `${today.getFullYear()}-${String(today.getMonth() + 1).padStart(2, '0')}-${String(today.getDate()).padStart(2, '0')}`;
+    }
+
+    openModal('aiItineraryModal');
+};
+
+window.generateAiItinerary = generateAiItinerary = async () => {
+    if (!isEditor) return;
+    if ((DATA.days || []).length > 0) {
+        return showToast("Đã có lịch trình rồi, không thể tạo chồng lên!", "error");
+    }
+
+    const numDays = Math.max(1, Math.min(14, parseInt(document.getElementById('aiItnDays').value, 10) || 3));
+    const startDateVal = document.getElementById('aiItnStartDate').value;
+    const style = (document.getElementById('aiItnStyle').value || 'relax').trim();
+    if (!startDateVal) return showToast("Vui lòng chọn ngày bắt đầu", "error");
+
+    const apiKey = getGeminiApiKey();
+    if (!apiKey) {
+        showToast("Chưa có Gemini API Key! Vào Cài đặt để dán key riêng, hoặc nhờ Admin cấu hình trên Vercel.", "error");
+        openSettingsPage();
+        return;
+    }
+
+    const location = ((DATA.trip.fullAddress) || (DATA.trip.location) || '').trim();
+    const styleLabel = AI_ITN_STYLE_LABELS[style] || AI_ITN_STYLE_LABELS.relax;
+
+    const btn = document.getElementById('btnGenerateAiItn');
+    const originalBtnHtml = btn ? btn.innerHTML : '';
+    if (btn) { btn.disabled = true; btn.innerHTML = '🤖 Đang xếp lịch, chờ chút...'; }
+
+    const prompt = `Bạn là hướng dẫn viên du lịch chuyên xếp lịch trình chi tiết. Hãy tạo lịch trình ${numDays} ngày ${Math.max(0, numDays - 1)} đêm tại "${location}" (xác định đúng địa danh này, không đoán sang nơi khác trùng tên), theo phong cách: ${styleLabel}.
+
+Yêu cầu:
+- Mỗi ngày có 4-6 mốc hoạt động theo giờ cụ thể dạng "HH:MM" (ví dụ 08:00, 12:00, 15:00, 19:00...), hợp lý theo nhịp sáng/trưa/chiều/tối.
+- Xen món ăn/quán ăn đặc sản và địa điểm tham quan/vui chơi thật, phù hợp phong cách đã chọn.
+- Tên hoạt động ngắn gọn, cụ thể, có tên riêng của quán/địa điểm nếu biết.
+- "location" là tên địa điểm ngắn để tìm trên Google Maps (để trống "" nếu không chắc).
+- "note" là mô tả/gợi ý ngắn dưới 15 từ (có thể để trống "").
+- Chỉ trả lời bằng tiếng Việt.
+
+CHỈ trả về DUY NHẤT 1 JSON array độ dài đúng ${numDays} (không markdown, không giải thích thêm), đúng cấu trúc:
+[{"title":"Chủ đề ngắn cho ngày (VD: Khám phá trung tâm)","activities":[{"time":"08:00","name":"Tên hoạt động","location":"Tên địa điểm","note":"Mô tả ngắn"}]}]`;
+
+    try {
+        const res = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/${getGeminiModel()}:generateContent?key=${encodeURIComponent(apiKey)}`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+                contents: [{ parts: [{ text: prompt }] }],
+                generationConfig: { responseMimeType: 'application/json', temperature: 0.9 }
+            })
+        });
+
+        const data = await res.json();
+        if (!res.ok) throw new Error((data && data.error && data.error.message) || `Lỗi HTTP ${res.status}`);
+
+        const rawText = data?.candidates?.[0]?.content?.parts?.[0]?.text || '';
+        const aiDays = JSON.parse(rawText);
+        if (!Array.isArray(aiDays) || !aiDays.length) throw new Error("AI trả về sai định dạng");
+
+        // Chốt chặn an toàn lần cuối trước khi ghi dữ liệu — tránh đè mất lịch trình
+        // nếu trong lúc chờ AI trả lời, có nơi khác (đồng bộ realtime) đã tạo ngày mới.
+        if ((DATA.days || []).length > 0) throw new Error("Lịch trình vừa được tạo ở nơi khác, hủy để tránh đè mất dữ liệu");
+
+        const [sy, sm, sd] = startDateVal.split('-').map(Number);
+        const startDate = new Date(sy, sm - 1, sd);
+
+        const newDays = aiDays.slice(0, numDays).map((d, i) => {
+            const dt = new Date(startDate);
+            dt.setDate(startDate.getDate() + i);
+            const dayMonth = `${String(dt.getDate()).padStart(2, '0')}/${String(dt.getMonth() + 1).padStart(2, '0')}`;
+
+            const activities = (Array.isArray(d && d.activities) ? d.activities : [])
+                .filter(a => a && a.name)
+                .map(a => ({
+                    id: 'act_' + Date.now() + '_' + Math.floor(Math.random() * 1000000),
+                    time: String(a.time || '08:00').trim(),
+                    name: String(a.name).trim(),
+                    location: String(a.location || '').trim(),
+                    note: String(a.note || '').trim()
+                }))
+                .sort((a, b) => (a.time || "").localeCompare(b.time || ""));
+
+            return { date: dayMonth, title: String((d && d.title) || '').trim(), activities };
+        });
+
+        DATA.days = newDays;
+        save();
+        autoSync();
+        renderAll();
+        closeModal('aiItineraryModal');
+        showToast(`🤖 Đã tạo lịch trình ${newDays.length} ngày!`, "success");
+
+    } catch (e) {
+        console.error(e);
+        showToast("Không tạo được lịch trình: " + (e.message || 'Lỗi không xác định'), "error");
+    } finally {
+        if (btn) { btn.disabled = false; btn.innerHTML = originalBtnHtml; }
     }
 };
 
@@ -1277,15 +1434,22 @@ function renderItinerary(flash = false) {
   const budget = DATA.payments ? DATA.payments.reduce((s,p) => s + (p.amount||0), 0) : 0;
   document.getElementById('totalBudget').textContent = formatVND(budget);
 
-  if (!days.length) { 
+  if (!days.length) {
+    const hasLocation = !!(DATA.trip && DATA.trip.location);
     list.innerHTML = guidedEmptyState({
       icon: "🗺",
       title: "Chưa có lịch trình",
       text: "Bắt đầu bằng cách thêm ngày đầu tiên cho chuyến đi.",
       actionText: "+ Thêm ngày đầu tiên",
       action: "resetDayForm(); openModal('dayModal')"
-    });
-    return; 
+    }) + (hasLocation ? `
+      <button class="btn editor-only" style="background: var(--surface2); color: var(--accent); border: 1px dashed var(--accent); margin-top: 10px;" onclick="openAiItineraryModal()">
+        🤖 Nhờ AI xếp lịch
+      </button>
+    ` : `
+      <div class="today-muted editor-only" style="text-align:center; margin-top: 10px;">💡 Nhập địa điểm ở Cài đặt để dùng tính năng AI xếp lịch tự động.</div>
+    `);
+    return;
   }
 
   // Sắp xếp mảng days theo trình tự thời gian
@@ -5289,6 +5453,8 @@ window.enableEditLoc = enableEditLoc = () => {
     document.getElementById('btnEditLoc').style.display = 'none';
     document.getElementById('btnSaveLoc').style.display = 'block';
     document.getElementById('btnCancelLoc').style.display = 'block';
+    // Giá trị hiện có (nếu có) coi như đã được xác nhận từ trước, cho phép lưu lại nguyên vẹn.
+    window._locationConfirmed = true;
 };
 
 window.cancelEditLoc = cancelEditLoc = () => {
@@ -5307,16 +5473,18 @@ window.cancelEditLoc = cancelEditLoc = () => {
 window.saveTripLoc = saveTripLoc = () => {
     if (!isEditor) return;
     const inputVal = document.getElementById('settingTripLoc').value.trim();
-    const suggBox = document.getElementById('customSuggestions');
-    
-    // NẾU BẢNG GỢI Ý ĐANG MỞ -> Bắt buộc phải bấm vào danh sách, không cho bấm Lưu tay
-    if (suggBox && suggBox.style.display === 'block') {
+
+    // Bắt buộc phải bấm chọn từ danh sách gợi ý (selectCity) mới coi là hợp lệ.
+    // Trước đây chỉ check "dropdown đang mở hay không" nên bị lách: gõ tay rồi bấm ra ngoài
+    // (dropdown tự đóng) hoặc bấm Lưu trước khi debounce fetch xong -> lưu được text mơ hồ
+    // (VD "Ko" thay vì chọn đúng "Kon Tum, Vietnam" hoặc 1 tỉnh Nga nào đó trùng tên).
+    if (inputVal && !window._locationConfirmed) {
         return showToast("⚠️ Vui lòng BẤM CHỌN một địa điểm từ danh sách gợi ý!", "error");
     }
-    
+
     // Nếu cố tình nhập tay khác đi, xóa luôn địa chỉ cũ để không bị râu ông nọ cắm cằm bà kia
     if (inputVal !== DATA.trip.location) {
-        DATA.trip.fullAddress = ""; 
+        DATA.trip.fullAddress = "";
     }
 
     DATA.trip.location = inputVal;

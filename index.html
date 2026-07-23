@@ -774,6 +774,40 @@
   </div>
 </div>
 
+<div class="modal-overlay" id="aiItineraryModal">
+  <div class="modal bottom-sheet">
+    <div class="modal-title modal-title-balanced"><span class="title-icon">🤖</span><span>AI xếp lịch tại <span id="aiItnLocationLabel">đây</span></span></div>
+
+    <div class="form-group">
+      <label class="form-label">Số ngày</label>
+      <input class="form-input" id="aiItnDays" type="number" min="1" max="14" value="3" oninput="updateAiItnNightsLabel()">
+      <div id="aiItnNightsLabel" style="font-size: 0.65rem; color: var(--accent); margin-top: 6px;">3 ngày 2 đêm</div>
+    </div>
+
+    <div class="form-group">
+      <label class="form-label">Ngày bắt đầu</label>
+      <input class="form-input" id="aiItnStartDate" type="date">
+    </div>
+
+    <div class="form-group">
+      <label class="form-label">Gu đi chơi</label>
+      <div class="category-grid" id="aiItnStyleGrid">
+        <div class="category-chip selected" data-style="relax" onclick="selectAiItnStyle('relax')"><span class="category-chip-icon">🌴</span><span>Relax</span></div>
+        <div class="category-chip" data-style="phuot" onclick="selectAiItnStyle('phuot')"><span class="category-chip-icon">🏔️</span><span>Đi phượt</span></div>
+        <div class="category-chip" data-style="food" onclick="selectAiItnStyle('food')"><span class="category-chip-icon">🍜</span><span>Ăn uống</span></div>
+      </div>
+      <input type="hidden" id="aiItnStyle" value="relax">
+    </div>
+
+    <div style="font-size: 0.65rem; color: var(--orange); margin-bottom: 12px; line-height: 1.5; background: rgba(255,165,0,0.06); border: 1px dashed var(--orange); border-radius: 10px; padding: 10px;">
+      ⚠️ Chỉ dùng được khi lịch trình đang trống — AI sẽ tạo mới hoàn toàn, không sửa được lịch đã có sẵn.
+    </div>
+
+    <button class="btn btn-primary" id="btnGenerateAiItn" onclick="generateAiItinerary()">🤖 Tạo lịch trình</button>
+    <button class="btn btn-secondary" onclick="closeModal('aiItineraryModal')" style="margin-top:8px">Hủy</button>
+  </div>
+</div>
+
 <div class="modal-overlay" id="linkToActModal">
   <div class="modal bottom-sheet">
     <div class="modal-title">🔗 Gắn vào lịch trình</div>
