@@ -479,6 +479,51 @@ function getChatModel() {
     return (localStorage.getItem(CHAT_MODEL_STORAGE) || '').trim() || CHAT_MODEL_DEFAULT;
 }
 
+// Danh sách model dự phòng dùng chung cho mọi tính năng gọi OpenRouter — nếu model chính (do người
+// dùng chọn hoặc mặc định) bị lỗi từ phía nhà cung cấp (quá tải, hết quota, "Provider returned error"...),
+// tự động thử lần lượt các model khác trước khi báo lỗi cho người dùng.
+const OPENROUTER_FALLBACK_POOL = [
+    'deepseek/deepseek-chat',
+    'deepseek/deepseek-chat-v3.1',
+    'qwen/qwen-2.5-72b-instruct',
+    'meta-llama/llama-3.1-8b-instruct'
+];
+
+// Gọi OpenRouter chat completions, tự động fallback sang model khác trong OPENROUTER_FALLBACK_POOL
+// nếu model chính lỗi. Trả về { content, modelUsed }; throw lỗi của lần thử CUỐI CÙNG nếu tất cả đều fail.
+async function callOpenRouterChat(apiKey, primaryModel, messages, xTitle) {
+    const modelsToTry = [primaryModel, ...OPENROUTER_FALLBACK_POOL.filter(m => m !== primaryModel)];
+    let lastError = null;
+
+    for (let i = 0; i < modelsToTry.length; i++) {
+        const model = modelsToTry[i];
+        try {
+            const res = await fetch('https://openrouter.ai/api/v1/chat/completions', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                    'Authorization': `Bearer ${apiKey}`,
+                    'HTTP-Referer': window.location.origin,
+                    'X-Title': xTitle
+                },
+                body: JSON.stringify({ model, messages })
+            });
+
+            const data = await res.json();
+            if (!res.ok) throw new Error((data && data.error && data.error.message) || `Lỗi HTTP ${res.status}`);
+
+            const content = (data?.choices?.[0]?.message?.content || '').trim();
+            if (!content) throw new Error("AI trả về nội dung trống");
+
+            return { content, modelUsed: model, usedFallback: i > 0 };
+        } catch (e) {
+            console.warn(`[OpenRouter] Model "${model}" lỗi, thử model dự phòng tiếp theo...`, e);
+            lastError = e;
+        }
+    }
+    throw lastError || new Error("Tất cả model đều lỗi");
+}
+
 function refreshOpenRouterKeyUI() {
     const status = document.getElementById('openRouterKeyStatus');
     const modelSelect = document.getElementById('settingOpenRouterModel');
@@ -687,24 +732,10 @@ window.sendChatMessage = sendChatMessage = async (hiddenPrompt, displayLabel) =>
     if (_chatHistory.length > 20) _chatHistory = _chatHistory.slice(-20);
 
     try {
-        const res = await fetch('https://openrouter.ai/api/v1/chat/completions', {
-            method: 'POST',
-            headers: {
-                'Content-Type': 'application/json',
-                'Authorization': `Bearer ${apiKey}`,
-                'HTTP-Referer': window.location.origin,
-                'X-Title': 'Trippy - AI Chat'
-            },
-            body: JSON.stringify({
-                model: getChatModel(),
-                messages: [{ role: 'system', content: buildTripSystemPrompt() }, ..._chatHistory]
-            })
-        });
+        const messages = [{ role: 'system', content: buildTripSystemPrompt() }, ..._chatHistory];
+        const { content } = await callOpenRouterChat(apiKey, getChatModel(), messages, 'Trippy - AI Chat');
 
-        const data = await res.json();
-        if (!res.ok) throw new Error((data && data.error && data.error.message) || `Lỗi HTTP ${res.status}`);
-
-        const reply = (data?.choices?.[0]?.message?.content || '').trim() || "Mình chưa nghĩ ra câu trả lời, bạn hỏi lại theo cách khác giúp mình nhé!";
+        const reply = content || "Mình chưa nghĩ ra câu trả lời, bạn hỏi lại theo cách khác giúp mình nhé!";
         _chatHistory.push({ role: 'assistant', content: reply });
         loadingBubble.classList.remove('loading');
         loadingBubble.textContent = reply;
@@ -721,46 +752,65 @@ window.sendChatMessage = sendChatMessage = async (hiddenPrompt, displayLabel) =>
 };
 
 // --- 🎤 GHI ÂM GIỌNG NÓI (Web Speech API — chỉ Chrome/Edge hỗ trợ ổn định) ---
+// Nhiều trình duyệt (Opera, Firefox, Safari...) có thể throw lỗi ngay khi khởi tạo/start()
+// dù có global webkitSpeechRecognition — bọc TOÀN BỘ trong try/catch để không bao giờ
+// "im lặng không phản hồi", luôn báo được cho người dùng biết chuyện gì đang xảy ra.
 window.toggleChatMic = toggleChatMic = () => {
-    const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
-    if (!SpeechRecognition) {
-        showToast("Trình duyệt này chưa hỗ trợ ghi âm giọng nói. Dùng Chrome/Edge nhé!", "error");
-        return;
-    }
     const micBtn = document.getElementById('chatMicBtn');
 
     if (_chatIsRecording && _chatRecognition) {
-        _chatRecognition.stop();
+        try { _chatRecognition.stop(); } catch (e) { console.error(e); }
+        _chatIsRecording = false;
+        if (micBtn) micBtn.classList.remove('recording');
         return;
     }
 
-    _chatRecognition = new SpeechRecognition();
-    _chatRecognition.lang = 'vi-VN';
-    _chatRecognition.interimResults = false;
-    _chatRecognition.maxAlternatives = 1;
+    try {
+        const SpeechRecognitionCtor = window.SpeechRecognition || window.webkitSpeechRecognition;
+        if (!SpeechRecognitionCtor) {
+            showToast("Trình duyệt này chưa hỗ trợ ghi âm giọng nói. Dùng Chrome/Edge nhé! (Opera/Firefox/Safari thường không hỗ trợ đầy đủ)", "error");
+            return;
+        }
 
-    _chatRecognition.onstart = () => {
-        _chatIsRecording = true;
-        if (micBtn) micBtn.classList.add('recording');
-    };
-    _chatRecognition.onresult = (event) => {
-        const transcript = event.results[0][0].transcript;
-        const input = document.getElementById('chatInput');
-        if (input) input.value = transcript;
-    };
-    _chatRecognition.onerror = (event) => {
-        showToast("Không nghe rõ, bạn thử lại nhé! (" + event.error + ")", "error");
-    };
-    _chatRecognition.onend = () => {
+        _chatRecognition = new SpeechRecognitionCtor();
+        _chatRecognition.lang = 'vi-VN';
+        _chatRecognition.interimResults = false;
+        _chatRecognition.maxAlternatives = 1;
+
+        _chatRecognition.onstart = () => {
+            _chatIsRecording = true;
+            if (micBtn) micBtn.classList.add('recording');
+        };
+        _chatRecognition.onresult = (event) => {
+            const transcript = event.results[0][0].transcript;
+            const input = document.getElementById('chatInput');
+            if (input) input.value = transcript;
+        };
+        _chatRecognition.onerror = (event) => {
+            console.error('SpeechRecognition error:', event.error);
+            const ERROR_MESSAGES = {
+                'not-allowed': "Bạn chưa cho phép dùng mic. Vào cài đặt trình duyệt cấp quyền Micrô cho trang này rồi thử lại.",
+                'service-not-allowed': "Trình duyệt này chặn dịch vụ nhận diện giọng nói (thường gặp ở Opera). Dùng Chrome/Edge nhé!",
+                'network': "Lỗi mạng khi nhận diện giọng nói, thử lại sau.",
+                'no-speech': "Không nghe thấy gì, bạn nói lại nhé!",
+                'audio-capture': "Không tìm thấy micro. Kiểm tra lại thiết bị ghi âm."
+            };
+            showToast(ERROR_MESSAGES[event.error] || `Lỗi ghi âm: ${event.error}`, "error");
+            _chatIsRecording = false;
+            if (micBtn) micBtn.classList.remove('recording');
+        };
+        _chatRecognition.onend = () => {
+            _chatIsRecording = false;
+            if (micBtn) micBtn.classList.remove('recording');
+        };
+
+        _chatRecognition.start();
+
+    } catch (e) {
+        console.error('Không khởi tạo được ghi âm:', e);
+        showToast("Trình duyệt này không hỗ trợ ghi âm giọng nói đầy đủ (thường gặp ở Opera). Dùng Chrome/Edge nhé!", "error");
         _chatIsRecording = false;
         if (micBtn) micBtn.classList.remove('recording');
-    };
-
-    try {
-        _chatRecognition.start();
-    } catch (e) {
-        console.error(e);
-        showToast("Không khởi động được ghi âm", "error");
     }
 };
 
@@ -2668,29 +2718,15 @@ Quỹ chung: đã thu ${formatVND(totalFund)}, đã dùng ${formatVND(totalUsed)
 
 ${statsText}
 
-Với MỖI thành viên, viết 1 câu tóm tắt ngắn gọn bằng tiếng Việt (dưới 25 từ) về tình hình đóng/tiêu/ứng của họ. Nếu số dư âm (đang nợ nhóm) thì nhắc nhẹ cần thanh toán lại cho nhóm. Giọng thân thiện, dùng emoji vừa phải.
+Với MỖI thành viên, viết 1-2 câu tóm tắt bằng tiếng Việt (dưới 40 từ), LUÔN nêu đủ 3 số cụ thể: đã đóng quỹ bao nhiêu, đã tiêu/thụ hưởng bao nhiêu, đã ứng hộ (nếu có), rồi mới kết luận số dư — TUYỆT ĐỐI không chỉ nói số dư/số nợ mà bỏ qua các số còn lại. Nếu số dư âm (đang nợ nhóm) thì nhắc nhẹ cần thanh toán lại cho nhóm. Giọng thân thiện, dùng emoji vừa phải.
+
+Ví dụ đúng cấu trúc câu (không copy nguyên văn, chỉ theo cấu trúc): "Đã đóng 200.000đ, tiêu hết 500.000đ → đang nợ nhóm 300.000đ, nhớ thanh toán sớm nhé 💳".
 
 CHỈ trả về DUY NHẤT 1 JSON array (không markdown, không giải thích thêm ngoài JSON), đủ tất cả ${stats.length} người, đúng thứ tự đã cho, đúng cấu trúc:
 [{"name":"Tên (giữ đúng như trong dữ liệu)","summary":"Câu tóm tắt"}]`;
 
-        const res = await fetch('https://openrouter.ai/api/v1/chat/completions', {
-            method: 'POST',
-            headers: {
-                'Content-Type': 'application/json',
-                'Authorization': `Bearer ${apiKey}`,
-                'HTTP-Referer': window.location.origin,
-                'X-Title': 'Trippy - AI Member Summary'
-            },
-            body: JSON.stringify({
-                model: getOpenRouterModel(),
-                messages: [{ role: 'user', content: prompt }]
-            })
-        });
+        const { content: rawContent } = await callOpenRouterChat(apiKey, getOpenRouterModel(), [{ role: 'user', content: prompt }], 'Trippy - AI Member Summary');
 
-        const data = await res.json();
-        if (!res.ok) throw new Error((data && data.error && data.error.message) || `Lỗi HTTP ${res.status}`);
-
-        const rawContent = data?.choices?.[0]?.message?.content || '';
         const parsed = extractJsonPayload(rawContent);
         const items = Array.isArray(parsed) ? parsed : (parsed && Array.isArray(parsed.items) ? parsed.items : null);
         if (!items) throw new Error("AI trả về sai định dạng");
@@ -6291,24 +6327,8 @@ Tối đa 10 món, không lặp ý. Mỗi món chỉ 2-5 từ, phần lý do dư
 Chỉ trả về DUY NHẤT 1 JSON array (không markdown, không giải thích thêm ngoài JSON), đúng cấu trúc:
 [{"name":"Tên món đồ","reason":"Lý do ngắn dựa vào lịch trình/thời tiết"}]`;
 
-        const res = await fetch('https://openrouter.ai/api/v1/chat/completions', {
-            method: 'POST',
-            headers: {
-                'Content-Type': 'application/json',
-                'Authorization': `Bearer ${apiKey}`,
-                'HTTP-Referer': window.location.origin,
-                'X-Title': 'Trippy - AI Packing List'
-            },
-            body: JSON.stringify({
-                model: getOpenRouterModel(),
-                messages: [{ role: 'user', content: prompt }]
-            })
-        });
+        const { content: rawContent } = await callOpenRouterChat(apiKey, getOpenRouterModel(), [{ role: 'user', content: prompt }], 'Trippy - AI Packing List');
 
-        const data = await res.json();
-        if (!res.ok) throw new Error((data && data.error && data.error.message) || `Lỗi HTTP ${res.status}`);
-
-        const rawContent = data?.choices?.[0]?.message?.content || '';
         const parsed = extractJsonPayload(rawContent);
         const items = Array.isArray(parsed) ? parsed : (parsed && Array.isArray(parsed.items) ? parsed.items : null);
         if (!items) throw new Error("AI trả về sai định dạng");
