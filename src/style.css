@@ -587,13 +587,13 @@ button{cursor:pointer}
 @keyframes fadeIn { to { opacity: 1; } }
 
 /* --- CITY SUGGESTION --- */
-#customSuggestions { display: none; position: absolute; left: 0; width: 100%; background: rgba(28, 28, 28, 0.98) !important; backdrop-filter: blur(15px); border: 1px solid var(--accent); z-index: 10000; max-height: 200px; overflow-y: auto; box-shadow: 0 10px 30px rgba(0,0,0,0.8); border-radius: 8px; }
+#customSuggestions, #aiItnSuggestions { display: none; position: absolute; left: 0; width: 100%; background: rgba(28, 28, 28, 0.98) !important; backdrop-filter: blur(15px); border: 1px solid var(--accent); z-index: 10000; max-height: 200px; overflow-y: auto; box-shadow: 0 10px 30px rgba(0,0,0,0.8); border-radius: 8px; }
 .suggestion-item { padding: 12px 16px; font-size: 0.85rem; color: var(--text2); cursor: pointer; border-bottom: 1px solid rgba(255, 255, 255, 0.05); transition: all 0.2s ease; display: flex; align-items: center; }
 .suggestion-item:before { content: '📍'; margin-right: 10px; font-size: 0.8rem; filter: grayscale(1); opacity: 0.6; }
 .suggestion-item:last-child { border-bottom: none; }
 .suggestion-item:hover { background: var(--accent-glow) !important; color: var(--accent) !important; padding-left: 20px; }
-#customSuggestions::-webkit-scrollbar { width: 5px; }
-#customSuggestions::-webkit-scrollbar-thumb { background: var(--accent); border-radius: 10px; }
+#customSuggestions::-webkit-scrollbar, #aiItnSuggestions::-webkit-scrollbar { width: 5px; }
+#customSuggestions::-webkit-scrollbar-thumb, #aiItnSuggestions::-webkit-scrollbar-thumb { background: var(--accent); border-radius: 10px; }
 body.searching-city { overflow: hidden !important; height: 100vh !important; touch-action: none; }
 
 /* --- TRIP COUNTDOWN --- */

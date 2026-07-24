@@ -171,45 +171,48 @@ async function loadPublicTrips() {
 // --- CITY SUGGESTION ---
 let cityTimeout = null;
 
-async function handleCityInput(val) {
-    const input = document.getElementById('settingTripLoc');
-    const suggBox = document.getElementById('customSuggestions');
+// targetInputId/suggBoxId cho phép tái sử dụng cùng bộ gợi ý địa điểm này ở nhiều nơi
+// (Settings và modal "AI xếp lịch") — mặc định giữ đúng hành vi cũ (ô Settings).
+async function handleCityInput(val, targetInputId = 'settingTripLoc', suggBoxId = 'customSuggestions') {
+    const input = document.getElementById(targetInputId);
+    const suggBox = document.getElementById(suggBoxId);
+    if (!input || !suggBox) return;
 
     // Mỗi lần gõ tay là hủy xác nhận cũ — buộc phải bấm chọn lại từ danh sách gợi ý mới được Lưu.
     window._locationConfirmed = false;
 
     if (val.trim().length < 2) {
-        suggBox.style.display = 'none'; 
+        suggBox.style.display = 'none';
         document.body.classList.remove('searching-city');
-        return; 
+        return;
     }
-    
+
     clearTimeout(cityTimeout);
     cityTimeout = setTimeout(async () => {
         try {
             const res = await fetch(`https://geocoding-api.open-meteo.com/v1/search?name=${encodeURIComponent(val)}&count=100&language=en&format=json`);
             const data = await res.json();
-            
+
             if (data.results) {
                 suggBox.innerHTML = data.results.map(city => {
                     const fullName = `${city.name}${city.admin1 ? ', '+city.admin1 : ''}, ${city.country}`;
-                    
+
                     // Xử lý an toàn: Chống lỗi nếu tên thành phố có dấu nháy đơn (VD: Côte d'Ivoire)
                     const safeFullName = fullName.replace(/'/g, "\\'");
-                    
+
                     // TRUYỀN ĐÚNG safeFullName VÀO ĐÂY
-                    return `<div class="suggestion-item" onclick="selectCity('${safeFullName}', ${city.latitude}, ${city.longitude})">${fullName}</div>`;
+                    return `<div class="suggestion-item" onclick="selectCity('${safeFullName}', ${city.latitude}, ${city.longitude}, '${targetInputId}', '${suggBoxId}')">${fullName}</div>`;
                 }).join('');
 
                 // HIỆN BẢNG TRƯỚC ĐỂ ĐO ĐƯỢC KÍCH THƯỚC
                 suggBox.style.display = 'block';
-                
+
                 // --- LOGIC TÍNH TOÁN VỊ TRÍ ---
                 const rect = input.getBoundingClientRect();
                 const spaceBelow = window.innerHeight - rect.bottom;
                 const boxHeight = suggBox.offsetHeight;
 
-                if (spaceBelow < boxHeight + 50) { 
+                if (spaceBelow < boxHeight + 50) {
                     // Nếu bên dưới không đủ chỗ (cách mép dưới < 50px), hiện lên trên
                     suggBox.style.top = 'auto';
                     suggBox.style.bottom = 'calc(100% + 5px)';
@@ -228,21 +231,25 @@ async function handleCityInput(val) {
 }
 window.handleCityInput = handleCityInput;
 
-// Hàm này chạy khi bạn bấm vào một dòng trong dropdown
-window.selectCity = selectCity = (fullName, lat, lon) => {
-    const input = document.getElementById('settingTripLoc');
+// Hàm này chạy khi bạn bấm vào một dòng trong dropdown.
+// Luôn ghi thẳng vào DATA.trip.location (giống hành vi cũ) — dù chọn từ ô Settings hay từ
+// modal "AI xếp lịch", chọn xong là coi như đã "Lưu" luôn địa điểm cho cả chuyến đi.
+window.selectCity = selectCity = (fullName, lat, lon, targetInputId = 'settingTripLoc', suggBoxId = 'customSuggestions') => {
+    const input = document.getElementById(targetInputId);
     const addressDetail = document.getElementById('locationFullAddress');
 
     const parts = fullName.split(',');
     const shortName = parts[0].trim();
-    
+
     // Ép lấy phần hậu tố, nếu không có thì để trống
     const suffix = parts.length > 1 ? parts.slice(1).join(',').trim() : "";
 
-    input.value = shortName;
-    if (addressDetail) addressDetail.textContent = suffix;
+    if (input) input.value = shortName;
+    // "locationFullAddress" chỉ tồn tại cạnh ô Settings, ô modal khác không có nên chỉ set khi có.
+    if (targetInputId === 'settingTripLoc' && addressDetail) addressDetail.textContent = suffix;
 
-    document.getElementById('customSuggestions').style.display = 'none';
+    const suggBox = document.getElementById(suggBoxId);
+    if (suggBox) suggBox.style.display = 'none';
     document.body.classList.remove('searching-city');
 
     if(!DATA.trip) DATA.trip = {};
@@ -255,14 +262,17 @@ window.selectCity = selectCity = (fullName, lat, lon) => {
     save(); autoSync(); renderAll();
 };
 
-// Đóng menu nếu người dùng bấm chuột ra ngoài vùng nhập liệu
+// Đóng menu nếu người dùng bấm chuột ra ngoài vùng nhập liệu (áp dụng cho cả 2 ô: Settings và modal AI xếp lịch)
 document.addEventListener('click', (e) => {
-    const suggBox = document.getElementById('customSuggestions');
-    const input = document.getElementById('settingTripLoc');
-    
-    // Nếu bấm ra ngoài vùng nhập liệu và bảng gợi ý
-    if (suggBox && !suggBox.contains(e.target) && e.target !== input) {
-        suggBox.style.display = 'none';
+    [['settingTripLoc', 'customSuggestions'], ['aiItnLocation', 'aiItnSuggestions']].forEach(([inputId, boxId]) => {
+        const suggBox = document.getElementById(boxId);
+        const input = document.getElementById(inputId);
+        if (suggBox && !suggBox.contains(e.target) && e.target !== input) {
+            suggBox.style.display = 'none';
+        }
+    });
+    if (!document.getElementById('customSuggestions')?.style.display?.includes('block') &&
+        !document.getElementById('aiItnSuggestions')?.style.display?.includes('block')) {
         document.body.classList.remove('searching-city'); // Hiện lại các nút
     }
 });
@@ -553,18 +563,16 @@ window.updateAiItnNightsLabel = updateAiItnNightsLabel = () => {
 };
 
 window.openAiItineraryModal = openAiItineraryModal = () => {
-    const location = ((DATA && DATA.trip && DATA.trip.location) || '').trim();
-    if (!location) {
-        showToast("Chuyến đi chưa có địa điểm! Vào Cài đặt để nhập trước.", "info");
-        return;
-    }
     if ((DATA.days || []).length > 0) {
         showToast("Đã có lịch trình rồi — AI chỉ xếp lịch khi lịch trình đang trống.", "info");
         return;
     }
 
-    const locLabel = document.getElementById('aiItnLocationLabel');
-    if (locLabel) locLabel.textContent = location;
+    const location = ((DATA && DATA.trip && DATA.trip.location) || '').trim();
+    const locInput = document.getElementById('aiItnLocation');
+    if (locInput) locInput.value = location;
+    // Địa điểm đã lưu sẵn của chuyến đi thì coi như hợp lệ luôn, không cần chọn lại từ gợi ý.
+    window._locationConfirmed = !!location;
 
     const daysInput = document.getElementById('aiItnDays');
     if (daysInput) daysInput.value = 3;
@@ -586,6 +594,16 @@ window.generateAiItinerary = generateAiItinerary = async () => {
         return showToast("Đã có lịch trình rồi, không thể tạo chồng lên!", "error");
     }
 
+    const locInput = document.getElementById('aiItnLocation');
+    const typedLoc = locInput ? locInput.value.trim() : '';
+    if (!typedLoc) return showToast("Vui lòng chọn địa điểm trước", "error");
+
+    // Bắt buộc phải bấm chọn từ danh sách gợi ý (giống ô Settings) nếu gõ địa điểm mới,
+    // tránh lưu 1 địa danh mơ hồ rồi AI đoán sai nơi khác trùng tên.
+    if (typedLoc !== (DATA.trip.location || '') && !window._locationConfirmed) {
+        return showToast("⚠️ Vui lòng BẤM CHỌN một địa điểm từ danh sách gợi ý!", "error");
+    }
+
     const numDays = Math.max(1, Math.min(14, parseInt(document.getElementById('aiItnDays').value, 10) || 3));
     const startDateVal = document.getElementById('aiItnStartDate').value;
     const style = (document.getElementById('aiItnStyle').value || 'relax').trim();
@@ -598,7 +616,9 @@ window.generateAiItinerary = generateAiItinerary = async () => {
         return;
     }
 
-    const location = ((DATA.trip.fullAddress) || (DATA.trip.location) || '').trim();
+    // selectCity() đã ghi thẳng vào DATA.trip khi bấm chọn gợi ý, nên đây luôn là dữ liệu mới nhất
+    // (tự động "cập nhật trong Settings luôn" như yêu cầu, không cần bước lưu riêng).
+    const location = ((DATA.trip.fullAddress) || (DATA.trip.location) || typedLoc).trim();
     const styleLabel = AI_ITN_STYLE_LABELS[style] || AI_ITN_STYLE_LABELS.relax;
 
     const btn = document.getElementById('btnGenerateAiItn');
@@ -1435,20 +1455,17 @@ function renderItinerary(flash = false) {
   document.getElementById('totalBudget').textContent = formatVND(budget);
 
   if (!days.length) {
-    const hasLocation = !!(DATA.trip && DATA.trip.location);
     list.innerHTML = guidedEmptyState({
       icon: "🗺",
       title: "Chưa có lịch trình",
       text: "Bắt đầu bằng cách thêm ngày đầu tiên cho chuyến đi.",
       actionText: "+ Thêm ngày đầu tiên",
       action: "resetDayForm(); openModal('dayModal')"
-    }) + (hasLocation ? `
+    }) + `
       <button class="btn editor-only" style="background: var(--surface2); color: var(--accent); border: 1px dashed var(--accent); margin-top: 10px;" onclick="openAiItineraryModal()">
         🤖 Nhờ AI xếp lịch
       </button>
-    ` : `
-      <div class="today-muted editor-only" style="text-align:center; margin-top: 10px;">💡 Nhập địa điểm ở Cài đặt để dùng tính năng AI xếp lịch tự động.</div>
-    `);
+    `;
     return;
   }
 

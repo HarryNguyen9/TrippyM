@@ -776,7 +776,15 @@
 
 <div class="modal-overlay" id="aiItineraryModal">
   <div class="modal bottom-sheet">
-    <div class="modal-title modal-title-balanced"><span class="title-icon">🤖</span><span>AI xếp lịch tại <span id="aiItnLocationLabel">đây</span></span></div>
+    <div class="modal-title modal-title-balanced"><span class="title-icon">🤖</span><span>AI xếp lịch trình</span></div>
+
+    <div class="form-group" style="position: relative;">
+      <label class="form-label">Địa điểm</label>
+      <div style="position: relative;">
+        <input class="form-input" id="aiItnLocation" placeholder="VD: Đà Lạt, Phú Quốc..." oninput="handleCityInput(this.value, 'aiItnLocation', 'aiItnSuggestions')" autocomplete="off">
+        <div id="aiItnSuggestions"></div>
+      </div>
+    </div>
 
     <div class="form-group">
       <label class="form-label">Số ngày</label>
