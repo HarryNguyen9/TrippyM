@@ -1155,8 +1155,9 @@ body.modal-open #fabContainer { display: none !important; }
 .chat-bubble.user { align-self: flex-end; background: var(--accent-glow); color: var(--accent); border-bottom-right-radius: 4px; }
 .chat-bubble.ai { align-self: flex-start; background: var(--surface2); color: var(--text); border-bottom-left-radius: 4px; }
 .chat-bubble.ai.loading { color: var(--text3); font-style: italic; }
-.chat-quick-chips { display: flex; gap: 8px; overflow-x: auto; padding: 8px 2px; scrollbar-width: none; flex-shrink: 0; }
+.chat-quick-chips { display: flex; gap: 8px; overflow-x: auto; padding: 8px 2px; scrollbar-width: none; flex-shrink: 0; cursor: grab; }
 .chat-quick-chips::-webkit-scrollbar { display: none; }
+.chat-quick-chips.dragging { cursor: grabbing; user-select: none; }
 .chat-chip { flex-shrink: 0; padding: 8px 14px; border-radius: 20px; background: var(--surface2); color: var(--accent); border: 1px solid rgba(232,197,71,0.25); font-size: 0.72rem; font-weight: 600; cursor: pointer; white-space: nowrap; transition: 0.2s; }
 .chat-chip:active { background: var(--accent-glow); }
 .chat-input-row { display: flex; gap: 8px; align-items: center; padding-top: 8px; border-top: 1px solid rgba(255,255,255,0.06); flex-shrink: 0; }

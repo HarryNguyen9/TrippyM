@@ -279,6 +279,44 @@ document.addEventListener('click', (e) => {
     }
 });
 
+// Cho phép kéo-chuột (click & drag) để cuộn ngang các dải nút trên PC — mobile đã tự vuốt được
+// bằng touch, nhưng PC không có cách nào cuộn ngang nếu chuột không có touchpad/nút cuộn ngang.
+function enableDragScroll(el) {
+    if (!el) return;
+    let isDown = false, startX = 0, startScroll = 0, moved = false;
+
+    el.addEventListener('mousedown', (e) => {
+        isDown = true;
+        moved = false;
+        startX = e.pageX;
+        startScroll = el.scrollLeft;
+        el.classList.add('dragging');
+    });
+    window.addEventListener('mousemove', (e) => {
+        if (!isDown) return;
+        const dx = e.pageX - startX;
+        if (Math.abs(dx) > 3) moved = true;
+        el.scrollLeft = startScroll - dx;
+    });
+    window.addEventListener('mouseup', () => {
+        isDown = false;
+        el.classList.remove('dragging');
+    });
+    // Chặn không cho tính là "bấm" nút bên trong nếu vừa mới kéo (tránh bấm nhầm chip khi thả chuột)
+    el.addEventListener('click', (e) => {
+        if (moved) { e.preventDefault(); e.stopPropagation(); }
+    }, true);
+    // Cho lăn chuột dọc cũng cuộn ngang được luôn, tiện với chuột thường không có touchpad ngang
+    el.addEventListener('wheel', (e) => {
+        if (Math.abs(e.deltaY) > Math.abs(e.deltaX)) {
+            el.scrollLeft += e.deltaY;
+            e.preventDefault();
+        }
+    }, { passive: false });
+}
+
+enableDragScroll(document.getElementById('chatQuickChips'));
+
 // --- XỬ LÝ NÚT SỬA TÊN CHUYẾN ĐI ---
 window.enableEditName = enableEditName = () => {
     window.cancelAllSettings(); // Đóng các ô khác trước khi mở ô này
