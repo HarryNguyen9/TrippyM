@@ -6072,10 +6072,20 @@ function renderAiPackingList(items) {
     `).join('');
 }
 
+let _isGeneratingPacking = false;
+const PACKING_BTN_DEFAULT_HTML = '🎒 AI gợi ý đồ';
+
 window.generatePackingChecklist = generatePackingChecklist = async () => {
     if (!isEditor) return;
     if (!DATA.days || !DATA.days.length) {
         showToast("Chưa có lịch trình để AI soi — thêm lịch trình trước đã!", "info");
+        return;
+    }
+
+    // Chặn gọi chồng: bấm "🔄 Tạo gợi ý mới" trong modal khi request trước còn đang chạy
+    // sẽ khiến nút header bị kẹt mãi ở trạng thái "Đang soi..." (race condition khi restore text).
+    if (_isGeneratingPacking) {
+        showToast("Đang soi rồi, chờ chút nhé!", "info");
         return;
     }
 
@@ -6095,7 +6105,7 @@ window.generatePackingChecklist = generatePackingChecklist = async () => {
         </div>`;
 
     const btn = document.getElementById('btnAiPackingSuggest');
-    const originalBtnHtml = btn ? btn.innerHTML : '';
+    _isGeneratingPacking = true;
     if (btn) { btn.disabled = true; btn.innerHTML = '🎒 Đang soi...'; }
 
     try {
@@ -6163,7 +6173,8 @@ Chỉ trả về DUY NHẤT 1 JSON array (không markdown, không giải thích 
                 <div style="font-size: 0.65rem; color: var(--text3); margin-top: 6px;">Kiểm tra lại API Key trong Cài đặt hoặc thử lại sau.</div>
             </div>`;
     } finally {
-        if (btn) { btn.disabled = false; btn.innerHTML = originalBtnHtml; }
+        _isGeneratingPacking = false;
+        if (btn) { btn.disabled = false; btn.innerHTML = PACKING_BTN_DEFAULT_HTML; }
     }
 };
 
