@@ -198,9 +198,12 @@
   </div>
 
   <div class="sub-tab-content" id="subtab-packing">
-    <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:12px;">
+    <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:12px; gap:8px; flex-wrap:wrap;">
       <div class="section-header section-title" style="margin:0;">Đồ dùng chung</div>
-      <button class="btn btn-primary editor-only" style="width:auto; padding:6px 12px; font-size:.7rem;" onclick="openPackingModal()">+ Thêm đồ</button>
+      <div style="display:flex; gap:8px;">
+        <button class="btn editor-only" id="btnAiPackingSuggest" style="width:auto; padding:6px 12px; font-size:.7rem; background:var(--surface2); color:var(--accent); border:1px dashed var(--accent);" onclick="generatePackingChecklist()">🎒 AI gợi ý đồ</button>
+        <button class="btn btn-primary editor-only" style="width:auto; padding:6px 12px; font-size:.7rem;" onclick="openPackingModal()">+ Thêm đồ</button>
+      </div>
     </div>
     <div id="packingListContainer"></div>
   </div>
@@ -328,19 +331,6 @@
   <div class="section-header section-title">🤖 Trợ lý AI (Gợi ý du lịch)</div>
   <div class="trip-card" style="padding:16px;margin-bottom:12px;">
     <div id="geminiKeyStatus" style="font-size: 0.68rem; color: var(--accent); margin-bottom: 10px; line-height: 1.5;"></div>
-    <div class="form-group" id="geminiManualKeyBlock">
-      <label class="form-label">API KEY RIÊNG (KHÔNG BẮT BUỘC — GHI ĐÈ KEY SERVER)</label>
-      <div style="display: flex; gap: 8px;">
-        <input class="form-input" id="settingGeminiKey" type="password" placeholder="Dán API Key riêng (không bắt buộc)..." style="flex: 1;">
-        <button class="btn btn-primary" onclick="saveGeminiKey()" style="width: auto; padding: 0 15px;">💾</button>
-        <button class="btn btn-secondary" onclick="clearGeminiKey()" style="width: auto; padding: 0 15px;">✖</button>
-      </div>
-      <div style="font-size: 0.65rem; color: var(--text3); margin-top: 6px; line-height: 1.5;">
-        Lấy key miễn phí tại <a href="https://aistudio.google.com/apikey" target="_blank" rel="noopener noreferrer" style="color: var(--accent);">aistudio.google.com/apikey</a>. Key riêng chỉ lưu cục bộ trên trình duyệt này, không đồng bộ lên server hay chia sẻ với người khác.
-      </div>
-    </div>
-
-    <div style="height: 1px; background: rgba(255,255,255,0.06); margin: 15px 0;"></div>
 
     <div class="form-group">
       <label class="form-label">MODEL AI (ĐỔI KHI BỊ LỖI HẾT QUOTA)</label>
@@ -362,6 +352,41 @@
     <button class="btn" style="background: var(--surface2); color: var(--accent); border: 1px dashed var(--accent);" onclick="askAiSuggestions()">
       🤖 Hỏi AI: Món ngon &amp; địa điểm hot tại <span id="aiTripLocLabel">chuyến đi này</span>
     </button>
+  </div>
+
+  <div class="section-header section-title">🎒💬 AI Checklist &amp; Chat (qua OpenRouter)</div>
+  <div class="trip-card" style="padding:16px;margin-bottom:12px;">
+    <div id="openRouterKeyStatus" style="font-size: 0.68rem; color: var(--accent); margin-bottom: 10px; line-height: 1.5;"></div>
+
+    <div class="form-group">
+      <label class="form-label">MODEL (ĐỔI KHI BỊ LỖI HẾT QUOTA)</label>
+      <select class="form-input" id="settingOpenRouterModel" onchange="saveOpenRouterModel()">
+        <option value="">Mặc định (deepseek/deepseek-chat)</option>
+        <option value="deepseek/deepseek-chat">deepseek/deepseek-chat</option>
+        <option value="deepseek/deepseek-chat-v3.1">deepseek/deepseek-chat-v3.1</option>
+        <option value="deepseek/deepseek-r1">deepseek/deepseek-r1</option>
+        <option value="deepseek/deepseek-r1:free">deepseek/deepseek-r1:free</option>
+      </select>
+      <div style="font-size: 0.65rem; color: var(--text3); margin-top: 6px; line-height: 1.5;">
+        Dùng cho tính năng "🎒 AI gợi ý đồ" ở tab Lịch trình → Hành trang — AI soi lịch trình + thời tiết để gợi ý đồ cần mang riêng cho chuyến đi này.
+      </div>
+    </div>
+
+    <div style="height: 1px; background: rgba(255,255,255,0.06); margin: 15px 0;"></div>
+
+    <div class="form-group">
+      <label class="form-label">MODEL CHO CHAT AI (ĐỔI KHI BỊ LỖI HẾT QUOTA)</label>
+      <select class="form-input" id="settingChatModel" onchange="saveChatModel()">
+        <option value="">Mặc định (qwen/qwen-2.5-72b-instruct)</option>
+        <option value="qwen/qwen-2.5-72b-instruct">qwen/qwen-2.5-72b-instruct</option>
+        <option value="qwen/qwen-2.5-7b-instruct">qwen/qwen-2.5-7b-instruct</option>
+        <option value="qwen/qwen3-32b">qwen/qwen3-32b</option>
+        <option value="qwen/qwen-plus">qwen/qwen-plus</option>
+      </select>
+      <div style="font-size: 0.65rem; color: var(--text3); margin-top: 6px; line-height: 1.5;">
+        Dùng cho nút 💬 Trợ lý AI (góc trái màn hình) — chat hỏi đáp về quỹ, lịch trình, ăn uống, an toàn của chuyến đi này.
+      </div>
+    </div>
   </div>
 
   <div class="section-header section-title editor-only">Thông tin chuyến đi</div>
@@ -816,6 +841,40 @@
   </div>
 </div>
 
+<div class="modal-overlay" id="aiPackingModal">
+  <div class="modal bottom-sheet">
+    <div class="modal-title modal-title-balanced"><span class="title-icon">🎒</span><span>AI gợi ý đồ cần mang</span></div>
+    <div id="aiPackingList" style="max-height: 55vh; overflow-y: auto; margin: 10px 0;"></div>
+    <button class="btn btn-primary" onclick="addSelectedAiPackingItems()">➕ Thêm món đã chọn vào Checklist</button>
+    <button class="btn" style="background: var(--surface2); color: var(--accent); border: 1px dashed var(--accent); margin-top: 8px;" onclick="generatePackingChecklist()">🔄 Tạo gợi ý mới</button>
+    <button class="btn btn-secondary" onclick="closeModal('aiPackingModal')" style="margin-top:8px">Đóng</button>
+  </div>
+</div>
+
+<div class="modal-overlay" id="chatAiModal">
+  <div class="modal bottom-sheet">
+    <div class="modal-title modal-title-balanced"><span class="title-icon">💬</span><span>Trợ lý AI chuyến đi</span></div>
+
+    <div class="chat-messages" id="chatMessages"></div>
+
+    <div class="chat-quick-chips" id="chatQuickChips">
+      <button class="chat-chip" onclick="sendChatQuickChip('fund')">📊 Tình hình Quỹ</button>
+      <button class="chat-chip" onclick="sendChatQuickChip('next')">📍 Tiếp theo đi đâu?</button>
+      <button class="chat-chip" onclick="sendChatQuickChip('food')">🍜 Gợi ý quán ăn gần đây</button>
+      <button class="chat-chip" onclick="sendChatQuickChip('safety')">🛡️ Cảnh báo điểm này</button>
+      <button class="chat-chip" onclick="sendChatQuickChip('expense_guide')">🧾 Hướng dẫn nhập tiền</button>
+    </div>
+
+    <div class="chat-input-row">
+      <button class="chat-mic-btn" id="chatMicBtn" onclick="toggleChatMic()">🎤</button>
+      <input class="form-input" id="chatInput" placeholder="Hỏi gì đó, hoặc gõ: chi ăn tối 150k..." onkeydown="if(event.key==='Enter'){sendChatMessageFromInput()}">
+      <button class="chat-send-btn" onclick="sendChatMessageFromInput()">➤</button>
+    </div>
+
+    <button class="btn btn-secondary" onclick="closeModal('chatAiModal')" style="margin-top:10px">Đóng</button>
+  </div>
+</div>
+
 <div class="modal-overlay" id="linkToActModal">
   <div class="modal bottom-sheet">
     <div class="modal-title">🔗 Gắn vào lịch trình</div>
@@ -1085,6 +1144,7 @@
 </div>
 
 <button class="fab-left" onclick="openRandomModal()">🎲</button>
+<button class="fab-left" id="fabChatBtn" style="bottom: 152px; background: var(--accent-glow); color: var(--accent); border: 1px solid var(--accent);" onclick="openChatModal()">💬</button>
 
 <div class="modal-overlay" id="randomModal">
   <div class="modal bottom-sheet">

@@ -53,7 +53,9 @@ var enableEditName, exitRoom, exportItineraryToImage, exportMasterDataToExcel, e
 var exportPaymentsToExcel, finalActId, getLinkedPaymentIndices, handleQrUpload, importMasterDataFromExcel, initSwipeActions;
 var isEditMultiPayerMode, isMultiPayerMode, isOpeningExpenseFlow, isSavingActivityFlow, isUploadingImage, joinTrip;
 var loadWeatherForItinerary, logoutEditor, manualDayCollapseState, moveGalleryItem, niceConfirm, nicePrompt;
-var askAiSuggestions, clearGeminiKey, generateAiItinerary, saveGeminiKey, saveGeminiModel;
+var askAiSuggestions, generateAiItinerary, saveGeminiModel;
+var addSelectedAiPackingItems, generatePackingChecklist, saveOpenRouterModel;
+var openChatModal, saveChatModel, sendChatMessage, sendChatMessageFromInput, sendChatQuickChip, toggleChatMic;
 var openActModal, openAddActivityChoose, openAddMemberModal, openAddModal, openAddPaymentModal, openAdvanceOverviewModal;
 var openAiItineraryModal, selectAiItnStyle, updateAiItnNightsLabel;
 var openAvatarModal, openDayExpenseModal, openEditActivity, openEditDay, openEditMember, openEditPayment;
@@ -377,19 +379,13 @@ window.selectCategory = selectCategory = (prefix, key) => {
 
 // --- 🤖 TRỢ LÝ AI (GEMINI) — GỢI Ý MÓN NGON / ĐỊA ĐIỂM HOT ---
 const GEMINI_MODEL_DEFAULT = 'gemini-2.0-flash';
-const GEMINI_KEY_STORAGE = 'gemini_api_key';
 const GEMINI_MODEL_STORAGE = 'gemini_model_override';
-// Key cấu hình sẵn qua Environment Variable trên Vercel (build-time, nhúng vào bundle JS công khai).
+// Key CHỈ cấu hình qua Environment Variable trên Vercel (build-time) — không cho nhập tay trong app.
 const GEMINI_ENV_KEY = (import.meta.env.VITE_GEMINI_API_KEY || '').trim();
 let _aiSuggestCache = {};
 
-function getManualGeminiKey() {
-    return (localStorage.getItem(GEMINI_KEY_STORAGE) || '').trim();
-}
-
-// Ưu tiên key cá nhân người dùng tự dán (nếu có), rồi mới rơi về key server cấu hình sẵn.
 function getGeminiApiKey() {
-    return getManualGeminiKey() || GEMINI_ENV_KEY;
+    return GEMINI_ENV_KEY;
 }
 
 // Cho phép người dùng tự đổi model (vd. khi model mặc định bị hết quota trên tài khoản của họ).
@@ -398,37 +394,16 @@ function getGeminiModel() {
 }
 
 function refreshGeminiKeyUI() {
-    const input = document.getElementById('settingGeminiKey');
     const status = document.getElementById('geminiKeyStatus');
-    const manualBlock = document.getElementById('geminiManualKeyBlock');
     const modelSelect = document.getElementById('settingGeminiModel');
     if (modelSelect) modelSelect.value = localStorage.getItem(GEMINI_MODEL_STORAGE) || '';
 
-    const hasManual = !!getManualGeminiKey();
-
-    // Đã có key cấu hình sẵn từ server (Vercel env) thì không cần hiện ô nhập key thủ công nữa —
-    // chỉ hiện lại nếu người dùng đã từng tự lưu 1 key riêng (để họ còn xóa được).
-    if (manualBlock) manualBlock.style.display = (GEMINI_ENV_KEY && !hasManual) ? 'none' : 'block';
-
-    if (input) {
-        input.value = '';
-        input.placeholder = hasManual ? '••••••••• (Đã lưu — dán key mới để đổi)' : 'Dán API Key riêng (không bắt buộc)...';
-    }
     if (status) {
-        if (hasManual) status.textContent = '🔑 Đang dùng key riêng bạn đã lưu trên máy này.';
-        else if (GEMINI_ENV_KEY) status.textContent = '✅ Đã có key cấu hình sẵn trên server (Environment Variable) — không cần nhập gì thêm.';
-        else status.textContent = '⚠️ Chưa có key nào. Dán key riêng ở trên, hoặc nhờ Admin cấu hình biến VITE_GEMINI_API_KEY trên Vercel.';
+        status.textContent = GEMINI_ENV_KEY
+            ? '✅ Đã có key cấu hình sẵn trên server (Environment Variable).'
+            : '⚠️ Chưa cấu hình key — Admin cần set biến VITE_GEMINI_API_KEY trên Vercel.';
     }
 }
-
-window.saveGeminiKey = saveGeminiKey = () => {
-    const input = document.getElementById('settingGeminiKey');
-    const val = input ? input.value.trim() : '';
-    if (!val) return showToast("Vui lòng nhập API Key trước khi lưu", "error");
-    localStorage.setItem(GEMINI_KEY_STORAGE, val);
-    showToast("Đã lưu Gemini API Key riêng trên máy này", "success");
-    refreshGeminiKeyUI();
-};
 
 window.saveGeminiModel = saveGeminiModel = () => {
     const input = document.getElementById('settingGeminiModel');
@@ -443,10 +418,311 @@ window.saveGeminiModel = saveGeminiModel = () => {
     refreshGeminiKeyUI();
 };
 
-window.clearGeminiKey = clearGeminiKey = () => {
-    localStorage.removeItem(GEMINI_KEY_STORAGE);
-    showToast(GEMINI_ENV_KEY ? "Đã xóa key riêng — chuyển về dùng key server" : "Đã xóa API Key khỏi máy này", "info");
-    refreshGeminiKeyUI();
+// --- 🎒 OPENROUTER (DEEPSEEK) — DÙNG CHO CHECKLIST ĐỒ ĐẠC AI ---
+const OPENROUTER_MODEL_DEFAULT = 'deepseek/deepseek-chat';
+const OPENROUTER_MODEL_STORAGE = 'openrouter_model_override';
+// Key CHỈ cấu hình qua Environment Variable trên Vercel (build-time) — không cho nhập tay trong app.
+const OPENROUTER_ENV_KEY = (import.meta.env.VITE_OPENROUTER_API_KEY || '').trim();
+
+function getOpenRouterApiKey() {
+    return OPENROUTER_ENV_KEY;
+}
+
+function getOpenRouterModel() {
+    return (localStorage.getItem(OPENROUTER_MODEL_STORAGE) || '').trim() || OPENROUTER_MODEL_DEFAULT;
+}
+
+// --- 💬 CHAT AI (QWEN QUA OPENROUTER) — DÙNG CHUNG KEY VỚI PACKING, MODEL RIÊNG ---
+const CHAT_MODEL_DEFAULT = 'qwen/qwen-2.5-72b-instruct';
+const CHAT_MODEL_STORAGE = 'openrouter_chat_model_override';
+
+function getChatModel() {
+    return (localStorage.getItem(CHAT_MODEL_STORAGE) || '').trim() || CHAT_MODEL_DEFAULT;
+}
+
+function refreshOpenRouterKeyUI() {
+    const status = document.getElementById('openRouterKeyStatus');
+    const modelSelect = document.getElementById('settingOpenRouterModel');
+    if (modelSelect) modelSelect.value = localStorage.getItem(OPENROUTER_MODEL_STORAGE) || '';
+    const chatModelSelect = document.getElementById('settingChatModel');
+    if (chatModelSelect) chatModelSelect.value = localStorage.getItem(CHAT_MODEL_STORAGE) || '';
+
+    if (status) {
+        status.textContent = OPENROUTER_ENV_KEY
+            ? '✅ Đã có key cấu hình sẵn trên server (Environment Variable).'
+            : '⚠️ Chưa cấu hình key — Admin cần set biến VITE_OPENROUTER_API_KEY trên Vercel.';
+    }
+}
+
+window.saveOpenRouterModel = saveOpenRouterModel = () => {
+    const select = document.getElementById('settingOpenRouterModel');
+    const val = select ? select.value.trim() : '';
+    if (!val) {
+        localStorage.removeItem(OPENROUTER_MODEL_STORAGE);
+        showToast(`Đã reset về model mặc định (${OPENROUTER_MODEL_DEFAULT})`, "info");
+    } else {
+        localStorage.setItem(OPENROUTER_MODEL_STORAGE, val);
+        showToast(`Đã đổi sang model "${val}"`, "success");
+    }
+    refreshOpenRouterKeyUI();
+};
+
+window.saveChatModel = saveChatModel = () => {
+    const select = document.getElementById('settingChatModel');
+    const val = select ? select.value.trim() : '';
+    if (!val) {
+        localStorage.removeItem(CHAT_MODEL_STORAGE);
+        showToast(`Đã reset về model mặc định (${CHAT_MODEL_DEFAULT})`, "info");
+    } else {
+        localStorage.setItem(CHAT_MODEL_STORAGE, val);
+        showToast(`Đã đổi sang model "${val}"`, "success");
+    }
+};
+
+// --- 💬 CHAT AI: HYBRID UI (KHUNG HỘI THOẠI + QUICK CHIPS + INPUT/MIC) ---
+let _chatHistory = []; // Chỉ lưu trong bộ nhớ tạm của trang, không đồng bộ Firebase — reload là mất, cố ý để đơn giản.
+let _chatRecognition = null;
+let _chatIsRecording = false;
+
+function appendChatBubble(role, text, isLoading = false) {
+    const container = document.getElementById('chatMessages');
+    if (!container) return null;
+    const bubble = document.createElement('div');
+    bubble.className = `chat-bubble ${role === 'user' ? 'user' : 'ai'}${isLoading ? ' loading' : ''}`;
+    bubble.textContent = text; // textContent tự escape, an toàn với input người dùng lẫn text AI trả về
+    container.appendChild(bubble);
+    container.scrollTop = container.scrollHeight;
+    return bubble;
+}
+
+window.openChatModal = openChatModal = () => {
+    openModal('chatAiModal');
+    const container = document.getElementById('chatMessages');
+    if (container && !container.children.length) {
+        const tripName = (DATA.trip && DATA.trip.name) || 'chuyến đi này';
+        appendChatBubble('ai', `Chào bạn! Mình là trợ lý AI của "${tripName}". Bấm 1 gợi ý dưới đây hoặc hỏi mình bất cứ gì về lịch trình, tiền quỹ, ăn uống nhé! 👋`);
+    }
+    setTimeout(() => document.getElementById('chatInput')?.focus(), 300);
+};
+
+// Tự tính số liệu quỹ/chi tiêu (không nhờ AI tính toán, để số luôn đúng 100%) rồi nhúng vào prompt
+// cho AI diễn giải bằng lời — cùng công thức với "Dashboard Đau Ví" ở tab Chi tiêu.
+function buildFinanceContextSummary() {
+    const payments = (DATA.payments || []).filter(p => p && typeof p === 'object');
+    const actualTotal = payments.reduce((s, p) => s + (p.isPaid && !p.isEstimate ? (p.amount || 0) : 0), 0);
+    const estimateTotal = payments.reduce((s, p) => s + (p.amount || 0), 0);
+    const totalFund = DATA.fund ? (DATA.fund.collected || 0) : 0;
+    const fundUsed = payments.reduce((sum, p) => {
+        if (!p.isPaid || p.isEstimate) return sum;
+        if (p.multiPayers) return sum + p.multiPayers.reduce((s, mp) => mp.fromFund ? s + (mp.amount || 0) : s, 0);
+        return p.fromFund ? sum + (p.amount || 0) : sum;
+    }, 0);
+    const cashInHand = totalFund - fundUsed;
+    const budgetRemain = estimateTotal - actualTotal;
+
+    const advanceMap = computeAdvanceOverviewData();
+    const advanceLines = Object.entries(advanceMap)
+        .filter(([, v]) => v.personal > 0)
+        .sort((a, b) => b[1].personal - a[1].personal)
+        .map(([name, v]) => `${name} đang tự bỏ tiền ứng ${formatVND(v.personal)} chưa được hoàn lại`);
+
+    return [
+        `Tổng đã chi thực tế: ${formatVND(actualTotal)}`,
+        `Tổng dự trù ban đầu: ${formatVND(estimateTotal)}`,
+        `Ngân sách còn lại: ${formatVND(Math.abs(budgetRemain))}${budgetRemain < 0 ? ' (ĐÃ VƯỢT dự trù)' : ''}`,
+        `Quỹ chung đã đóng: ${formatVND(totalFund)}, quỹ còn lại: ${formatVND(Math.max(0, cashInHand))}${cashInHand < 0 ? ' (QUỸ ĐÃ CẠN, âm ' + formatVND(Math.abs(cashInHand)) + ')' : ''}`,
+        advanceLines.length ? `Người đang ứng tiền cá nhân chưa được hoàn: ${advanceLines.join('; ')}` : 'Không ai đang ứng tiền cá nhân chưa hoàn.'
+    ].join('\n');
+}
+
+function buildNextActivityContextSummary() {
+    const next = (typeof getOverviewNextActivity === 'function') ? getOverviewNextActivity() : null;
+    if (!next) return 'Chưa có hoạt động tiếp theo nào trong lịch trình.';
+    return `Hoạt động tiếp theo: "${next.name}" lúc ${next.time || '--:--'}${next.location ? ' tại ' + next.location : ''}.`;
+}
+
+function buildTripSystemPrompt() {
+    const trip = DATA.trip || {};
+    const location = trip.fullAddress || trip.location || 'chưa rõ địa điểm';
+    return `Bạn là trợ lý du lịch thân thiện, trả lời NGẮN GỌN bằng tiếng Việt (dưới 120 từ mỗi câu trả lời trừ khi được yêu cầu chi tiết hơn), giọng gần gũi, có thể dùng emoji vừa phải.
+
+Thông tin chuyến đi "${trip.name || ''}":
+- Địa điểm: ${location}
+- ${buildNextActivityContextSummary()}
+
+Số liệu tài chính hiện tại:
+${buildFinanceContextSummary()}
+
+Chỉ trả lời dựa trên thông tin trên và kiến thức du lịch thực tế của bạn. Nếu không có đủ dữ liệu để trả lời chính xác, hãy nói rõ là chưa có thông tin đó.`;
+}
+
+const CHAT_QUICK_PROMPTS = {
+    fund: "Tóm tắt ngắn gọn tổng thu/chi, số dư quỹ hiện tại, và cảnh báo nếu có ai đang tự ứng tiền cá nhân quá nhiều chưa được hoàn lại, dựa trên số liệu tài chính đã cung cấp.",
+    next: "Cho biết điểm đến/hoạt động tiếp theo trong lịch trình hôm nay là gì, kèm 1-2 mẹo di chuyển hoặc lưu ý ngắn cho hoạt động đó.",
+    food: "Gợi ý 3 quán ăn bản địa chuẩn vị, nổi tiếng gần địa điểm của chuyến đi này. Mỗi quán 1 câu ngắn giới thiệu món đặc trưng.",
+    safety: "Cho biết 2-3 lưu ý quan trọng về bẫy du lịch (lừa đảo, giá cả) hoặc điều cần tôn trọng về văn hóa tại địa điểm của chuyến đi này."
+};
+
+const CHAT_QUICK_LABELS = {
+    fund: "📊 Tình hình Quỹ",
+    next: "📍 Tiếp theo đi đâu?",
+    food: "🍜 Gợi ý quán ăn gần đây",
+    safety: "🛡️ Cảnh báo điểm này"
+};
+
+window.sendChatQuickChip = sendChatQuickChip = (key) => {
+    if (key === 'expense_guide') {
+        appendChatBubble('user', "🧾 Hướng dẫn nhập tiền");
+        appendChatBubble('ai', `Bạn có thể gõ nhanh theo cú pháp:\n"chi <tên khoản> <số tiền>"\nVD: chi ăn tối 150k, hoặc chi vé tàu 1.2tr\n\nMình sẽ tự thêm luôn vào danh sách chi tiêu, không cần mở form. Hoặc bấm 🎤 để đọc thay vì gõ.`);
+        return;
+    }
+    const label = CHAT_QUICK_LABELS[key];
+    const hiddenPrompt = CHAT_QUICK_PROMPTS[key];
+    if (!label || !hiddenPrompt) return;
+    sendChatMessage(hiddenPrompt, label);
+};
+
+// Regex bắt cú pháp nhập chi tiêu nhanh: "chi <tên> <số tiền>[k/nghìn/tr/triệu]" — xử lý ngay tại
+// client, KHÔNG qua AI, để số tiền luôn chính xác 100% (không phụ thuộc AI đọc số đúng hay không).
+function tryParseQuickExpense(text) {
+    const m = text.trim().match(/^(?:chi|thêm chi tiêu|tiêu)\s+(.+?)\s+(\d+(?:[.,]\d+)?)\s*(k|nghìn|ngàn|tr|triệu)?$/i);
+    if (!m) return null;
+    const desc = m[1].trim();
+    let amount = parseFloat(m[2].replace(',', '.'));
+    const unit = (m[3] || '').toLowerCase();
+    if (unit === 'k' || unit === 'nghìn' || unit === 'ngàn') amount *= 1000;
+    else if (unit === 'tr' || unit === 'triệu') amount *= 1000000;
+    if (!desc || !amount || amount <= 0) return null;
+    return { desc, amount: Math.round(amount) };
+}
+
+function addQuickExpenseFromChat(desc, amount) {
+    if (!isEditor) {
+        appendChatBubble('ai', "⚠️ Chỉ Editor mới được thêm chi tiêu. Nhờ Editor của nhóm thêm giúp bạn nhé!");
+        return;
+    }
+    if (!DATA.payments) DATA.payments = [];
+    const members = (DATA.members || []).map(m => m.name);
+    const payer = members[0] || '';
+    DATA.payments.push({
+        desc, amount, category: 'other', payer,
+        isPaid: true, fromFund: false,
+        participants: members, linkedActId: '', isEstimate: false, receiptUrl: ''
+    });
+    save(); autoSync();
+    try { renderPayments(); } catch (e) {}
+    appendChatBubble('ai', `✅ Đã thêm chi tiêu: "${desc}" - ${formatVND(amount)}. Vào tab Chi tiêu để chỉnh người trả/chia tiền nếu cần nhé!`);
+}
+
+window.sendChatMessageFromInput = sendChatMessageFromInput = () => {
+    const input = document.getElementById('chatInput');
+    if (!input) return;
+    const text = input.value.trim();
+    if (!text) return;
+    input.value = '';
+
+    const quickExpense = tryParseQuickExpense(text);
+    if (quickExpense) {
+        appendChatBubble('user', text);
+        addQuickExpenseFromChat(quickExpense.desc, quickExpense.amount);
+        return;
+    }
+
+    sendChatMessage(text, text);
+};
+
+window.sendChatMessage = sendChatMessage = async (hiddenPrompt, displayLabel) => {
+    if (displayLabel) appendChatBubble('user', displayLabel);
+
+    const apiKey = getOpenRouterApiKey();
+    if (!apiKey) {
+        appendChatBubble('ai', "⚠️ Chưa cấu hình OpenRouter API Key. Nhờ Admin set biến VITE_OPENROUTER_API_KEY trên Vercel.");
+        openSettingsPage();
+        return;
+    }
+
+    const loadingBubble = appendChatBubble('ai', '🤖 Đang suy nghĩ...', true);
+
+    _chatHistory.push({ role: 'user', content: hiddenPrompt });
+    // Giới hạn lịch sử để tránh prompt quá dài (giữ 10 lượt gần nhất)
+    if (_chatHistory.length > 20) _chatHistory = _chatHistory.slice(-20);
+
+    try {
+        const res = await fetch('https://openrouter.ai/api/v1/chat/completions', {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+                'Authorization': `Bearer ${apiKey}`,
+                'HTTP-Referer': window.location.origin,
+                'X-Title': 'Trippy - AI Chat'
+            },
+            body: JSON.stringify({
+                model: getChatModel(),
+                messages: [{ role: 'system', content: buildTripSystemPrompt() }, ..._chatHistory]
+            })
+        });
+
+        const data = await res.json();
+        if (!res.ok) throw new Error((data && data.error && data.error.message) || `Lỗi HTTP ${res.status}`);
+
+        const reply = (data?.choices?.[0]?.message?.content || '').trim() || "Mình chưa nghĩ ra câu trả lời, bạn hỏi lại theo cách khác giúp mình nhé!";
+        _chatHistory.push({ role: 'assistant', content: reply });
+        loadingBubble.classList.remove('loading');
+        loadingBubble.textContent = reply;
+
+    } catch (e) {
+        console.error(e);
+        loadingBubble.classList.remove('loading');
+        loadingBubble.textContent = `😵 Lỗi: ${e.message || 'Không xác định'}. Kiểm tra lại API Key trong Cài đặt hoặc thử lại sau.`;
+        _chatHistory.pop(); // Bỏ lượt hỏi lỗi ra khỏi lịch sử để không làm hỏng ngữ cảnh câu hỏi lần sau
+    }
+
+    const container = document.getElementById('chatMessages');
+    if (container) container.scrollTop = container.scrollHeight;
+};
+
+// --- 🎤 GHI ÂM GIỌNG NÓI (Web Speech API — chỉ Chrome/Edge hỗ trợ ổn định) ---
+window.toggleChatMic = toggleChatMic = () => {
+    const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
+    if (!SpeechRecognition) {
+        showToast("Trình duyệt này chưa hỗ trợ ghi âm giọng nói. Dùng Chrome/Edge nhé!", "error");
+        return;
+    }
+    const micBtn = document.getElementById('chatMicBtn');
+
+    if (_chatIsRecording && _chatRecognition) {
+        _chatRecognition.stop();
+        return;
+    }
+
+    _chatRecognition = new SpeechRecognition();
+    _chatRecognition.lang = 'vi-VN';
+    _chatRecognition.interimResults = false;
+    _chatRecognition.maxAlternatives = 1;
+
+    _chatRecognition.onstart = () => {
+        _chatIsRecording = true;
+        if (micBtn) micBtn.classList.add('recording');
+    };
+    _chatRecognition.onresult = (event) => {
+        const transcript = event.results[0][0].transcript;
+        const input = document.getElementById('chatInput');
+        if (input) input.value = transcript;
+    };
+    _chatRecognition.onerror = (event) => {
+        showToast("Không nghe rõ, bạn thử lại nhé! (" + event.error + ")", "error");
+    };
+    _chatRecognition.onend = () => {
+        _chatIsRecording = false;
+        if (micBtn) micBtn.classList.remove('recording');
+    };
+
+    try {
+        _chatRecognition.start();
+    } catch (e) {
+        console.error(e);
+        showToast("Không khởi động được ghi âm", "error");
+    }
 };
 
 function renderAiSuggestList(items) {
@@ -479,7 +755,7 @@ window.askAiSuggestions = askAiSuggestions = async (forceRefresh = false) => {
 
     const apiKey = getGeminiApiKey();
     if (!apiKey) {
-        showToast("Chưa có Gemini API Key! Vào Cài đặt để dán key riêng, hoặc nhờ Admin cấu hình trên Vercel.", "error");
+        showToast("Chưa cấu hình Gemini API Key! Nhờ Admin set biến VITE_GEMINI_API_KEY trên Vercel.", "error");
         openSettingsPage();
         return;
     }
@@ -611,7 +887,7 @@ window.generateAiItinerary = generateAiItinerary = async () => {
 
     const apiKey = getGeminiApiKey();
     if (!apiKey) {
-        showToast("Chưa có Gemini API Key! Vào Cài đặt để dán key riêng, hoặc nhờ Admin cấu hình trên Vercel.", "error");
+        showToast("Chưa cấu hình Gemini API Key! Nhờ Admin set biến VITE_GEMINI_API_KEY trên Vercel.", "error");
         openSettingsPage();
         return;
     }
@@ -5645,6 +5921,241 @@ window.addSuggestedPackingItem = addSuggestedPackingItem = (name) => {
     showToast("Đã thêm vào checklist", "success");
 };
 
+// --- 🎒 AI DYNAMIC PACKING LIST: soi Lịch trình + Thời tiết để gợi ý đồ cần mang ---
+
+// Cố gắng bóc JSON ra khỏi câu trả lời của AI, dù bị bọc trong ```json ... ``` hay có chữ thừa
+// (DeepSeek qua OpenRouter hay "lịch sự" thêm giải thích dù đã dặn không cần, khác với Gemini JSON mode).
+function extractJsonPayload(text) {
+    if (!text) throw new Error("AI không trả về nội dung");
+    let cleaned = text.trim();
+    const fenceMatch = cleaned.match(/```(?:json)?\s*([\s\S]*?)```/i);
+    if (fenceMatch) cleaned = fenceMatch[1].trim();
+
+    try {
+        return JSON.parse(cleaned);
+    } catch (e) {
+        const arrMatch = cleaned.match(/\[[\s\S]*\]/);
+        if (arrMatch) {
+            try { return JSON.parse(arrMatch[0]); } catch (e2) {}
+        }
+        const objMatch = cleaned.match(/\{[\s\S]*\}/);
+        if (objMatch) {
+            try { return JSON.parse(objMatch[0]); } catch (e2) {}
+        }
+        throw new Error("Không đọc được JSON từ AI trả về");
+    }
+}
+
+// Tóm tắt lịch trình gọn gàng để nhúng vào prompt (tên hoạt động + giờ + địa điểm mỗi ngày).
+function getItinerarySummaryForAi() {
+    if (!DATA.days || !DATA.days.length) return '';
+    return DATA.days.map((day, di) => {
+        const acts = (day.activities || [])
+            .filter(a => a && a.name)
+            .map(a => `${a.time || ''} ${a.name}${a.location ? ' @ ' + a.location : ''}`.trim())
+            .join('; ');
+        return `Ngày ${di + 1} (${day.date})${day.title ? ' - ' + day.title : ''}: ${acts || 'chưa có hoạt động cụ thể'}`;
+    }).join('\n');
+}
+
+// Lấy dự báo thời tiết (nhiệt độ, khả năng mưa) khớp theo từng ngày trong lịch trình.
+// Dùng lại tọa độ DATA.trip.lat/lon nếu có, nếu không thì geocode theo tên địa điểm (giống loadWeatherForItinerary).
+async function getItineraryWeatherSummary() {
+    if (!DATA.trip || !DATA.days || !DATA.days.length) return '';
+    let lat = DATA.trip.lat;
+    let lon = DATA.trip.lon;
+    const city = DATA.trip.location;
+
+    if ((!lat || !lon) && city) {
+        try {
+            const geoRes = await fetch(`https://geocoding-api.open-meteo.com/v1/search?name=${encodeURIComponent(city)}&count=1&language=vi&format=json`);
+            const geoData = await geoRes.json();
+            if (geoData.results && geoData.results.length) {
+                lat = geoData.results[0].latitude;
+                lon = geoData.results[0].longitude;
+            }
+        } catch (e) { console.error(e); }
+    }
+    if (!lat || !lon) return '';
+
+    try {
+        const res = await fetch(`https://api.open-meteo.com/v1/forecast?latitude=${lat}&longitude=${lon}&daily=weather_code,temperature_2m_max,temperature_2m_min,precipitation_probability_max&timezone=auto&forecast_days=16`);
+        const data = await res.json();
+        if (!data.daily) return '';
+
+        const byDate = {};
+        data.daily.time.forEach((dateStr, i) => {
+            byDate[dateStr] = {
+                code: data.daily.weather_code[i],
+                tMax: data.daily.temperature_2m_max[i],
+                tMin: data.daily.temperature_2m_min[i],
+                rain: data.daily.precipitation_probability_max[i]
+            };
+        });
+
+        const lines = [];
+        DATA.days.forEach((day, di) => {
+            const parts = (day.date || '').split('/');
+            if (parts.length < 2) return;
+            const dd = parts[0].padStart(2, '0');
+            const mm = parts[1].padStart(2, '0');
+            const yyyy = parts.length === 3 ? parts[2] : new Date().getFullYear();
+            const apiFormat = `${yyyy}-${mm}-${dd}`;
+            const w = byDate[apiFormat];
+            const dayLabel = `Ngày ${di + 1} (${day.date})`;
+            lines.push(w
+                ? `- ${dayLabel}: ${w.tMin}°C - ${w.tMax}°C, khả năng mưa ${w.rain}%`
+                : `- ${dayLabel}: chưa có dự báo (ngoài phạm vi 16 ngày tới)`);
+        });
+        return lines.join('\n');
+    } catch (e) {
+        console.error("Lỗi API thời tiết (packing AI):", e);
+        return '';
+    }
+}
+
+window._aiPackingSuggestions = [];
+
+function renderAiPackingList(items) {
+    const listEl = document.getElementById('aiPackingList');
+    if (!listEl) return;
+    if (!Array.isArray(items) || !items.length) {
+        listEl.innerHTML = `<div class="today-muted">AI không tìm được món đồ đặc thù nào — lịch trình/thời tiết có vẻ không cần chuẩn bị gì đặc biệt!</div>`;
+        return;
+    }
+    listEl.innerHTML = items.map((item, i) => `
+        <label class="ai-suggest-item" style="cursor:pointer;">
+            <input type="checkbox" class="ai-packing-check" data-idx="${i}" checked style="width:18px; height:18px; margin-top:2px; flex-shrink:0; accent-color: var(--accent); cursor:pointer;">
+            <div class="ai-suggest-body">
+                <div class="ai-suggest-name">${esc(item.name || '')}</div>
+                ${item.reason ? `<div class="ai-suggest-desc">${esc(item.reason)}</div>` : ''}
+            </div>
+        </label>
+    `).join('');
+}
+
+window.generatePackingChecklist = generatePackingChecklist = async () => {
+    if (!isEditor) return;
+    if (!DATA.days || !DATA.days.length) {
+        showToast("Chưa có lịch trình để AI soi — thêm lịch trình trước đã!", "info");
+        return;
+    }
+
+    const apiKey = getOpenRouterApiKey();
+    if (!apiKey) {
+        showToast("Chưa cấu hình OpenRouter API Key! Nhờ Admin set biến VITE_OPENROUTER_API_KEY trên Vercel.", "error");
+        openSettingsPage();
+        return;
+    }
+
+    openModal('aiPackingModal');
+    const listEl = document.getElementById('aiPackingList');
+    if (listEl) listEl.innerHTML = `
+        <div style="text-align:center; padding: 30px 10px; color: var(--text3);">
+            <div style="font-size: 2rem; margin-bottom: 10px;">🎒</div>
+            <div style="font-size: 0.8rem;">Đang soi lịch trình + thời tiết...</div>
+        </div>`;
+
+    const btn = document.getElementById('btnAiPackingSuggest');
+    const originalBtnHtml = btn ? btn.innerHTML : '';
+    if (btn) { btn.disabled = true; btn.innerHTML = '🎒 Đang soi...'; }
+
+    try {
+        const location = (DATA.trip.fullAddress || DATA.trip.location || '').trim();
+        const itinerarySummary = getItinerarySummaryForAi();
+        const weatherSummary = await getItineraryWeatherSummary();
+
+        const prompt = `Bạn là trợ lý du lịch chuyên soạn checklist đồ cần mang theo, trả lời bằng tiếng Việt và luôn trả về JSON hợp lệ.
+
+Địa điểm: ${location || 'chưa rõ'}
+Lịch trình từng ngày:
+${itinerarySummary}
+
+Dự báo thời tiết từng ngày:
+${weatherSummary || 'Không có dữ liệu thời tiết (ngày đi có thể quá xa để dự báo).'}
+
+Hãy soi kỹ lịch trình (loại hoạt động: biển, núi, phố, ăn uống, đi xa, nước ngoài...) và thời tiết (nhiệt độ, mưa) để liệt kê những món đồ ĐẶC THÙ cần mang theo cho đúng chuyến đi này — chỉ nêu món gắn với lý do cụ thể từ lịch trình/thời tiết, KHÔNG liệt kê đồ cơ bản hiển nhiên ai cũng biết mang (quần áo, điện thoại, tiền, sạc pin...).
+
+Ví dụ tư duy: leo núi lạnh dưới 18°C -> áo khoác gió, giày bám tốt; đi biển nắng -> kem chống nắng, đồ bơi; cung đường nhiều dốc/đèo -> thuốc say xe; đi nước ngoài có ổ điện khác chuẩn -> adapter chuyển đổi; khả năng mưa cao -> áo mưa, ô dù.
+
+Tối đa 10 món, không lặp ý. Mỗi món chỉ 2-5 từ, phần lý do dưới 12 từ.
+Chỉ trả về DUY NHẤT 1 JSON array (không markdown, không giải thích thêm ngoài JSON), đúng cấu trúc:
+[{"name":"Tên món đồ","reason":"Lý do ngắn dựa vào lịch trình/thời tiết"}]`;
+
+        const res = await fetch('https://openrouter.ai/api/v1/chat/completions', {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+                'Authorization': `Bearer ${apiKey}`,
+                'HTTP-Referer': window.location.origin,
+                'X-Title': 'Trippy - AI Packing List'
+            },
+            body: JSON.stringify({
+                model: getOpenRouterModel(),
+                messages: [{ role: 'user', content: prompt }]
+            })
+        });
+
+        const data = await res.json();
+        if (!res.ok) throw new Error((data && data.error && data.error.message) || `Lỗi HTTP ${res.status}`);
+
+        const rawContent = data?.choices?.[0]?.message?.content || '';
+        const parsed = extractJsonPayload(rawContent);
+        const items = Array.isArray(parsed) ? parsed : (parsed && Array.isArray(parsed.items) ? parsed.items : null);
+        if (!items) throw new Error("AI trả về sai định dạng");
+
+        const cleanItems = items
+            .filter(it => it && (it.name || typeof it === 'string'))
+            .map(it => ({
+                name: String(typeof it === 'string' ? it : it.name).trim(),
+                reason: it && it.reason ? String(it.reason).trim() : ''
+            }))
+            .filter(it => it.name)
+            .slice(0, 10);
+
+        window._aiPackingSuggestions = cleanItems;
+        renderAiPackingList(cleanItems);
+
+    } catch (e) {
+        console.error(e);
+        if (listEl) listEl.innerHTML = `
+            <div style="text-align:center; padding: 30px 10px; color: var(--red);">
+                <div style="font-size: 2rem; margin-bottom: 10px;">😵</div>
+                <div style="font-size: 0.8rem; line-height:1.5;">Không hỏi được AI: ${esc(e.message || 'Lỗi không xác định')}</div>
+                <div style="font-size: 0.65rem; color: var(--text3); margin-top: 6px;">Kiểm tra lại API Key trong Cài đặt hoặc thử lại sau.</div>
+            </div>`;
+    } finally {
+        if (btn) { btn.disabled = false; btn.innerHTML = originalBtnHtml; }
+    }
+};
+
+window.addSelectedAiPackingItems = addSelectedAiPackingItems = () => {
+    if (!isEditor) return;
+    const checks = document.querySelectorAll('#aiPackingList .ai-packing-check:checked');
+    if (!checks.length) return showToast("Chưa chọn món nào", "info");
+
+    if (!DATA.packingList) DATA.packingList = [];
+    let addedCount = 0;
+    checks.forEach(cb => {
+        const idx = parseInt(cb.getAttribute('data-idx'), 10);
+        const item = window._aiPackingSuggestions[idx];
+        if (!item || !item.name) return;
+        const exists = DATA.packingList.some(p => p && p.name && p.name.toLowerCase() === item.name.toLowerCase());
+        if (exists) return;
+        DATA.packingList.push({ name: item.name, assignee: "Cả nhóm", isPacked: false });
+        addedCount++;
+    });
+
+    if (addedCount === 0) {
+        showToast("Các món đã chọn đều đã có trong checklist rồi", "info");
+        return;
+    }
+
+    save(); autoSync(); renderPackingList();
+    closeModal('aiPackingModal');
+    showToast(`🎒 Đã thêm ${addedCount} món vào checklist!`, "success");
+};
+
 window.openPackingModal = openPackingModal = (idx = -1) => {
     if (!isEditor) return;
     const assigneeSelect = document.getElementById('packAssignee');
@@ -6769,6 +7280,7 @@ window.openSettingsPage = openSettingsPage = () => {
   currentPage = 'settings';
   if (window.updateManagementUI) window.updateManagementUI();
   refreshGeminiKeyUI();
+  refreshOpenRouterKeyUI();
 };
 
 window.niceConfirm = niceConfirm = (title, text, type = 'danger') => {
