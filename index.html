@@ -248,9 +248,10 @@
         
       </div>
 
-      <div style="display:flex; justify-content:space-between; align-items:center; gap:10px; margin-top: 10px; margin-bottom: 12px;">
+      <div style="display:flex; justify-content:space-between; align-items:center; gap:10px; margin-top: 10px; margin-bottom: 12px; flex-wrap: wrap;">
         <div class="section-header section-title" style="margin:0;">Tổng quan thành viên</div>
-        <div style="display:flex; gap:8px;">
+        <div style="display:flex; gap:8px; flex-wrap: wrap;">
+          <button class="btn" id="btnMemberAiSummary" style="width:auto; padding:6px 12px; font-size:.7rem; background:var(--surface2); color:var(--accent); border:1px dashed var(--accent); border-radius:20px;" onclick="generateMemberFinanceSummary()">🤖 AI tóm tắt</button>
           <button class="btn" style="width:auto; padding:6px 12px; font-size:.7rem; background:var(--surface2); color:var(--blue); border:1px dashed var(--blue); border-radius:20px;" onclick="openAdvanceOverviewModal()">💳 Ứng tiền</button>
           <button class="btn" style="width:auto; padding:6px 12px; font-size:.7rem; background:var(--surface2); color:var(--green); border:1px dashed var(--green); border-radius:20px;" onclick="exportMemberExpensesToExcel()">📊 Export Excel</button>
         </div>
@@ -1128,6 +1129,15 @@
     <div class="modal-title">💳 Ứng tiền và khoản ứng</div>
     <div id="advanceOverviewList" style="margin-bottom:16px;max-height:60vh;overflow-y:auto"></div>
     <button class="btn btn-secondary" onclick="closeModal('advanceOverviewModal')">Đóng</button>
+  </div>
+</div>
+
+<div class="modal-overlay" id="memberAiSummaryModal">
+  <div class="modal bottom-sheet">
+    <div class="modal-title modal-title-balanced"><span class="title-icon">🤖</span><span>AI tóm tắt Đóng / Tiêu / Ứng</span></div>
+    <div id="memberAiSummaryList" style="max-height: 60vh; overflow-y: auto; margin: 10px 0;"></div>
+    <button class="btn" style="background: var(--surface2); color: var(--accent); border: 1px dashed var(--accent); margin-bottom: 8px;" onclick="generateMemberFinanceSummary()">🔄 Tóm tắt lại</button>
+    <button class="btn btn-secondary" onclick="closeModal('memberAiSummaryModal')">Đóng</button>
   </div>
 </div>
 

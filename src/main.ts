@@ -56,6 +56,7 @@ var loadWeatherForItinerary, logoutEditor, manualDayCollapseState, moveGalleryIt
 var askAiSuggestions, generateAiItinerary, saveGeminiModel;
 var addSelectedAiPackingItems, generatePackingChecklist, saveOpenRouterModel;
 var openChatModal, saveChatModel, sendChatMessage, sendChatMessageFromInput, sendChatQuickChip, toggleChatMic;
+var generateMemberFinanceSummary;
 var openActModal, openAddActivityChoose, openAddMemberModal, openAddModal, openAddPaymentModal, openAdvanceOverviewModal;
 var openAiItineraryModal, selectAiItnStyle, updateAiItnNightsLabel;
 var openAvatarModal, openDayExpenseModal, openEditActivity, openEditDay, openEditMember, openEditPayment;
@@ -2557,6 +2558,166 @@ window.renderCollection = renderCollection = (flash = false) => {
 
   if (flash) grid.classList.add('update-flash'), setTimeout(() => grid.classList.remove('update-flash'), 700);
   setTimeout(window.initSwipeActions, 100);
+};
+
+// --- 🤖 AI TÓM TẮT ĐÓNG / TIÊU / ỨNG CỦA TỪNG THÀNH VIÊN (DEEPSEEK QUA OPENROUTER) ---
+
+// Tính lại đúng công thức đã dùng ở renderCollection (Đóng quỹ + Ứng hộ - Bị chia/Tiêu = Số dư),
+// tách thành hàm riêng để tái sử dụng cho AI — số liệu luôn do JS tính, AI chỉ diễn giải bằng lời.
+function computeMemberFinanceStats() {
+    const members = DATA.members || [];
+    const payments = (DATA.payments || []).filter(p => p && typeof p === 'object');
+    const memberStats = {};
+    members.forEach(m => memberStats[m.name] = { consumed: 0, advanced: 0 });
+
+    payments.forEach(p => {
+        if (!p.isPaid || p.isEstimate) return;
+
+        const parts = p.participants || [];
+        if (parts.length > 0) {
+            const splitAmount = Math.round(p.amount / parts.length);
+            parts.forEach(name => {
+                if (memberStats[name] !== undefined) memberStats[name].consumed += splitAmount;
+            });
+        }
+
+        if (p.multiPayers) {
+            p.multiPayers.forEach(mp => {
+                if (!mp.fromFund && memberStats[mp.name] !== undefined) memberStats[mp.name].advanced += mp.amount;
+            });
+        } else if (!p.fromFund && memberStats[p.payer] !== undefined) {
+            memberStats[p.payer].advanced += p.amount;
+        }
+    });
+
+    return members.map(m => {
+        const totalContributed = (m.payments || []).reduce((s, v) => s + v, 0) || m.paid || 0;
+        const totalConsumed = memberStats[m.name].consumed;
+        const totalAdvanced = memberStats[m.name].advanced;
+        const balance = totalContributed + totalAdvanced - totalConsumed;
+        return { name: m.name, contributed: totalContributed, consumed: totalConsumed, advanced: totalAdvanced, balance };
+    });
+}
+
+function renderMemberAiSummaryList(items) {
+    const listEl = document.getElementById('memberAiSummaryList');
+    if (!listEl) return;
+    if (!Array.isArray(items) || !items.length) {
+        listEl.innerHTML = `<div class="today-muted">Chưa có dữ liệu để tóm tắt.</div>`;
+        return;
+    }
+    listEl.innerHTML = items.map(item => `
+        <div class="ai-suggest-item">
+            <div class="ai-suggest-icon">👤</div>
+            <div class="ai-suggest-body">
+                <div class="ai-suggest-name">${esc(item.name || '')}</div>
+                <div class="ai-suggest-desc">${esc(item.summary || '')}</div>
+            </div>
+        </div>
+    `).join('');
+}
+
+let _isGeneratingMemberSummary = false;
+const MEMBER_SUMMARY_BTN_DEFAULT_HTML = '🤖 AI tóm tắt';
+
+window.generateMemberFinanceSummary = generateMemberFinanceSummary = async () => {
+    const members = DATA.members || [];
+    if (!members.length) {
+        showToast("Chưa có thành viên nào để tóm tắt.", "info");
+        return;
+    }
+
+    // Chặn gọi chồng (bấm nút header + bấm "Tóm tắt lại" trong modal cùng lúc) — bài học từ bug
+    // nút "AI gợi ý đồ" từng bị kẹt do đọc nhầm trạng thái tạm làm trạng thái gốc.
+    if (_isGeneratingMemberSummary) {
+        showToast("Đang tóm tắt rồi, chờ chút nhé!", "info");
+        return;
+    }
+
+    const apiKey = getOpenRouterApiKey();
+    if (!apiKey) {
+        showToast("Chưa cấu hình OpenRouter API Key! Nhờ Admin set biến VITE_OPENROUTER_API_KEY trên Vercel.", "error");
+        openSettingsPage();
+        return;
+    }
+
+    openModal('memberAiSummaryModal');
+    const listEl = document.getElementById('memberAiSummaryList');
+    if (listEl) listEl.innerHTML = `
+        <div style="text-align:center; padding: 30px 10px; color: var(--text3);">
+            <div style="font-size: 2rem; margin-bottom: 10px;">🤖</div>
+            <div style="font-size: 0.8rem;">Đang soi sổ quỹ từng người...</div>
+        </div>`;
+
+    const btn = document.getElementById('btnMemberAiSummary');
+    _isGeneratingMemberSummary = true;
+    if (btn) { btn.disabled = true; btn.innerHTML = '🤖 Đang soi...'; }
+
+    try {
+        const stats = computeMemberFinanceStats();
+        const totalFund = DATA.fund ? (DATA.fund.collected || 0) : 0;
+        const totalUsed = DATA.fund ? (DATA.fund.used || 0) : 0;
+
+        const statsText = stats.map(s =>
+            `- ${s.name}: đã đóng quỹ ${formatVND(s.contributed)}, đã ứng hộ (trả ngoài quỹ) ${formatVND(s.advanced)}, đã tiêu/thụ hưởng ${formatVND(s.consumed)}, số dư ${s.balance >= 0 ? '+' : ''}${formatVND(s.balance)} (${s.balance >= 0 ? 'còn được nhóm trả lại/dư' : 'đang nợ nhóm'})`
+        ).join('\n');
+
+        const prompt = `Bạn là trợ lý quản lý quỹ nhóm du lịch. Dưới đây là số liệu quỹ ĐÃ TÍNH SẴN CHÍNH XÁC cho từng thành viên (không cần tính lại, chỉ diễn giải bằng lời):
+
+Quỹ chung: đã thu ${formatVND(totalFund)}, đã dùng ${formatVND(totalUsed)}.
+
+${statsText}
+
+Với MỖI thành viên, viết 1 câu tóm tắt ngắn gọn bằng tiếng Việt (dưới 25 từ) về tình hình đóng/tiêu/ứng của họ. Nếu số dư âm (đang nợ nhóm) thì nhắc nhẹ cần thanh toán lại cho nhóm. Giọng thân thiện, dùng emoji vừa phải.
+
+CHỈ trả về DUY NHẤT 1 JSON array (không markdown, không giải thích thêm ngoài JSON), đủ tất cả ${stats.length} người, đúng thứ tự đã cho, đúng cấu trúc:
+[{"name":"Tên (giữ đúng như trong dữ liệu)","summary":"Câu tóm tắt"}]`;
+
+        const res = await fetch('https://openrouter.ai/api/v1/chat/completions', {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+                'Authorization': `Bearer ${apiKey}`,
+                'HTTP-Referer': window.location.origin,
+                'X-Title': 'Trippy - AI Member Summary'
+            },
+            body: JSON.stringify({
+                model: getOpenRouterModel(),
+                messages: [{ role: 'user', content: prompt }]
+            })
+        });
+
+        const data = await res.json();
+        if (!res.ok) throw new Error((data && data.error && data.error.message) || `Lỗi HTTP ${res.status}`);
+
+        const rawContent = data?.choices?.[0]?.message?.content || '';
+        const parsed = extractJsonPayload(rawContent);
+        const items = Array.isArray(parsed) ? parsed : (parsed && Array.isArray(parsed.items) ? parsed.items : null);
+        if (!items) throw new Error("AI trả về sai định dạng");
+
+        // Ghép lại theo danh sách thành viên THẬT (không theo thứ tự AI trả về), và tự chêm câu tóm tắt
+        // thô từ số liệu nếu AI lỡ bỏ sót ai đó — đảm bảo luôn đủ danh sách, không thiếu người.
+        const byName = {};
+        items.forEach(it => { if (it && it.name) byName[it.name] = it.summary || ''; });
+        const finalItems = stats.map(s => ({
+            name: s.name,
+            summary: byName[s.name] || `Đóng ${formatVND(s.contributed)}, tiêu ${formatVND(s.consumed)}, ứng ${formatVND(s.advanced)}, số dư ${s.balance >= 0 ? '+' : ''}${formatVND(s.balance)}.`
+        }));
+
+        renderMemberAiSummaryList(finalItems);
+
+    } catch (e) {
+        console.error(e);
+        if (listEl) listEl.innerHTML = `
+            <div style="text-align:center; padding: 30px 10px; color: var(--red);">
+                <div style="font-size: 2rem; margin-bottom: 10px;">😵</div>
+                <div style="font-size: 0.8rem; line-height:1.5;">Không hỏi được AI: ${esc(e.message || 'Lỗi không xác định')}</div>
+                <div style="font-size: 0.65rem; color: var(--text3); margin-top: 6px;">Kiểm tra lại API Key hoặc thử lại sau.</div>
+            </div>`;
+    } finally {
+        _isGeneratingMemberSummary = false;
+        if (btn) { btn.disabled = false; btn.innerHTML = MEMBER_SUMMARY_BTN_DEFAULT_HTML; }
+    }
 };
 
 function getSafeExcelName(name) {
