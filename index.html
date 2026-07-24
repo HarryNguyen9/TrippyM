@@ -1134,10 +1134,11 @@
 
 <div class="modal-overlay" id="memberAiSummaryModal">
   <div class="modal bottom-sheet">
-    <div class="modal-title modal-title-balanced"><span class="title-icon">🤖</span><span>AI tóm tắt Đóng / Tiêu / Ứng</span></div>
+    <div class="modal-title modal-title-balanced"><span class="title-icon">💰</span><span>Tóm tắt quỹ nhóm</span></div>
     <div id="memberAiSummaryList" style="max-height: 60vh; overflow-y: auto; margin: 10px 0;"></div>
-    <button class="btn" style="background: var(--surface2); color: var(--accent); border: 1px dashed var(--accent); margin-bottom: 8px;" onclick="generateMemberFinanceSummary()">🔄 Tóm tắt lại</button>
-    <button class="btn btn-secondary" onclick="closeModal('memberAiSummaryModal')">Đóng</button>
+    <button class="btn btn-primary" onclick="copyMemberSummaryToClipboard()">📋 Copy để gửi nhóm</button>
+    <button class="btn" style="background: var(--surface2); color: var(--accent); border: 1px dashed var(--accent); margin-top: 8px;" onclick="generateMemberFinanceSummary()">🔄 Tóm tắt lại</button>
+    <button class="btn btn-secondary" onclick="closeModal('memberAiSummaryModal')" style="margin-top:8px">Đóng</button>
   </div>
 </div>
 

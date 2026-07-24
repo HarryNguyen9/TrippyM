@@ -56,7 +56,7 @@ var loadWeatherForItinerary, logoutEditor, manualDayCollapseState, moveGalleryIt
 var askAiSuggestions, generateAiItinerary, saveGeminiModel;
 var addSelectedAiPackingItems, generatePackingChecklist, saveOpenRouterModel;
 var openChatModal, saveChatModel, sendChatMessage, sendChatMessageFromInput, sendChatQuickChip, toggleChatMic;
-var generateMemberFinanceSummary;
+var copyMemberSummaryToClipboard, generateMemberFinanceSummary;
 var openActModal, openAddActivityChoose, openAddMemberModal, openAddModal, openAddPaymentModal, openAdvanceOverviewModal;
 var openAiItineraryModal, selectAiItnStyle, updateAiItnNightsLabel;
 var openAvatarModal, openDayExpenseModal, openEditActivity, openEditDay, openEditMember, openEditPayment;
@@ -2649,9 +2649,12 @@ function computeMemberFinanceStats() {
     });
 }
 
+let _lastMemberSummaryItems = []; // Giữ lại kết quả gần nhất để nút Copy dùng, không cần gọi AI lại.
+
 function renderMemberAiSummaryList(items) {
     const listEl = document.getElementById('memberAiSummaryList');
     if (!listEl) return;
+    _lastMemberSummaryItems = Array.isArray(items) ? items : [];
     if (!Array.isArray(items) || !items.length) {
         listEl.innerHTML = `<div class="today-muted">Chưa có dữ liệu để tóm tắt.</div>`;
         return;
@@ -2666,6 +2669,43 @@ function renderMemberAiSummaryList(items) {
         </div>
     `).join('');
 }
+
+window.copyMemberSummaryToClipboard = copyMemberSummaryToClipboard = async () => {
+    if (!_lastMemberSummaryItems.length) {
+        showToast("Chưa có nội dung để copy — bấm Tóm tắt lại trước đã!", "info");
+        return;
+    }
+
+    const tripName = (DATA.trip && DATA.trip.name) || 'Chuyến đi';
+    const lines = [`💰 TÓM TẮT QUỸ NHÓM — ${tripName}`, ''];
+    _lastMemberSummaryItems.forEach(item => lines.push(`👤 ${item.name}: ${item.summary}`));
+    const text = lines.join('\n');
+
+    // Ưu tiên Clipboard API hiện đại, nhưng nếu nó throw (thiếu quyền, tab mất focus...)
+    // thì fallback sang cách cũ execCommand — chỉ báo lỗi khi CẢ HAI đều thất bại.
+    try {
+        await navigator.clipboard.writeText(text);
+        showToast("📋 Đã copy! Dán vào nhóm chat để gửi nhé.", "success");
+        return;
+    } catch (e) {
+        console.warn("Clipboard API lỗi, thử cách copy cũ:", e);
+    }
+
+    try {
+        const ta = document.createElement('textarea');
+        ta.value = text;
+        ta.style.position = 'fixed';
+        ta.style.opacity = '0';
+        document.body.appendChild(ta);
+        ta.select();
+        document.execCommand('copy');
+        document.body.removeChild(ta);
+        showToast("📋 Đã copy! Dán vào nhóm chat để gửi nhé.", "success");
+    } catch (e) {
+        console.error(e);
+        showToast("Không copy được, thử lại sau.", "error");
+    }
+};
 
 let _isGeneratingMemberSummary = false;
 const MEMBER_SUMMARY_BTN_DEFAULT_HTML = '🤖 AI tóm tắt';
