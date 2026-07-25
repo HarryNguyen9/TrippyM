@@ -1037,24 +1037,39 @@
 <div class="modal-overlay" id="memberModal">
   <div class="modal bottom-sheet">
     <div class="modal-title">👤 Thêm thành viên</div>
-    
-    <input type="hidden" id="newMemAvatarSeed">
 
-    <div style="display: flex; flex-direction: column; align-items: center; margin-bottom: 20px;">
-        <img id="newMemAvatarPreview" src="https://api.dicebear.com/8.x/adventurer/svg?seed=New&backgroundColor=b6e3f4,c0aede,d1d4f9,ffd5dc,ffdfbf" alt="preview" style="width: 80px; height: 80px; border-radius: 50%; padding: 4px; background: var(--surface2); border: 2px dashed rgba(255,255,255,0.1); cursor: pointer; object-fit: contain; transition: 0.2s;" onclick="randomizeNewMemberAvatar()" title="Bấm để đổi ngẫu nhiên">
-        <div style="font-size: 0.6rem; color: var(--text3); margin-top: 8px;">Bấm vào ảnh để đổi nhân vật</div>
+    <div class="tab-bar" style="margin-bottom: 16px;">
+        <button class="tab active" id="memAddTabBtn_single" onclick="switchMemberAddMode('single')">👤 Một người</button>
+        <button class="tab" id="memAddTabBtn_bulk" onclick="switchMemberAddMode('bulk')">👥 Nhiều người</button>
     </div>
 
-    <div class="form-group">
-      <label class="form-label">Tên</label>
-      <input class="form-input" id="memName" oninput="updateNewMemberAvatarPreview()" placeholder="Nhập tên...">
+    <div id="memAddContent_single">
+        <input type="hidden" id="newMemAvatarSeed">
+
+        <div style="display: flex; flex-direction: column; align-items: center; margin-bottom: 20px;">
+            <img id="newMemAvatarPreview" src="https://api.dicebear.com/8.x/adventurer/svg?seed=New&backgroundColor=b6e3f4,c0aede,d1d4f9,ffd5dc,ffdfbf" alt="preview" style="width: 80px; height: 80px; border-radius: 50%; padding: 4px; background: var(--surface2); border: 2px dashed rgba(255,255,255,0.1); cursor: pointer; object-fit: contain; transition: 0.2s;" onclick="randomizeNewMemberAvatar()" title="Bấm để đổi ngẫu nhiên">
+            <div style="font-size: 0.6rem; color: var(--text3); margin-top: 8px;">Bấm vào ảnh để đổi nhân vật</div>
+        </div>
+
+        <div class="form-group">
+          <label class="form-label">Tên</label>
+          <input class="form-input" id="memName" oninput="updateNewMemberAvatarPreview()" placeholder="Nhập tên...">
+        </div>
+        <div class="form-group">
+          <label class="form-label">Số tiền đã đóng quỹ</label>
+          <input class="form-input" id="memPaid" type="number" placeholder="0">
+        </div>
+
+        <button class="btn btn-primary" onclick="addMember()">Thêm</button>
     </div>
-    <div class="form-group">
-      <label class="form-label">Số tiền đã đóng quỹ</label>
-      <input class="form-input" id="memPaid" type="number" placeholder="0">
+
+    <div id="memAddContent_bulk" style="display:none;">
+        <div class="form-label" style="margin-bottom: 10px;">Mỗi dòng là 1 thành viên — điền tên & số tiền đã đóng quỹ (nếu có)</div>
+        <div id="bulkMemberRows"></div>
+        <button class="btn" style="background: var(--surface2); color: var(--accent); border: 1px dashed var(--accent); margin-bottom: 12px;" onclick="addBulkMemberRow()">+ Thêm dòng</button>
+        <button class="btn btn-primary" onclick="saveBulkMembers()">Tạo tất cả</button>
     </div>
-    
-    <button class="btn btn-primary" onclick="addMember()">Thêm</button>
+
     <button class="btn btn-secondary" onclick="closeModal('memberModal')" style="margin-top:8px">Hủy</button>
   </div>
 </div>

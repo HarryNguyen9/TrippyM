@@ -45,6 +45,7 @@ window._firebaseDb = _firebaseDb = null;
 var _advOverviewData, _advOverviewFilter, _fbSDK, _firebaseApp, _firebaseDb, _weatherCache;
 var _weatherKey, _weatherLastFetch, _weatherLoc, addActivity, addDay, addEditPayerRow;
 var addMember, addPayerRow, addSuggestedPackingItem, cancelAllSettings, cancelEditCode, cancelEditLoc;
+var switchMemberAddMode, addBulkMemberRow, removeBulkMemberRow, saveBulkMembers;
 var cancelEditName, changeTripCode, closeLightbox, connectFirebase, createNewTrip;
 var currentDashboardTab, currentPaymentFilter, currentRandomMode, deleteActivity, deleteDay, deleteGalleryItem, deleteHistoryCashIn;
 var deleteMember, deletePackingItem, deletePayment, dialogScrollPos, disconnectFirebase, downloadMasterExcelTemplate;
@@ -5258,6 +5259,80 @@ window.addMember = addMember = () => {
     showToast("Đã thêm thành viên thành công!", "success");
 };
 
+// ===== BULK ADD MEMBER (thêm nhiều thành viên 1 lúc, mỗi dòng 1 số tiền đóng quỹ riêng) =====
+window.switchMemberAddMode = switchMemberAddMode = (mode) => {
+    const singleBtn = document.getElementById('memAddTabBtn_single');
+    const bulkBtn = document.getElementById('memAddTabBtn_bulk');
+    const singleContent = document.getElementById('memAddContent_single');
+    const bulkContent = document.getElementById('memAddContent_bulk');
+    if (!singleBtn || !bulkBtn || !singleContent || !bulkContent) return;
+    singleBtn.classList.toggle('active', mode === 'single');
+    bulkBtn.classList.toggle('active', mode === 'bulk');
+    singleContent.style.display = mode === 'single' ? 'block' : 'none';
+    bulkContent.style.display = mode === 'bulk' ? 'block' : 'none';
+
+    // Mở tab "Nhiều người" lần đầu thì tự tạo sẵn vài dòng trống cho tiện gõ luôn
+    const rowsContainer = document.getElementById('bulkMemberRows');
+    if (mode === 'bulk' && rowsContainer && !rowsContainer.children.length) {
+        addBulkMemberRow(); addBulkMemberRow(); addBulkMemberRow();
+    }
+};
+
+window.addBulkMemberRow = addBulkMemberRow = () => {
+    const rowsContainer = document.getElementById('bulkMemberRows');
+    if (!rowsContainer) return;
+    const row = document.createElement('div');
+    row.className = 'bulk-mem-row';
+    row.style.cssText = 'display:flex; gap:8px; align-items:center; margin-bottom:8px;';
+    row.innerHTML = `
+        <input class="form-input bulk-mem-name" placeholder="Tên thành viên" style="flex:1.4;">
+        <input class="form-input bulk-mem-paid" type="number" placeholder="Số tiền đóng quỹ" style="flex:1;">
+        <button type="button" onclick="removeBulkMemberRow(this)" style="background:var(--red-bg); color:var(--red); border:none; border-radius:8px; width:32px; height:32px; flex-shrink:0; font-weight:800; cursor:pointer;">✕</button>
+    `;
+    rowsContainer.appendChild(row);
+};
+
+window.removeBulkMemberRow = removeBulkMemberRow = (btn) => {
+    btn.closest('.bulk-mem-row')?.remove();
+};
+
+window.saveBulkMembers = saveBulkMembers = () => {
+    if (!isEditor) return;
+    const rows = Array.from(document.querySelectorAll('#bulkMemberRows .bulk-mem-row'));
+    const entries = rows.map(row => ({
+        name: row.querySelector('.bulk-mem-name').value.trim(),
+        paid: parseFloat(row.querySelector('.bulk-mem-paid').value) || 0
+    })).filter(e => e.name);
+
+    if (!entries.length) return showToast("Điền tên ít nhất 1 thành viên", "error");
+
+    if (!DATA.members) DATA.members = [];
+
+    // Chặn trùng tên: vừa trùng với thành viên có sẵn, vừa trùng nhau ngay trong các dòng vừa nhập
+    const existingNames = new Set(DATA.members.map(m => m.name.toLowerCase()));
+    const seenInBatch = new Set();
+    for (const entry of entries) {
+        const lower = entry.name.toLowerCase();
+        if (existingNames.has(lower) || seenInBatch.has(lower)) {
+            return showToast(`⚠️ Tên "${entry.name}" bị trùng, sửa lại rồi thêm lại nhé!`, "error");
+        }
+        seenInBatch.add(lower);
+    }
+
+    entries.forEach(entry => {
+        DATA.members.push({ name: entry.name, payments: entry.paid > 0 ? [entry.paid] : [] });
+    });
+
+    renderCollection();
+    save();
+    autoSync();
+
+    closeModal('memberModal');
+    document.getElementById('bulkMemberRows').innerHTML = '';
+
+    showToast(`Đã thêm ${entries.length} thành viên thành công!`, "success");
+};
+
 window.enableEditMemName = enableEditMemName = () => {
     const nameInput = document.getElementById('editMemName');
     nameInput.disabled = false;
@@ -5399,6 +5474,8 @@ window.openAddMemberModal = openAddMemberModal = () => {
     document.getElementById('memPaid').value = '';
     document.getElementById('newMemAvatarSeed').value = ''; // Xóa seed random
     document.getElementById('newMemAvatarPreview').src = `https://api.dicebear.com/8.x/adventurer/svg?seed=New&backgroundColor=b6e3f4,c0aede,d1d4f9,ffd5dc,ffdfbf`;
+    document.getElementById('bulkMemberRows').innerHTML = ''; // Về trạng thái trống mỗi lần mở lại modal
+    switchMemberAddMode('single');
     openModal('memberModal');
 };
 
