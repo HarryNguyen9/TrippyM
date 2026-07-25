@@ -645,7 +645,7 @@ const CHAT_QUICK_PROMPTS = {
     next: "Cho biết điểm đến/hoạt động tiếp theo trong lịch trình hôm nay là gì, kèm 1-2 mẹo di chuyển hoặc lưu ý ngắn cho hoạt động đó.",
     place: "Gợi ý 6 địa điểm tham quan/vui chơi/sống ảo nổi tiếng gần địa điểm của chuyến đi này (KHÔNG phải quán ăn). Mỗi địa điểm 1 câu ngắn giới thiệu điểm đặc biệt/lý do nên ghé.",
     food: "Gợi ý 6 quán ăn bản địa chuẩn vị, nổi tiếng gần địa điểm của chuyến đi này. Mỗi quán 1 câu ngắn giới thiệu món đặc trưng.",
-    safety: "Cho biết 2-3 lưu ý quan trọng về bẫy du lịch (lừa đảo, giá cả) hoặc điều cần tôn trọng về văn hóa tại địa điểm của chuyến đi này."
+    safety: "Cho biết 6 lưu ý quan trọng về bẫy du lịch (lừa đảo, giá cả) hoặc điều cần tôn trọng về văn hóa tại địa điểm của chuyến đi này."
 };
 
 const CHAT_QUICK_LABELS = {

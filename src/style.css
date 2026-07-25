@@ -758,8 +758,6 @@ body:not(.is-editor) .editor-only { display: none !important; }
 .day-status-chip { display:inline-flex; align-items:center; gap:4px; font-size:.55rem; font-weight:800; padding:2px 7px; border-radius:999px; background:rgba(255,255,255,.05); color:var(--text3); border:1px solid rgba(255,255,255,.06); white-space:nowrap; }
 .day-status-chip.today { color:var(--accent); background:var(--accent-glow); border-color:var(--accent-glow); }
 .day-header { position: relative; }
-.day-header .day-status-chip { position: absolute; left: 50%; bottom: 18px; transform: translateX(-50%); z-index: 2; }
-.day-header .chevron-icon { position: absolute; right: 14px; bottom: 16px; z-index: 2; }
 .day-section:not(.collapsed) .day-content { overflow: visible !important; }
 .timeline .swipe-container:has(.next-activity) { background: var(--bg) !important; border: 1px solid var(--accent-glow) !important; }
 .timeline .swipe-content.timeline-item { background: var(--surface) !important; border: none !important; margin: 0 !important; }
@@ -1111,7 +1109,7 @@ body:not(.is-editor) .editor-only { display: none !important; }
 .modal::before:active { cursor: grabbing; }
 
 /* Toast */
-.toast { position: fixed; bottom: 100px; left: 50%; transform: translateX(-50%) translateY(150px); z-index: 9999; padding: 10px 18px; border-radius: var(--radius-sm); background: var(--surface2); color: var(--text); font-size: 0.75rem; transition: transform 0.4s cubic-bezier(0.18, 0.89, 0.32, 1.28), opacity 0.3s ease, visibility 0.3s; box-shadow: var(--shadow); white-space: nowrap; pointer-events: auto; cursor: pointer; border: 1px solid rgba(255,255,255,0.05); opacity: 0; visibility: hidden; }
+.toast { position: fixed; bottom: 100px; left: 50%; transform: translateX(-50%) translateY(150px); z-index: 9999; padding: 10px 18px; border-radius: var(--radius-sm); background: var(--surface2); color: var(--text); font-size: 0.75rem; transition: transform 0.4s cubic-bezier(0.18, 0.89, 0.32, 1.28), opacity 0.3s ease, visibility 0.3s; box-shadow: var(--shadow); white-space: normal; word-break: break-word; text-align: center; max-width: min(90vw, 420px); width: max-content; pointer-events: auto; cursor: pointer; border: 1px solid rgba(255,255,255,0.05); opacity: 0; visibility: hidden; }
 .toast.show { transform: translateX(-50%) translateY(0); opacity: 1; visibility: visible; }
 .toast.success { background: linear-gradient(var(--green-bg), var(--green-bg)), var(--surface2); border: 1px solid var(--green); color: var(--green); }
 .toast.error { background: linear-gradient(var(--red-bg), var(--red-bg)), var(--surface2); border: 1px solid var(--red); color: var(--red); }
