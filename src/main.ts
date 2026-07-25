@@ -57,7 +57,7 @@ var askAiSuggestions, generateAiItinerary, saveGeminiModel;
 var addSelectedAiPackingItems, generatePackingChecklist, saveOpenRouterModel;
 var openChatModal, saveChatModel, sendChatMessage, sendChatMessageFromInput, sendChatQuickChip, toggleChatMic;
 var copyMemberSummaryToClipboard, generateMemberFinanceSummary;
-var setTheme;
+var setTheme, toggleTheme;
 var onDefaultCurrencyChange, onForeignCurrencySelectChange, saveCurrencySettings, selectPmCurrencyMode, selectPmPaymentMethod, updatePmForeignPreview;
 var openActModal, openAddActivityChoose, openAddMemberModal, openAddModal, openAddPaymentModal, openAdvanceOverviewModal;
 var openAiItineraryModal, selectAiItnStyle, updateAiItnNightsLabel;
@@ -1239,12 +1239,19 @@ window.setTheme = setTheme = (theme) => {
     refreshThemeSettingsUI();
 };
 
+// Bật/tắt nhanh dark/light từ nút ở header, không cần vào Cài đặt.
+window.toggleTheme = toggleTheme = () => {
+    setTheme(getTheme() === 'dark' ? 'light' : 'dark');
+};
+
 function refreshThemeSettingsUI() {
     const theme = getTheme();
     const darkChip = document.getElementById('themeChipDark');
     const lightChip = document.getElementById('themeChipLight');
     if (darkChip) darkChip.classList.toggle('selected', theme === 'dark');
     if (lightChip) lightChip.classList.toggle('selected', theme === 'light');
+    const headerToggleBtn = document.getElementById('headerThemeToggleBtn');
+    if (headerToggleBtn) headerToggleBtn.textContent = theme === 'dark' ? '🌙' : '☀️';
 }
 
 function applyTripTheme() {
@@ -1325,6 +1332,7 @@ function autoJoinTripFromUrl(code, attemptsLeft = 25) {
 
 // ===== INIT =====
 function init() {
+  refreshThemeSettingsUI(); // Đồng bộ icon 🌙/☀️ ở header ngay khi mở app, theo theme đã lưu trước đó
   const urlTripCode = getUrlTripCode();
   const hasResetParam = new URLSearchParams(window.location.search).has('reset');
 
@@ -2282,21 +2290,22 @@ window.renderPayments = renderPayments = (flash = false) => {
     const maxSpend = Math.max(...bubblesData.map(b => b.amt), 1);
     const heatmapHtml = bubblesData.map((b) => {
         const ratio = b.amt / maxSpend;
-        const scale = 0.9 + (ratio * 0.15);
-        let bgColor = 'var(--surface3)';
+        const heightPct = b.amt > 0 ? Math.max(8, Math.round(ratio * 100)) : 4;
+        let barColorGrad = 'var(--surface3)';
         if (b.amt > 0) {
-            if (ratio < 0.4) bgColor = 'linear-gradient(135deg, #4ade80, #16a34a)';
-            else if (ratio < 0.7) bgColor = 'linear-gradient(135deg, #facc15, #ca8a04)';
-            else bgColor = 'linear-gradient(135deg, #f87171, #dc2626)';
+            if (ratio < 0.4) barColorGrad = 'linear-gradient(180deg, #4ade80, #16a34a)';
+            else if (ratio < 0.7) barColorGrad = 'linear-gradient(180deg, #facc15, #ca8a04)';
+            else barColorGrad = 'linear-gradient(180deg, #f87171, #dc2626)';
         }
         let displayAmt = '0';
         if (b.amt > 0) {
             displayAmt = b.amt >= 1000000 ? (b.amt / 1000000).toFixed(1).replace('.0', '') + 'Tr' : (b.amt / 1000).toFixed(0) + 'k';
         }
         return `
-        <div class="heat-bubble ${ratio === 1 && b.amt > 0 ? 'hot' : ''}" style="background: ${bgColor}; transform: scale(${scale});" title="${esc(b.title)}">
-            <div class="heat-bubble-day" style="${b.isManual ? 'color: var(--accent);' : ''}">${b.id}</div>
-            <span class="heat-bubble-val">${displayAmt}</span>
+        <div class="tl-col" title="${esc(b.title)}">
+            <div class="tl-val">${displayAmt}</div>
+            <div class="tl-track"><div class="tl-fill ${ratio === 1 && b.amt > 0 ? 'hot' : ''}" style="height: ${heightPct}%; background: ${barColorGrad};"></div></div>
+            <div class="tl-day" style="${b.isManual ? 'color: var(--accent);' : ''}">${b.id}</div>
         </div>`;
     }).join('');
 
@@ -2317,17 +2326,19 @@ window.renderPayments = renderPayments = (flash = false) => {
             .db-stats { width: 100%; }
         }
 
-        .heatmap-container { display: flex; gap: 18px; overflow-x: auto; padding: 20px 10px 25px 10px; -webkit-overflow-scrolling: touch; align-items: center; }
+        .heatmap-container { display: flex; gap: 10px; overflow-x: auto; padding: 8px 10px 12px 10px; -webkit-overflow-scrolling: touch; align-items: flex-end; height: 130px; background: var(--shadow-1); border-radius: 16px; border: 1px solid var(--line-2); }
         .heatmap-container::-webkit-scrollbar { display: none; }
-        .heat-bubble { flex: 0 0 62px; height: 62px; border-radius: 50%; display: flex; flex-direction: column; align-items: center; justify-content: center; position: relative; border: 2px solid var(--line-3); box-shadow: inset 0 0 10px var(--line-2), 0 4px 10px var(--shadow-2); transition: all 0.4s cubic-bezier(0.175, 0.885, 0.32, 1.275); color: #fff; }
-        .heat-bubble-day { position: absolute; top: -14px; font-size: 0.55rem; font-weight: 800; color: var(--text3); background: var(--surface2); padding: 3px 8px; border-radius: 10px; border: 1px solid var(--line-2); box-shadow: 0 2px 5px var(--shadow-2); }
-        .heat-bubble-val { font-size: 0.75rem; font-weight: 900; text-shadow: 0 1px 3px rgba(0,0,0,0.8); letter-spacing: 0.5px; }
-        @keyframes pulse-hot {
-            0% { box-shadow: inset 0 0 10px var(--line-2), 0 0 0 0 rgba(248,113,113,0.5); }
-            70% { box-shadow: inset 0 0 10px var(--line-2), 0 0 0 12px rgba(248,113,113,0); }
-            100% { box-shadow: inset 0 0 10px var(--line-2), 0 0 0 0 rgba(248,113,113,0); }
+        .tl-col { flex: 0 0 40px; display: flex; flex-direction: column; align-items: center; gap: 5px; height: 100%; justify-content: flex-end; }
+        .tl-val { font-size: 0.55rem; font-weight: 800; color: var(--text2); white-space: nowrap; }
+        .tl-track { width: 14px; flex: 1; border-radius: 7px; background: var(--line-2); display: flex; align-items: flex-end; overflow: hidden; }
+        .tl-fill { width: 100%; border-radius: 7px; transition: height 0.6s cubic-bezier(0.22, 1, 0.36, 1); }
+        @keyframes pulse-hot-glow {
+            0% { box-shadow: 0 0 0 0 rgba(248,113,113,0.6); }
+            70% { box-shadow: 0 0 8px 4px rgba(248,113,113,0); }
+            100% { box-shadow: 0 0 0 0 rgba(248,113,113,0); }
         }
-        .heat-bubble.hot { animation: pulse-hot 1.5s infinite; border-color: var(--red); }
+        .tl-fill.hot { animation: pulse-hot-glow 1.5s infinite; }
+        .tl-day { font-size: 0.55rem; font-weight: 800; color: var(--text3); }
     </style>`;
 
     // 2. GIAO DIỆN DASHBOARD ĐÃ GỘP DÒNG THEO Ý BÁC
