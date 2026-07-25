@@ -67,6 +67,7 @@ var openExpenseFlow, openFullScheduleFromToday, openFundLink, openHistoryModal, 
 var openMapModal, openPackingModal, openRandomModal, openSettingsPage, openTotalExpenseModal, pendingReturnToAct;
 var openVaultModal, openAddVaultCardModal, selectVaultCardType, saveVaultCard, editVaultCard, deleteVaultCard;
 var copyVaultCardContent, openVaultZoom, closeVaultZoom, uploadVaultImage, removeVaultImage, openVaultLocation, renderVaultCards;
+var uploadVaultFormImage, removeVaultFormFile;
 var pendingReturnToHistoryIdx, playCinematicIntro, playTing, randomizeAvatarInModal, randomizeNewMemberAvatar, refreshCurrentTrip;
 var removeEditPmReceipt, removeFundQr, removeTripCover, renderCollection, renderGallery;
 var renderPackingList, renderPayments, renderTodayView, resetDayForm, resetEditDayForm, saveAvatar;
@@ -1923,7 +1924,7 @@ window.renderTodayView = renderTodayView = () => {
             <div class="today-section-title"><span>Thao tác nhanh</span></div>
             <div class="today-actions">
               <button class="today-action-btn" ${nextLocation ? `onclick='openMapModal(${jsAttr(nextLocation)})'` : 'disabled'}>📍 Map</button>
-              <button class="today-action-btn primary" ${canAddBill ? `onclick='openAddPaymentModal(${jsAttr(billName)}, ${jsAttr(billActId)})'` : 'disabled'}>💳 Thêm bill</button>
+              <button class="today-action-btn" ${canAddBill ? `onclick='openAddPaymentModal(${jsAttr(billName)}, ${jsAttr(billActId)})'` : 'disabled'}>💳 Thêm bill</button>
               <button class="today-action-btn" onclick="openModal('qrModal')">💸 QR quỹ</button>
               <button class="today-action-btn" onclick="openFullScheduleFromToday()">📅 Lịch đầy đủ</button>
               <button class="today-action-btn" ${DATA.trip?.location ? `onclick="askAiSuggestions()"` : 'disabled'}>🤖 Gợi ý AI</button>
@@ -6953,8 +6954,8 @@ window.openAddVaultCardModal = openAddVaultCardModal = () => {
     document.getElementById('vaultCardContent').value = '';
     document.getElementById('vaultCardZoomable').checked = false;
     document.getElementById('vaultCardAddress').value = '';
-    document.querySelectorAll('#vaultTypePicker .category-chip').forEach(el => el.style.pointerEvents = '');
-    document.getElementById('vaultTypePicker').style.opacity = '1';
+    window._vaultFormFiles = [];
+    renderVaultFormFilesPreview();
     selectVaultCardType('text');
     openModal('vaultCardFormModal');
 };
@@ -6976,11 +6977,56 @@ window.editVaultCard = editVaultCard = (id) => {
     document.getElementById('vaultCardContent').value = card.content || '';
     document.getElementById('vaultCardZoomable').checked = !!card.zoomable;
     document.getElementById('vaultCardAddress').value = card.address || '';
+    // Cho phép đổi loại ô thoải mái (VD: 3 card mặc định Wifi/Taxi/SOS đang là văn bản
+    // vẫn có thể đổi qua ảnh, chụp thẳng cái thẻ giấy thay vì gõ lại chữ)
+    window._vaultFormFiles = card.type === 'image' ? [...(card.files || [])] : [];
+    renderVaultFormFilesPreview();
     selectVaultCardType(card.type);
-    // Không cho đổi loại card khi đang sửa (đổi loại giữa chừng sẽ mất dữ liệu con: content/files/address)
-    document.querySelectorAll('#vaultTypePicker .category-chip').forEach(el => el.style.pointerEvents = 'none');
-    document.getElementById('vaultTypePicker').style.opacity = '0.5';
     openModal('vaultCardFormModal');
+};
+
+function renderVaultFormFilesPreview() {
+    const container = document.getElementById('vaultFormFilesPreview');
+    if (!container) return;
+    const files = window._vaultFormFiles || [];
+    container.innerHTML = files.map((f, fi) => `
+        <div class="vault-file-thumb" ${f.isImage !== false ? `onclick="window.openLightbox('${f.url}')"` : `onclick="window.open('${f.url}','_blank')"`}>
+            ${f.isImage !== false ? `<img src="${f.url}" alt="${esc(f.name || '')}">` : `<span style="font-size:1.6rem;">📄</span>`}
+            <button type="button" class="vault-file-remove" onclick="event.stopPropagation(); removeVaultFormFile(${fi})">✕</button>
+        </div>
+    `).join('');
+}
+
+window.uploadVaultFormImage = uploadVaultFormImage = async (input) => {
+    if (!isEditor) return;
+    if (!input.files || !input.files[0]) return;
+    const file = input.files[0];
+
+    showToast("Đang tải lên...", "info");
+    const formData = new FormData();
+    formData.append('file', file);
+    formData.append('upload_preset', CLOUDINARY_PRESET);
+
+    try {
+        const response = await fetch(`https://api.cloudinary.com/v1_1/${CLOUDINARY_NAME}/auto/upload`, { method: 'POST', body: formData });
+        const result = await response.json();
+        if (!result.secure_url) throw new Error("Không lấy được link file");
+
+        if (!window._vaultFormFiles) window._vaultFormFiles = [];
+        window._vaultFormFiles.push({ url: result.secure_url, name: file.name, isImage: file.type.startsWith('image/') });
+        renderVaultFormFilesPreview();
+        showToast("Tải lên thành công!", "success");
+    } catch (e) {
+        showToast("❌ Lỗi tải lên", "error");
+    } finally {
+        input.value = '';
+    }
+};
+
+window.removeVaultFormFile = removeVaultFormFile = (idx) => {
+    if (!window._vaultFormFiles) return;
+    window._vaultFormFiles.splice(idx, 1);
+    renderVaultFormFilesPreview();
 };
 
 window.saveVaultCard = saveVaultCard = () => {
@@ -6996,10 +7042,13 @@ window.saveVaultCard = saveVaultCard = () => {
         const card = DATA.vault.find(c => c.id === Number(editId));
         if (!card) return;
         card.title = title;
-        if (card.type === 'text') {
+        card.type = type;
+        if (type === 'text') {
             card.content = document.getElementById('vaultCardContent').value.trim();
             card.zoomable = document.getElementById('vaultCardZoomable').checked;
-        } else if (card.type === 'location') {
+        } else if (type === 'image') {
+            card.files = window._vaultFormFiles || [];
+        } else if (type === 'location') {
             card.address = document.getElementById('vaultCardAddress').value.trim();
             card.mapUrl = card.address ? `https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(card.address)}` : '';
         }
@@ -7009,7 +7058,7 @@ window.saveVaultCard = saveVaultCard = () => {
             newCard.content = document.getElementById('vaultCardContent').value.trim();
             newCard.zoomable = document.getElementById('vaultCardZoomable').checked;
         } else if (type === 'image') {
-            newCard.files = [];
+            newCard.files = window._vaultFormFiles || [];
         } else if (type === 'location') {
             newCard.address = document.getElementById('vaultCardAddress').value.trim();
             newCard.mapUrl = newCard.address ? `https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(newCard.address)}` : '';
@@ -8147,7 +8196,11 @@ window.niceConfirm = niceConfirm = (title, text, type = 'danger') => {
         }
 
         const closeDialog = (result) => {
-            dialog.classList.remove('open'); 
+            // Bỏ focus phần tử đang gõ TRƯỚC khi ẩn dialog: nếu để bàn phím ảo tự đóng SAU khi
+            // overlay đã display:none, một số trình duyệt mobile (đặc biệt iOS Safari) bị lệch
+            // visual viewport và "khóa cứng" input lần mở dialog kế tiếp, phải bấm 2 lần mới gõ được.
+            if (document.activeElement && document.activeElement !== document.body) document.activeElement.blur();
+            dialog.classList.remove('open');
             if (!wasAlreadyLocked) {
                 document.body.style.removeProperty('overflow');
                 document.body.style.removeProperty('position');
@@ -8205,10 +8258,18 @@ window.nicePrompt = nicePrompt = (title, text, defaultValue = '') => {
         // ==========================================
 
         input.setAttribute('autocomplete', 'off');
-        input.focus(); 
+        input.disabled = false;
+        input.readOnly = false;
+        // Đợi 1 tick cho overlay display:none -> flex render xong rồi mới focus, tránh trường hợp
+        // mở lại dialog ngay sau lần đóng trước mà input chưa kịp "sống" để nhận bàn phím.
+        setTimeout(() => input.focus(), 0);
 
         const closeDialog = (result) => {
-            dialog.classList.remove('open'); 
+            // Bỏ focus TRƯỚC khi ẩn dialog: để bàn phím ảo tự đóng sau khi overlay đã display:none
+            // khiến 1 số trình duyệt mobile (đặc biệt iOS Safari) lệch visual viewport, "khóa cứng"
+            // input ở lần mở dialog kế tiếp -> phải bấm ra ngoài xong không gõ lại được nữa.
+            if (document.activeElement && document.activeElement !== document.body) document.activeElement.blur();
+            dialog.classList.remove('open');
             if (!wasAlreadyLocked) {
                 document.body.style.removeProperty('overflow');
                 document.body.style.removeProperty('position');
