@@ -190,9 +190,12 @@
       <div class="metric-card stat-card"><div class="stat-label">Tổng ngày</div><div class="stat-value gold" id="totalDays">0</div></div>
       <div class="metric-card stat-card"><div class="stat-label">Dự trù</div><div class="stat-value gold" id="totalBudget">0đ</div></div>
     </div>
-    <div style="display:flex; justify-content:space-between; align-items:center; margin-top:20px; margin-bottom:10px;">
+    <div style="display:flex; justify-content:space-between; align-items:center; margin-top:20px; margin-bottom:10px; gap:8px; flex-wrap:wrap;">
         <div class="section-header section-title" style="margin:0;">Lịch trình</div>
-        <button class="btn" style="width:auto; padding:6px 12px; font-size:.7rem; background:var(--surface2); color:var(--accent); border: 1px dashed var(--accent);" onclick="exportItineraryToImage()">📸 Chụp lịch trình</button>
+        <div style="display:flex; gap:8px; flex-wrap:wrap;">
+            <button class="btn" style="width:auto; padding:6px 12px; font-size:.7rem; background:var(--surface2); color:var(--accent); border: 1px dashed var(--accent);" onclick="askAiSuggestions()">🤖 AI gợi ý</button>
+            <button class="btn" style="width:auto; padding:6px 12px; font-size:.7rem; background:var(--surface2); color:var(--accent); border: 1px dashed var(--accent);" onclick="exportItineraryToImage()">📸 Chụp lịch trình</button>
+        </div>
     </div>
     <div id="itineraryList"></div>
   </div>
@@ -329,12 +332,12 @@
     </div>
   </div>
 
-  <div class="section-header section-title">🤖 Trợ lý AI (Gợi ý du lịch)</div>
+  <div class="section-header section-title">🤖 AI Trợ lý (Gemini + OpenRouter)</div>
   <div class="trip-card" style="padding:16px;margin-bottom:12px;">
     <div id="geminiKeyStatus" style="font-size: 0.68rem; color: var(--accent); margin-bottom: 10px; line-height: 1.5;"></div>
 
     <div class="form-group">
-      <label class="form-label">MODEL AI (ĐỔI KHI BỊ LỖI HẾT QUOTA)</label>
+      <label class="form-label">MODEL AI GỢI Ý (ĐỔI KHI BỊ LỖI HẾT QUOTA)</label>
       <select class="form-input" id="settingGeminiModel" onchange="saveGeminiModel()">
         <option value="">Mặc định (gemini-2.0-flash)</option>
         <option value="gemini-2.0-flash">gemini-2.0-flash</option>
@@ -346,21 +349,16 @@
         <option value="gemini-pro-latest">gemini-pro-latest</option>
       </select>
       <div style="font-size: 0.65rem; color: var(--text3); margin-top: 6px; line-height: 1.5;">
-        Nếu gặp lỗi "exceeded quota" / "limit: 0" nghĩa là tài khoản Google của bạn chưa được cấp quota free cho model đó — hãy thử chọn model khác ở đây, hoặc kiểm tra billing tại <a href="https://aistudio.google.com/apikey" target="_blank" rel="noopener noreferrer" style="color: var(--accent);">Google AI Studio</a>.
+        Dùng cho "🤖 AI gợi ý" (món ngon/địa điểm hot) và "AI xếp lịch trình" ở tab Lịch trình. Nếu gặp lỗi "exceeded quota" / "limit: 0", thử chọn model khác ở đây, hoặc kiểm tra billing tại <a href="https://aistudio.google.com/apikey" target="_blank" rel="noopener noreferrer" style="color: var(--accent);">Google AI Studio</a>.
       </div>
     </div>
 
-    <button class="btn" style="background: var(--surface2); color: var(--accent); border: 1px dashed var(--accent);" onclick="askAiSuggestions()">
-      🤖 Hỏi AI: Món ngon &amp; địa điểm hot tại <span id="aiTripLocLabel">chuyến đi này</span>
-    </button>
-  </div>
+    <div style="height: 1px; background: rgba(255,255,255,0.06); margin: 15px 0;"></div>
 
-  <div class="section-header section-title">🎒💬 AI Checklist &amp; Chat (qua OpenRouter)</div>
-  <div class="trip-card" style="padding:16px;margin-bottom:12px;">
     <div id="openRouterKeyStatus" style="font-size: 0.68rem; color: var(--accent); margin-bottom: 10px; line-height: 1.5;"></div>
 
     <div class="form-group">
-      <label class="form-label">MODEL (ĐỔI KHI BỊ LỖI HẾT QUOTA)</label>
+      <label class="form-label">MODEL CHO PACKING CHECKLIST (ĐỔI KHI BỊ LỖI HẾT QUOTA)</label>
       <select class="form-input" id="settingOpenRouterModel" onchange="saveOpenRouterModel()">
         <option value="">Mặc định (deepseek/deepseek-chat)</option>
         <option value="deepseek/deepseek-chat">deepseek/deepseek-chat</option>
@@ -854,16 +852,21 @@
 
 <div class="modal-overlay" id="chatAiModal">
   <div class="modal bottom-sheet">
-    <div class="modal-title modal-title-balanced"><span class="title-icon">💬</span><span>Trợ lý AI chuyến đi</span></div>
+    <div class="chat-modal-header">
+      <div class="modal-title modal-title-balanced" style="margin:0;"><span class="title-icon">💬</span><span>Trợ lý AI chuyến đi</span></div>
+      <button class="chat-close-btn" onclick="closeModal('chatAiModal')">✕</button>
+    </div>
 
     <div class="chat-messages" id="chatMessages"></div>
 
     <div class="chat-quick-chips" id="chatQuickChips">
       <button class="chat-chip" onclick="sendChatQuickChip('fund')">📊 Tình hình Quỹ</button>
       <button class="chat-chip" onclick="sendChatQuickChip('next')">📍 Tiếp theo đi đâu?</button>
+      <button class="chat-chip" onclick="sendChatQuickChip('location_suggest')">🗺️ Gợi ý địa điểm</button>
       <button class="chat-chip" onclick="sendChatQuickChip('food')">🍜 Gợi ý quán ăn gần đây</button>
       <button class="chat-chip" onclick="sendChatQuickChip('safety')">🛡️ Cảnh báo điểm này</button>
       <button class="chat-chip" onclick="sendChatQuickChip('expense_guide')">🧾 Hướng dẫn nhập tiền</button>
+      <button class="chat-chip" onclick="sendChatQuickChip('random')">🎲 Vòng quay may mắn</button>
     </div>
 
     <div class="chat-input-row">
@@ -871,8 +874,6 @@
       <input class="form-input" id="chatInput" placeholder="Hỏi gì đó, hoặc gõ: chi ăn tối 150k..." onkeydown="if(event.key==='Enter'){sendChatMessageFromInput()}">
       <button class="chat-send-btn" onclick="sendChatMessageFromInput()">➤</button>
     </div>
-
-    <button class="btn btn-secondary" onclick="closeModal('chatAiModal')" style="margin-top:10px">Đóng</button>
   </div>
 </div>
 
@@ -1154,8 +1155,7 @@
   </div>
 </div>
 
-<button class="fab-left" onclick="openRandomModal()">🎲</button>
-<button class="fab-left" id="fabChatBtn" style="bottom: 152px; background: var(--accent-glow); color: var(--accent); border: 1px solid var(--accent);" onclick="openChatModal()">💬</button>
+<button class="fab-left" id="fabChatBtn" style="background: var(--accent-glow); color: var(--accent); border: 1px solid var(--accent);" onclick="openChatModal()">💬</button>
 
 <div class="modal-overlay" id="randomModal">
   <div class="modal bottom-sheet">

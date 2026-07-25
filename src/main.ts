@@ -660,6 +660,17 @@ window.sendChatQuickChip = sendChatQuickChip = (key) => {
         appendChatBubble('ai', `Bạn có thể gõ nhanh theo cú pháp:\n"chi <tên khoản> <số tiền>"\nVD: chi ăn tối 150k, hoặc chi vé tàu 1.2tr\n\nMình sẽ tự thêm luôn vào danh sách chi tiêu, không cần mở form. Hoặc bấm 🎤 để đọc thay vì gõ.`);
         return;
     }
+    // 2 chip này mở thẳng tính năng/modal riêng đã có sẵn, không đi qua khung chat.
+    if (key === 'random') {
+        closeModal('chatAiModal');
+        openRandomModal();
+        return;
+    }
+    if (key === 'location_suggest') {
+        closeModal('chatAiModal');
+        askAiSuggestions();
+        return;
+    }
     const label = CHAT_QUICK_LABELS[key];
     const hiddenPrompt = CHAT_QUICK_PROMPTS[key];
     if (!label || !hiddenPrompt) return;
@@ -867,7 +878,7 @@ window.askAiSuggestions = askAiSuggestions = async (forceRefresh = false) => {
             <div style="font-size: 0.8rem;">Đang hỏi AI về ${esc(location)}...</div>
         </div>`;
 
-    const prompt = `Bạn là trợ lý du lịch. Gợi ý 6 mục HOT nhất khi đi du lịch tại "${fullLocation}" (xác định đúng địa danh này theo tên đầy đủ, không đoán sang địa danh khác trùng tên), trộn giữa món ăn đặc sản ngon và địa điểm vui chơi/tham quan nổi tiếng.
+    const prompt = `Bạn là trợ lý du lịch. Gợi ý 12 mục HOT nhất khi đi du lịch tại "${fullLocation}" (xác định đúng địa danh này theo tên đầy đủ, không đoán sang địa danh khác trùng tên), trộn giữa món ăn đặc sản ngon và địa điểm vui chơi/tham quan nổi tiếng.
 Trả lời NGẮN GỌN bằng tiếng Việt. CHỈ trả về DUY NHẤT một JSON array (không markdown, không giải thích thêm), đúng cấu trúc:
 [{"type":"food hoặc place","icon":"1 emoji phù hợp","name":"Tên món/địa điểm","desc":"Mô tả 1 câu ngắn dưới 20 từ"}]`;
 
@@ -1482,9 +1493,6 @@ function renderAll(flashUpdate = false) {
       locInput.value = DATA.trip.location || '';
   }
   // -------------------------
-
-  const aiLocLabel = document.getElementById('aiTripLocLabel');
-  if (aiLocLabel) aiLocLabel.textContent = DATA.trip.location || 'chuyến đi này';
 
   if (window.cancelEditName) cancelEditName();
   if (window.cancelEditCode) cancelEditCode();
