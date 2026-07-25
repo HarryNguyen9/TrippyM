@@ -643,13 +643,15 @@ Chỉ trả lời dựa trên thông tin trên và kiến thức du lịch thự
 const CHAT_QUICK_PROMPTS = {
     fund: "Tóm tắt ngắn gọn tổng thu/chi, số dư quỹ hiện tại, và cảnh báo nếu có ai đang tự ứng tiền cá nhân quá nhiều chưa được hoàn lại, dựa trên số liệu tài chính đã cung cấp.",
     next: "Cho biết điểm đến/hoạt động tiếp theo trong lịch trình hôm nay là gì, kèm 1-2 mẹo di chuyển hoặc lưu ý ngắn cho hoạt động đó.",
-    food: "Gợi ý 3 quán ăn bản địa chuẩn vị, nổi tiếng gần địa điểm của chuyến đi này. Mỗi quán 1 câu ngắn giới thiệu món đặc trưng.",
+    place: "Gợi ý 6 địa điểm tham quan/vui chơi/sống ảo nổi tiếng gần địa điểm của chuyến đi này (KHÔNG phải quán ăn). Mỗi địa điểm 1 câu ngắn giới thiệu điểm đặc biệt/lý do nên ghé.",
+    food: "Gợi ý 6 quán ăn bản địa chuẩn vị, nổi tiếng gần địa điểm của chuyến đi này. Mỗi quán 1 câu ngắn giới thiệu món đặc trưng.",
     safety: "Cho biết 2-3 lưu ý quan trọng về bẫy du lịch (lừa đảo, giá cả) hoặc điều cần tôn trọng về văn hóa tại địa điểm của chuyến đi này."
 };
 
 const CHAT_QUICK_LABELS = {
     fund: "📊 Tình hình Quỹ",
     next: "📍 Tiếp theo đi đâu?",
+    place: "🗺️ Gợi ý địa điểm",
     food: "🍜 Gợi ý quán ăn gần đây",
     safety: "🛡️ Cảnh báo điểm này"
 };
@@ -660,15 +662,10 @@ window.sendChatQuickChip = sendChatQuickChip = (key) => {
         appendChatBubble('ai', `Bạn có thể gõ nhanh theo cú pháp:\n"chi <tên khoản> <số tiền>"\nVD: chi ăn tối 150k, hoặc chi vé tàu 1.2tr\n\nMình sẽ tự thêm luôn vào danh sách chi tiêu, không cần mở form. Hoặc bấm 🎤 để đọc thay vì gõ.`);
         return;
     }
-    // 2 chip này mở thẳng tính năng/modal riêng đã có sẵn, không đi qua khung chat.
+    // Chip này mở thẳng tính năng/modal riêng đã có sẵn, không đi qua khung chat.
     if (key === 'random') {
         closeModal('chatAiModal');
         openRandomModal();
-        return;
-    }
-    if (key === 'location_suggest') {
-        closeModal('chatAiModal');
-        askAiSuggestions();
         return;
     }
     const label = CHAT_QUICK_LABELS[key];
