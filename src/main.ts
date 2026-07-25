@@ -2170,24 +2170,7 @@ window.switchDashboardTab = switchDashboardTab = (tab) => {
     categoryBtn.classList.toggle('active', tab === 'category');
     overviewContent.style.display = tab === 'overview' ? 'block' : 'none';
     categoryContent.style.display = tab === 'category' ? 'block' : 'none';
-
-    if (tab === 'category') animateCategoryBars();
 };
-
-// Chạy hiệu ứng animate độ dài cột danh mục (đợi 1 tick để "width: 0%" ban đầu kịp render
-// trước khi đổi sang width thật, mới thấy hiệu ứng chạy). Dùng ở cả switchDashboardTab (bấm tay)
-// và renderPayments (khi render lại toàn bộ mà tab Danh mục đang là tab đang được chọn sẵn).
-function animateCategoryBars() {
-    const categoryContent = document.getElementById('dbTabContent_category');
-    if (!categoryContent) return;
-    // Dùng setTimeout thay vì requestAnimationFrame — rAF có thể không chạy nếu tab đang bị
-    // trình duyệt tạm ngưng vẽ (background tab, tab ẩn...), setTimeout thì luôn chạy được.
-    setTimeout(() => {
-        categoryContent.querySelectorAll('.cat-bar-fill').forEach(el => {
-            el.style.width = (el.getAttribute('data-target-width') || 0) + '%';
-        });
-    }, 20);
-}
 
 window.renderPayments = renderPayments = (flash = false) => {
     const list = document.getElementById('paymentList');
@@ -2256,7 +2239,7 @@ window.renderPayments = renderPayments = (flash = false) => {
         }
     }
 
-    // --- BIỂU ĐỒ CỘT: CHI TIÊU THEO DANH MỤC ---
+    // --- BIỂU ĐỒ TRÒN: CHI TIÊU THEO DANH MỤC ---
     const categoryTotals = {};
     payments.forEach(p => {
         if (p.isPaid && !p.isEstimate) {
@@ -2266,6 +2249,56 @@ window.renderPayments = renderPayments = (flash = false) => {
     });
     const catEntries = Object.entries(categoryTotals).filter(([, amt]) => amt > 0).sort((a, b) => b[1] - a[1]);
     const catTotal = catEntries.reduce((s, [, amt]) => s + amt, 0);
+    let catCumulative = 0;
+    const pieGradient = catEntries.map(([key, amt]) => {
+        const pct = catTotal > 0 ? (amt / catTotal) * 100 : 0;
+        const start = catCumulative;
+        catCumulative += pct;
+        return `${EXPENSE_CATEGORIES[key].color} ${start}% ${catCumulative}%`;
+    }).join(', ');
+
+    // --- QUẢ CẦU NĂNG LƯỢNG CHI TIÊU (theo ngày) ---
+    let bubblesData = [];
+    bubblesData.push({ id: '✨ PS', title: 'Phát sinh', amt: 0, isManual: true });
+    (DATA.days || []).filter(d => d !== null).forEach((day, idx) => {
+        bubblesData.push({ id: `D${idx + 1}`, title: day.date, amt: 0, isManual: false });
+    });
+    payments.forEach(p => {
+        if (p.isPaid && !p.isEstimate) {
+            let foundDay = false;
+            if (p.linkedActId) {
+                (DATA.days || []).forEach((day, di) => {
+                    if (day?.activities?.some(a => a?.id === p.linkedActId)) {
+                        if (bubblesData[di + 1]) {
+                            bubblesData[di + 1].amt += (p.amount || 0);
+                            foundDay = true;
+                        }
+                    }
+                });
+            }
+            if (!foundDay && bubblesData[0]) bubblesData[0].amt += (p.amount || 0);
+        }
+    });
+    const maxSpend = Math.max(...bubblesData.map(b => b.amt), 1);
+    const heatmapHtml = bubblesData.map((b) => {
+        const ratio = b.amt / maxSpend;
+        const scale = 0.9 + (ratio * 0.15);
+        let bgColor = 'var(--surface3)';
+        if (b.amt > 0) {
+            if (ratio < 0.4) bgColor = 'linear-gradient(135deg, #4ade80, #16a34a)';
+            else if (ratio < 0.7) bgColor = 'linear-gradient(135deg, #facc15, #ca8a04)';
+            else bgColor = 'linear-gradient(135deg, #f87171, #dc2626)';
+        }
+        let displayAmt = '0';
+        if (b.amt > 0) {
+            displayAmt = b.amt >= 1000000 ? (b.amt / 1000000).toFixed(1).replace('.0', '') + 'Tr' : (b.amt / 1000).toFixed(0) + 'k';
+        }
+        return `
+        <div class="heat-bubble ${ratio === 1 && b.amt > 0 ? 'hot' : ''}" style="background: ${bgColor}; transform: scale(${scale});" title="${esc(b.title)}">
+            <div class="heat-bubble-day" style="${b.isManual ? 'color: var(--accent);' : ''}">${b.id}</div>
+            <span class="heat-bubble-val">${displayAmt}</span>
+        </div>`;
+    }).join('');
 
     const styleTag = `
     <style>
@@ -2284,16 +2317,17 @@ window.renderPayments = renderPayments = (flash = false) => {
             .db-stats { width: 100%; }
         }
 
-        .cat-bar-total { text-align: center; margin-bottom: 16px; }
-        .cat-bar-total .amt { font-size: 1.5rem; font-weight: 900; color: var(--text); text-shadow: 0 0 20px var(--line-2); }
-        .cat-bar-total .label { font-size: 0.62rem; color: var(--text3); text-transform: uppercase; letter-spacing: 1px; margin-top: 2px; }
-        .cat-bar-chart { display: flex; flex-direction: column; gap: 14px; }
-        .cat-bar-row { display: flex; flex-direction: column; gap: 6px; }
-        .cat-bar-label { display: flex; justify-content: space-between; align-items: baseline; font-size: 0.75rem; color: var(--text2); gap: 8px; }
-        .cat-bar-label .name { display: flex; align-items: center; gap: 6px; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-        .cat-bar-label .amt { font-weight: 800; color: var(--text); white-space: nowrap; }
-        .cat-bar-track { height: 10px; border-radius: 6px; background: var(--line-2); overflow: hidden; }
-        .cat-bar-fill { height: 100%; border-radius: 6px; width: 0%; transition: width 0.7s cubic-bezier(0.22, 1, 0.36, 1); }
+        .heatmap-container { display: flex; gap: 18px; overflow-x: auto; padding: 20px 10px 25px 10px; -webkit-overflow-scrolling: touch; align-items: center; }
+        .heatmap-container::-webkit-scrollbar { display: none; }
+        .heat-bubble { flex: 0 0 62px; height: 62px; border-radius: 50%; display: flex; flex-direction: column; align-items: center; justify-content: center; position: relative; border: 2px solid var(--line-3); box-shadow: inset 0 0 10px var(--line-2), 0 4px 10px var(--shadow-2); transition: all 0.4s cubic-bezier(0.175, 0.885, 0.32, 1.275); color: #fff; }
+        .heat-bubble-day { position: absolute; top: -14px; font-size: 0.55rem; font-weight: 800; color: var(--text3); background: var(--surface2); padding: 3px 8px; border-radius: 10px; border: 1px solid var(--line-2); box-shadow: 0 2px 5px var(--shadow-2); }
+        .heat-bubble-val { font-size: 0.75rem; font-weight: 900; text-shadow: 0 1px 3px rgba(0,0,0,0.8); letter-spacing: 0.5px; }
+        @keyframes pulse-hot {
+            0% { box-shadow: inset 0 0 10px var(--line-2), 0 0 0 0 rgba(248,113,113,0.5); }
+            70% { box-shadow: inset 0 0 10px var(--line-2), 0 0 0 12px rgba(248,113,113,0); }
+            100% { box-shadow: inset 0 0 10px var(--line-2), 0 0 0 0 rgba(248,113,113,0); }
+        }
+        .heat-bubble.hot { animation: pulse-hot 1.5s infinite; border-color: var(--red); }
     </style>`;
 
     // 2. GIAO DIỆN DASHBOARD ĐÃ GỘP DÒNG THEO Ý BÁC
@@ -2368,23 +2402,28 @@ window.renderPayments = renderPayments = (flash = false) => {
             </div>
 
             <div id="dbTabContent_category" style="display: ${window.currentDashboardTab === 'category' ? 'block' : 'none'};">
+                <div class="section-header section-title" style="margin: 0 0 5px 0; font-size: 0.7rem;">🔮 Cầu năng lượng chi tiêu</div>
+                <div class="heatmap-container">${heatmapHtml}</div>
+
                 ${catEntries.length ? `
-                <div class="cat-bar-total">
-                    <div class="amt">${formatVND(catTotal)}</div>
-                    <div class="label">Tổng chi theo danh mục</div>
-                </div>
-                <div class="cat-bar-chart">
-                    ${catEntries.map(([key, amt]) => {
-                        const cat = EXPENSE_CATEGORIES[key];
-                        const pct = catTotal > 0 ? Math.round((amt / catTotal) * 100) : 0;
-                        return `<div class="cat-bar-row">
-                            <div class="cat-bar-label">
-                                <span class="name">${cat.icon} ${cat.label}</span>
-                                <span class="amt">${pct}% · ${formatVND(amt)}</span>
-                            </div>
-                            <div class="cat-bar-track"><div class="cat-bar-fill" data-target-width="${pct}" style="background:${cat.color};"></div></div>
-                        </div>`;
-                    }).join('')}
+                <div class="db-container">
+                    <div class="db-chart" style="background: conic-gradient(${pieGradient}); box-shadow: 0 0 20px var(--shadow-2);">
+                        <div style="width: 70px; height: 70px; border-radius: 50%; background: var(--bg); display: flex; flex-direction: column; align-items: center; justify-content: center; line-height: 1.15; padding: 4px; box-sizing: border-box; overflow: hidden;">
+                            <span style="font-size: 0.6rem; font-weight: 900; color: var(--text); text-align: center; word-break: break-word; max-width: 58px;">${formatVND(catTotal)}</span>
+                        </div>
+                    </div>
+                    <div class="db-stats">
+                        ${catEntries.map(([key, amt]) => {
+                            const cat = EXPENSE_CATEGORIES[key];
+                            const pct = catTotal > 0 ? Math.round((amt / catTotal) * 100) : 0;
+                            return `<div style="display: flex; align-items: center; gap: 8px; font-size: 0.68rem;">
+                                <span style="width: 10px; height: 10px; border-radius: 50%; background: ${cat.color}; flex-shrink: 0;"></span>
+                                <span style="flex: 1; color: var(--text2);">${cat.icon} ${cat.label}</span>
+                                <span style="font-weight: 800; color: ${cat.color};">${pct}%</span>
+                                <span style="color: var(--text3); min-width: 72px; text-align: right;">${formatVND(amt)}</span>
+                            </div>`;
+                        }).join('')}
+                    </div>
                 </div>
                 ` : `<div class="today-muted" style="text-align:center; padding: 20px 0;">Chưa có chi tiêu để phân loại.</div>`}
             </div>
@@ -2530,9 +2569,6 @@ window.renderPayments = renderPayments = (flash = false) => {
     list.innerHTML = mainTitleHtml + statsUI + filterUI + (listItemsHtml || '<div class="empty" style="padding-top: 20px;">Không có khoản chi nào trong mục này</div>');
     if (flash) list.classList.add('update-flash'), setTimeout(()=>list.classList.remove('update-flash'),700);
     setTimeout(window.initSwipeActions, 100);
-    // Nếu đang ở tab "Danh mục" mà render lại (VD: đổi filter Tất cả/Thực chi/Dự trù bên dưới),
-    // statsUI dựng lại từ đầu nên .cat-bar-fill mất hiệu ứng width đã chạy — chạy lại animate ở đây.
-    if (window.currentDashboardTab === 'category') animateCategoryBars();
 };
 
 window.renderCollection = renderCollection = (flash = false) => {
