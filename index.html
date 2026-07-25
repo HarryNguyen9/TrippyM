@@ -1056,6 +1056,7 @@
       <div class="category-grid" id="vaultTypePicker">
         <div class="category-chip selected" data-type="text" onclick="selectVaultCardType('text')"><span class="category-chip-icon">📝</span><span>Văn bản</span></div>
         <div class="category-chip" data-type="image" onclick="selectVaultCardType('image')"><span class="category-chip-icon">🖼️</span><span>Hình ảnh</span></div>
+        <div class="category-chip" data-type="file" onclick="selectVaultCardType('file')"><span class="category-chip-icon">📁</span><span>File</span></div>
         <div class="category-chip" data-type="location" onclick="selectVaultCardType('location')"><span class="category-chip-icon">📍</span><span>Vị trí</span></div>
       </div>
     </div>
@@ -1084,8 +1085,8 @@
         <div class="vault-card-files" id="vaultFormFilesPreview"></div>
         <div style="display:flex; gap:8px; margin-top:8px;">
           <label class="btn" style="background: var(--surface2); color: var(--accent); border: 1px dashed var(--accent); flex:1; text-align:center; cursor:pointer;">
-            🖼️ Chọn ảnh
-            <input type="file" accept="image/*,.pdf" style="display:none;" onchange="uploadVaultFormImage(this)">
+            📁 Chọn ảnh/file
+            <input type="file" accept="image/*,.pdf,.doc,.docx,.xls,.xlsx,.txt" style="display:none;" onchange="uploadVaultFormImage(this)">
           </label>
           <label class="btn" style="background: var(--surface2); color: var(--accent); border: 1px dashed var(--accent); flex:1; text-align:center; cursor:pointer;">
             📷 Chụp ảnh

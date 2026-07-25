@@ -67,7 +67,7 @@ var openExpenseFlow, openFullScheduleFromToday, openFundLink, openHistoryModal, 
 var openMapModal, openPackingModal, openRandomModal, openSettingsPage, openTotalExpenseModal, pendingReturnToAct;
 var openVaultModal, openAddVaultCardModal, selectVaultCardType, saveVaultCard, editVaultCard, deleteVaultCard;
 var copyVaultCardContent, openVaultZoom, closeVaultZoom, uploadVaultImage, removeVaultImage, openVaultLocation, renderVaultCards;
-var uploadVaultFormImage, removeVaultFormFile;
+var uploadVaultFormImage, removeVaultFormFile, openVaultFile;
 var pendingReturnToHistoryIdx, playCinematicIntro, playTing, randomizeAvatarInModal, randomizeNewMemberAvatar, refreshCurrentTrip;
 var removeEditPmReceipt, removeFundQr, removeTripCover, renderCollection, renderGallery;
 var renderPackingList, renderPayments, renderTodayView, resetDayForm, resetEditDayForm, saveAvatar;
@@ -149,9 +149,11 @@ async function loadPublicTrips() {
           const endDate = rawEnd !== '??' && rawEnd.split('/').length < 3 ? `${rawEnd}/${currentYear}` : rawEnd;
 
           // 2. KHAI BÁO BIẾN LỖI: Định nghĩa statusBadgeHtml dựa trên trạng thái chuyến đi
-          const statusBadgeHtml = isFinished 
-            ? `<div style="display: inline-flex; font-size: 0.55rem; background: var(--red-bg); color: var(--red); border: 1px solid rgba(248,113,113,0.2); padding: 3px 10px; border-radius: 10px; font-weight: 600; margin-bottom: 10px;">✓ Kết thúc</div>`
-            : `<div style="display: inline-flex; font-size: 0.55rem; background: var(--green-bg); color: var(--green); border: 1px solid rgba(74,222,128,0.2); padding: 3px 10px; border-radius: 10px; font-weight: 600; margin-bottom: 10px;">● Đang diễn ra</div>`;
+          // Nền đặc (không dùng --red-bg/--green-bg trong suốt 10%) + backdrop-filter blur: badge nằm
+          // đè lên ảnh cover nên cần nền đục để chữ luôn rõ, dù ảnh nền có nhiều chi tiết/màu sáng cỡ nào.
+          const statusBadgeHtml = isFinished
+            ? `<div style="display: inline-flex; font-size: 0.55rem; background: rgba(10,10,10,0.6); backdrop-filter: blur(6px); color: var(--red); border: 1px solid rgba(248,113,113,0.4); padding: 3px 10px; border-radius: 10px; font-weight: 600; margin-bottom: 10px;">✓ Kết thúc</div>`
+            : `<div style="display: inline-flex; font-size: 0.55rem; background: rgba(10,10,10,0.6); backdrop-filter: blur(6px); color: var(--green); border: 1px solid rgba(74,222,128,0.4); padding: 3px 10px; border-radius: 10px; font-weight: 600; margin-bottom: 10px;">● Đang diễn ra</div>`;
           
           html += `
             <div class="public-card public-trip-card" onclick="viewPublicTrip('${code}')">
@@ -6858,6 +6860,84 @@ window.renderPackingList = renderPackingList = (flash = false) => {
 // ============================================
 // 🔐 TRIP VAULT (KÉT SẮT CHUYẾN ĐI)
 // ============================================
+
+// --- CACHE OFFLINE 100% CHO ẢNH/FILE GIẤY TỜ: lưu thẳng bytes ảnh vào IndexedDB trên máy,
+// để vừa xuống sân bay chưa kịp bật mạng vẫn mở được Passport/Vé máy bay ra xem ngay. ---
+function openVaultDB() {
+    return new Promise((resolve, reject) => {
+        const req = indexedDB.open('trippy_vault_cache', 1);
+        req.onupgradeneeded = () => { req.result.createObjectStore('files'); };
+        req.onsuccess = () => resolve(req.result);
+        req.onerror = () => reject(req.error);
+    });
+}
+
+async function cacheVaultFileBlob(url, blob) {
+    try {
+        const db = await openVaultDB();
+        await new Promise((resolve, reject) => {
+            const tx = db.transaction('files', 'readwrite');
+            tx.objectStore('files').put(blob, url);
+            tx.oncomplete = resolve;
+            tx.onerror = () => reject(tx.error);
+        });
+    } catch (e) { console.error('Lỗi cache offline vault:', e); }
+}
+
+async function getCachedVaultFileBlob(url) {
+    try {
+        const db = await openVaultDB();
+        return await new Promise((resolve, reject) => {
+            const tx = db.transaction('files', 'readonly');
+            const req = tx.objectStore('files').get(url);
+            req.onsuccess = () => resolve(req.result || null);
+            req.onerror = () => reject(req.error);
+        });
+    } catch (e) { return null; }
+}
+
+// Đợi ảnh/file hiện ra trong DOM xong thì âm thầm nạp từ cache offline (nếu có) để hiện ngay tức
+// thì, không cần mạng; nếu chưa cache mà đang có mạng thì tự tải về + cache luôn cho lần xem sau
+// (kể cả với thành viên khác không phải người upload - chỉ cần từng mở Vault lúc có mạng 1 lần).
+async function hydrateVaultThumbnails(container) {
+    const thumbs = container.querySelectorAll('.vault-file-thumb[data-vault-url]');
+    for (const thumb of thumbs) {
+        const url = thumb.getAttribute('data-vault-url');
+        const isImage = thumb.getAttribute('data-vault-isimage') !== 'false';
+        let blob = await getCachedVaultFileBlob(url);
+        if (!blob && navigator.onLine) {
+            try {
+                const res = await fetch(url);
+                blob = await res.blob();
+                cacheVaultFileBlob(url, blob);
+            } catch (e) { /* offline hoặc lỗi mạng -> bỏ qua, thumbnail vẫn dùng src gốc */ }
+        }
+        if (blob && isImage) {
+            const img = thumb.querySelector('img');
+            if (img) img.src = URL.createObjectURL(blob);
+        }
+    }
+}
+
+// Mở xem 1 ảnh/file trong vault: ưu tiên lấy từ cache offline, không có mạng vẫn xem được nếu
+// đã cache sẵn; nếu chưa cache mà có mạng thì tải + cache luôn rồi mới mở.
+window.openVaultFile = openVaultFile = async (url, isImage) => {
+    let blob = await getCachedVaultFileBlob(url);
+    if (!blob) {
+        if (!navigator.onLine) return showToast("📵 Chưa có mạng và file này chưa được tải sẵn để xem offline", "error");
+        try {
+            const res = await fetch(url);
+            blob = await res.blob();
+            cacheVaultFileBlob(url, blob);
+        } catch (e) {
+            return showToast("Không tải được file", "error");
+        }
+    }
+    const blobUrl = URL.createObjectURL(blob);
+    if (isImage) window.openLightbox(blobUrl);
+    else window.open(blobUrl, '_blank');
+};
+
 window.openVaultModal = openVaultModal = () => {
     // Lần đầu mở: tự tạo sẵn 2 ô quan trọng nhất (Wifi & Địa chỉ Taxi) để không bị trống trơn
     if (!DATA.vault) {
@@ -6879,7 +6959,7 @@ function renderVaultCardHtml(card) {
             <button class="action-btn action-delete editor-only" onclick="event.stopPropagation(); deleteVaultCard(${card.id})">🗑️</button>
         </div>`;
 
-    if (card.type === 'image') {
+    if (card.type === 'image' || card.type === 'file') {
         const files = card.files || [];
         return `
         <div class="vault-card">
@@ -6889,7 +6969,7 @@ function renderVaultCardHtml(card) {
             </div>
             <div class="vault-card-files">
                 ${files.map((f, fi) => `
-                    <div class="vault-file-thumb" ${f.isImage !== false ? `onclick="window.openLightbox('${f.url}')"` : `onclick="window.open('${f.url}','_blank')"`}>
+                    <div class="vault-file-thumb" data-vault-url="${f.url}" data-vault-isimage="${f.isImage !== false}" onclick="openVaultFile('${f.url}', ${f.isImage !== false})">
                         ${f.isImage !== false ? `<img src="${f.url}" alt="${esc(f.name || '')}">` : `<span style="font-size:1.6rem;">📄</span>`}
                         <button class="vault-file-remove editor-only" onclick="event.stopPropagation(); removeVaultImage(${card.id}, ${fi})">✕</button>
                     </div>
@@ -6945,6 +7025,7 @@ window.renderVaultCards = renderVaultCards = () => {
         return;
     }
     container.innerHTML = cards.map(renderVaultCardHtml).join('');
+    hydrateVaultThumbnails(container);
 };
 
 window.openAddVaultCardModal = openAddVaultCardModal = () => {
@@ -6964,7 +7045,7 @@ window.selectVaultCardType = selectVaultCardType = (type) => {
     document.getElementById('vaultCardTypeInput').value = type;
     document.querySelectorAll('#vaultTypePicker .category-chip').forEach(el => el.classList.toggle('selected', el.dataset.type === type));
     document.getElementById('vaultFieldsText').style.display = type === 'text' ? 'block' : 'none';
-    document.getElementById('vaultFieldsImage').style.display = type === 'image' ? 'block' : 'none';
+    document.getElementById('vaultFieldsImage').style.display = (type === 'image' || type === 'file') ? 'block' : 'none';
     document.getElementById('vaultFieldsLocation').style.display = type === 'location' ? 'block' : 'none';
 };
 
@@ -6979,7 +7060,7 @@ window.editVaultCard = editVaultCard = (id) => {
     document.getElementById('vaultCardAddress').value = card.address || '';
     // Cho phép đổi loại ô thoải mái (VD: 3 card mặc định Wifi/Taxi/SOS đang là văn bản
     // vẫn có thể đổi qua ảnh, chụp thẳng cái thẻ giấy thay vì gõ lại chữ)
-    window._vaultFormFiles = card.type === 'image' ? [...(card.files || [])] : [];
+    window._vaultFormFiles = (card.type === 'image' || card.type === 'file') ? [...(card.files || [])] : [];
     renderVaultFormFilesPreview();
     selectVaultCardType(card.type);
     openModal('vaultCardFormModal');
@@ -6990,34 +7071,70 @@ function renderVaultFormFilesPreview() {
     if (!container) return;
     const files = window._vaultFormFiles || [];
     container.innerHTML = files.map((f, fi) => `
-        <div class="vault-file-thumb" ${f.isImage !== false ? `onclick="window.openLightbox('${f.url}')"` : `onclick="window.open('${f.url}','_blank')"`}>
+        <div class="vault-file-thumb" data-vault-url="${f.url}" data-vault-isimage="${f.isImage !== false}" onclick="openVaultFile('${f.url}', ${f.isImage !== false})">
             ${f.isImage !== false ? `<img src="${f.url}" alt="${esc(f.name || '')}">` : `<span style="font-size:1.6rem;">📄</span>`}
             <button type="button" class="vault-file-remove" onclick="event.stopPropagation(); removeVaultFormFile(${fi})">✕</button>
         </div>
     `).join('');
+    hydrateVaultThumbnails(container);
+}
+
+// Ảnh chụp thẳng từ camera điện thoại thường rất nặng (5-12MB, có khi là HEIC trên iPhone) -> dễ upload
+// lỗi/timeout trên mạng di động, hoặc bị Cloudinary preset từ chối định dạng. Nén lại qua canvas về JPEG
+// kích thước vừa phải trước khi gửi lên, vừa nhẹ vừa đồng nhất định dạng cho chắc ăn.
+function compressImageFile(file, maxSize = 1600, quality = 0.82) {
+    return new Promise((resolve) => {
+        if (!file.type || !file.type.startsWith('image/') || file.type === 'image/gif') {
+            return resolve(file); // Không đụng vào GIF hay file không phải ảnh (PDF...)
+        }
+        const img = new Image();
+        const url = URL.createObjectURL(file);
+        img.onload = () => {
+            URL.revokeObjectURL(url);
+            let { width, height } = img;
+            if (width > maxSize || height > maxSize) {
+                if (width > height) { height = Math.round(height * maxSize / width); width = maxSize; }
+                else { width = Math.round(width * maxSize / height); height = maxSize; }
+            }
+            const canvas = document.createElement('canvas');
+            canvas.width = width; canvas.height = height;
+            const ctx = canvas.getContext('2d');
+            ctx.drawImage(img, 0, 0, width, height);
+            canvas.toBlob((blob) => {
+                resolve(blob ? new File([blob], file.name.replace(/\.\w+$/, '') + '.jpg', { type: 'image/jpeg' }) : file);
+            }, 'image/jpeg', quality);
+        };
+        // Nếu trình duyệt không đọc được ảnh (VD: HEIC không hỗ trợ) thì gửi file gốc, để Cloudinary tự xử lý
+        img.onerror = () => { URL.revokeObjectURL(url); resolve(file); };
+        img.src = url;
+    });
 }
 
 window.uploadVaultFormImage = uploadVaultFormImage = async (input) => {
     if (!isEditor) return;
     if (!input.files || !input.files[0]) return;
-    const file = input.files[0];
+    const originalFile = input.files[0];
 
     showToast("Đang tải lên...", "info");
-    const formData = new FormData();
-    formData.append('file', file);
-    formData.append('upload_preset', CLOUDINARY_PRESET);
 
     try {
+        const file = await compressImageFile(originalFile);
+        const formData = new FormData();
+        formData.append('file', file);
+        formData.append('upload_preset', CLOUDINARY_PRESET);
+
         const response = await fetch(`https://api.cloudinary.com/v1_1/${CLOUDINARY_NAME}/auto/upload`, { method: 'POST', body: formData });
         const result = await response.json();
-        if (!result.secure_url) throw new Error("Không lấy được link file");
+        if (!result.secure_url) throw new Error(result.error?.message || "Không lấy được link file");
 
+        cacheVaultFileBlob(result.secure_url, file); // Cache offline luôn ngay lúc upload, khỏi cần tải lại
         if (!window._vaultFormFiles) window._vaultFormFiles = [];
-        window._vaultFormFiles.push({ url: result.secure_url, name: file.name, isImage: file.type.startsWith('image/') });
+        window._vaultFormFiles.push({ url: result.secure_url, name: originalFile.name, isImage: originalFile.type.startsWith('image/') });
         renderVaultFormFilesPreview();
         showToast("Tải lên thành công!", "success");
     } catch (e) {
-        showToast("❌ Lỗi tải lên", "error");
+        console.error('Vault upload error:', e);
+        showToast(`❌ Lỗi tải lên${e?.message ? ': ' + e.message : ''}`, "error");
     } finally {
         input.value = '';
     }
@@ -7046,7 +7163,7 @@ window.saveVaultCard = saveVaultCard = () => {
         if (type === 'text') {
             card.content = document.getElementById('vaultCardContent').value.trim();
             card.zoomable = document.getElementById('vaultCardZoomable').checked;
-        } else if (type === 'image') {
+        } else if (type === 'image' || type === 'file') {
             card.files = window._vaultFormFiles || [];
         } else if (type === 'location') {
             card.address = document.getElementById('vaultCardAddress').value.trim();
@@ -7057,7 +7174,7 @@ window.saveVaultCard = saveVaultCard = () => {
         if (type === 'text') {
             newCard.content = document.getElementById('vaultCardContent').value.trim();
             newCard.zoomable = document.getElementById('vaultCardZoomable').checked;
-        } else if (type === 'image') {
+        } else if (type === 'image' || type === 'file') {
             newCard.files = window._vaultFormFiles || [];
         } else if (type === 'location') {
             newCard.address = document.getElementById('vaultCardAddress').value.trim();
@@ -7102,27 +7219,31 @@ window.closeVaultZoom = closeVaultZoom = () => {
 window.uploadVaultImage = uploadVaultImage = async (id, input) => {
     if (!isEditor) return;
     if (!input.files || !input.files[0]) return;
-    const file = input.files[0];
+    const originalFile = input.files[0];
     const card = (DATA.vault || []).find(c => c.id === id);
     if (!card) return;
 
     showToast("Đang tải lên...", "info");
-    const formData = new FormData();
-    formData.append('file', file);
-    formData.append('upload_preset', CLOUDINARY_PRESET);
 
     try {
+        const file = await compressImageFile(originalFile);
+        const formData = new FormData();
+        formData.append('file', file);
+        formData.append('upload_preset', CLOUDINARY_PRESET);
+
         const response = await fetch(`https://api.cloudinary.com/v1_1/${CLOUDINARY_NAME}/auto/upload`, { method: 'POST', body: formData });
         const result = await response.json();
-        if (!result.secure_url) throw new Error("Không lấy được link file");
+        if (!result.secure_url) throw new Error(result.error?.message || "Không lấy được link file");
 
+        cacheVaultFileBlob(result.secure_url, file); // Cache offline luôn ngay lúc upload, khỏi cần tải lại
         if (!card.files) card.files = [];
-        card.files.push({ url: result.secure_url, name: file.name, isImage: file.type.startsWith('image/') });
+        card.files.push({ url: result.secure_url, name: originalFile.name, isImage: originalFile.type.startsWith('image/') });
 
         save(); autoSync(); renderVaultCards();
         showToast("Tải lên thành công!", "success");
     } catch (e) {
-        showToast("❌ Lỗi tải lên", "error");
+        console.error('Vault upload error:', e);
+        showToast(`❌ Lỗi tải lên${e?.message ? ': ' + e.message : ''}`, "error");
     } finally {
         input.value = '';
     }
