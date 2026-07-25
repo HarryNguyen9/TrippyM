@@ -57,6 +57,7 @@ var askAiSuggestions, generateAiItinerary, saveGeminiModel;
 var addSelectedAiPackingItems, generatePackingChecklist, saveOpenRouterModel;
 var openChatModal, saveChatModel, sendChatMessage, sendChatMessageFromInput, sendChatQuickChip, toggleChatMic;
 var copyMemberSummaryToClipboard, generateMemberFinanceSummary;
+var onDefaultCurrencyChange, onForeignCurrencySelectChange, saveCurrencySettings, selectPmCurrencyMode, selectPmPaymentMethod, updatePmForeignPreview;
 var openActModal, openAddActivityChoose, openAddMemberModal, openAddModal, openAddPaymentModal, openAdvanceOverviewModal;
 var openAiItineraryModal, selectAiItnStyle, updateAiItnNightsLabel;
 var openAvatarModal, openDayExpenseModal, openEditActivity, openEditDay, openEditMember, openEditPayment;
@@ -415,6 +416,133 @@ window.selectCategory = selectCategory = (prefix, key) => {
     });
     input.value = key;
 };
+
+// --- 💱 TIỀN TỆ NƯỚC NGOÀI (CHỈ HIỆN KHI TRIP VIBE = QUỐC TẾ) ---
+const COMMON_CURRENCIES = ['USD', 'KRW', 'THB', 'JPY', 'EUR', 'CNY', 'SGD'];
+
+function isIntlTrip() {
+    return !!(DATA && DATA.trip && DATA.trip.vibe === 'international');
+}
+
+// Tỷ giá mặc định của chuyến đi (cấu hình ở Settings) — chỉ để tự điền gợi ý, luôn sửa được theo từng giao dịch.
+function getTripCurrencyDefaults() {
+    return (DATA && DATA.trip && DATA.trip.currency) || { code: 'USD', cardRate: 0, cashRate: 0 };
+}
+
+function getForeignCurrencyCode(prefix) {
+    const sel = document.getElementById(`${prefix}ForeignCurrencySelect`);
+    const custom = document.getElementById(`${prefix}ForeignCurrencyCustom`);
+    if (!sel) return '';
+    if (sel.value === 'other') return (custom && custom.value.trim().toUpperCase()) || '';
+    return sel.value;
+}
+
+window.onForeignCurrencySelectChange = onForeignCurrencySelectChange = (prefix) => {
+    const sel = document.getElementById(`${prefix}ForeignCurrencySelect`);
+    const custom = document.getElementById(`${prefix}ForeignCurrencyCustom`);
+    if (!sel || !custom) return;
+    custom.style.display = sel.value === 'other' ? 'block' : 'none';
+};
+
+// Chuyển đổi VNĐ / Ngoại tệ cho form thêm/sửa chi tiêu — ẩn/hiện khối nhập ngoại tệ,
+// khoá ô "Số tiền" chính về chế độ tự tính khi ở Ngoại tệ (không cho gõ tay 2 nơi lệch nhau).
+window.selectPmCurrencyMode = selectPmCurrencyMode = (prefix, mode) => {
+    const grid = document.getElementById(`${prefix}CurrencyModeGrid`);
+    const input = document.getElementById(`${prefix}CurrencyMode`);
+    const foreignBlock = document.getElementById(`${prefix}ForeignBlock`);
+    const amountInput = document.getElementById(`${prefix}Amount`);
+
+    if (grid) grid.querySelectorAll('.category-chip').forEach(chip => {
+        chip.classList.toggle('selected', chip.getAttribute('data-mode') === mode);
+    });
+    if (input) input.value = mode;
+    if (foreignBlock) foreignBlock.style.display = mode === 'foreign' ? 'block' : 'none';
+    if (amountInput) {
+        amountInput.readOnly = (mode === 'foreign');
+        amountInput.style.opacity = (mode === 'foreign') ? '0.7' : '1';
+    }
+    if (mode === 'foreign') updatePmForeignPreview(prefix);
+};
+
+window.selectPmPaymentMethod = selectPmPaymentMethod = (prefix, method) => {
+    const foreignBlock = document.getElementById(`${prefix}ForeignBlock`);
+    const methodGrid = foreignBlock ? foreignBlock.querySelector('.payment-method-grid') : null;
+    if (methodGrid) methodGrid.querySelectorAll('.category-chip').forEach(chip => {
+        chip.classList.toggle('selected', chip.getAttribute('data-method') === method);
+    });
+    const input = document.getElementById(`${prefix}PaymentMethod`);
+    if (input) input.value = method;
+
+    // Tự điền tỷ giá mặc định của chuyến đi theo hình thức trả — vẫn sửa tay được ngay sau đó.
+    const defaults = getTripCurrencyDefaults();
+    const rateInput = document.getElementById(`${prefix}ExchangeRate`);
+    if (rateInput) rateInput.value = (method === 'cash' ? defaults.cashRate : defaults.cardRate) || '';
+    updatePmForeignPreview(prefix);
+};
+
+// Tính lại số tiền VNĐ quy đổi mỗi khi gõ số ngoại tệ/tỷ giá, đổ luôn vào ô "Số tiền" chính (readonly).
+window.updatePmForeignPreview = updatePmForeignPreview = (prefix) => {
+    const foreignAmountInput = document.getElementById(`${prefix}ForeignAmount`);
+    const rateInput = document.getElementById(`${prefix}ExchangeRate`);
+    const previewEl = document.getElementById(`${prefix}ForeignPreview`);
+    const amountInput = document.getElementById(`${prefix}Amount`);
+    if (!foreignAmountInput || !rateInput) return;
+
+    const foreignAmount = parseFloat(foreignAmountInput.value) || 0;
+    const rate = parseFloat(rateInput.value) || 0;
+    const vnd = Math.round(foreignAmount * rate);
+
+    if (previewEl) previewEl.textContent = vnd > 0 ? `≈ ${formatVND(vnd)}` : '';
+    if (amountInput) amountInput.value = vnd || '';
+};
+
+window.onDefaultCurrencyChange = onDefaultCurrencyChange = () => {
+    const sel = document.getElementById('settingDefaultCurrency');
+    const custom = document.getElementById('settingDefaultCurrencyCustom');
+    if (!sel || !custom) return;
+    custom.style.display = sel.value === 'other' ? 'block' : 'none';
+};
+
+window.saveCurrencySettings = saveCurrencySettings = () => {
+    if (!isEditor) return;
+    const sel = document.getElementById('settingDefaultCurrency');
+    const custom = document.getElementById('settingDefaultCurrencyCustom');
+    const code = sel.value === 'other' ? (custom.value.trim().toUpperCase() || 'USD') : sel.value;
+    const cardRate = parseFloat(document.getElementById('settingCardRate').value) || 0;
+    const cashRate = parseFloat(document.getElementById('settingCashRate').value) || 0;
+
+    if (!DATA.trip) DATA.trip = {};
+    DATA.trip.currency = { code, cardRate, cashRate };
+    save();
+    autoSync();
+    showToast("Đã lưu cấu hình tiền tệ", "success");
+};
+
+// Ẩn/hiện cả section cấu hình tiền tệ trong Settings theo vibe chuyến đi, và đổ dữ liệu đã lưu vào form.
+function refreshCurrencySettingsUI() {
+    const isIntl = isIntlTrip();
+    const header = document.getElementById('currencySectionHeader');
+    const card = document.getElementById('currencySettingsCard');
+    if (header) header.style.display = isIntl ? 'block' : 'none';
+    if (card) card.style.display = isIntl ? 'block' : 'none';
+    if (!isIntl) return;
+
+    const cur = getTripCurrencyDefaults();
+    const sel = document.getElementById('settingDefaultCurrency');
+    const custom = document.getElementById('settingDefaultCurrencyCustom');
+    if (sel) {
+        const isKnown = COMMON_CURRENCIES.includes(cur.code);
+        sel.value = isKnown ? cur.code : 'other';
+        if (custom) {
+            custom.style.display = isKnown ? 'none' : 'block';
+            custom.value = isKnown ? '' : (cur.code || '');
+        }
+    }
+    const cardRateInput = document.getElementById('settingCardRate');
+    const cashRateInput = document.getElementById('settingCashRate');
+    if (cardRateInput) cardRateInput.value = cur.cardRate || '';
+    if (cashRateInput) cashRateInput.value = cur.cashRate || '';
+}
 
 // --- 🤖 TRỢ LÝ AI (GEMINI) — GỢI Ý MÓN NGON / ĐỊA ĐIỂM HOT ---
 const GEMINI_MODEL_DEFAULT = 'gemini-2.0-flash';
@@ -1674,7 +1802,10 @@ window.renderTodayView = renderTodayView = () => {
         <div class="today-expense-name">${esc(payment.desc || 'Chi tiêu')}</div>
         <div class="today-expense-sub">${esc(payment.payer || 'Chưa rõ người trả')} · ${(payment.participants || []).length || memberCount || 0} người chia · ${payment.isPaid ? 'Đã trả' : 'Cần trả'}</div>
       </div>
-      <div class="today-expense-amount">${formatVND(payment.amount || 0)}</div>
+      <div style="text-align:right;">
+        <div class="today-expense-amount">${formatVND(payment.amount || 0)}</div>
+        ${payment.foreignAmount && payment.foreignCurrency ? `<div style="font-size:.6rem; color:var(--text3); margin-top:2px;">🌏 ${Number(payment.foreignAmount).toLocaleString('vi-VN')} ${esc(payment.foreignCurrency)}</div>` : ''}
+      </div>
     </div>
   `).join('') : `<div class="today-muted">Chưa có khoản chi nào gắn với lịch hôm nay.</div>`;
 
@@ -2366,6 +2497,7 @@ window.renderPayments = renderPayments = (flash = false) => {
               
               <div style="display:flex; flex-direction:column; justify-content:space-between; align-items:flex-end; opacity: ${p.isEstimate ? '0.75' : '1'};">
                 <div style="font-size:.95rem; font-weight:700; color:var(--accent)">${formatVND(p.amount)}</div>
+                ${p.foreignAmount && p.foreignCurrency ? `<div style="font-size:.6rem; color:var(--text3); margin-top:2px; white-space:nowrap;">🌏 ${Number(p.foreignAmount).toLocaleString('vi-VN')} ${esc(p.foreignCurrency)}</div>` : ''}
               </div>
             </div>
         </div>`;
@@ -2864,7 +2996,8 @@ window.exportPaymentsToExcel = exportPaymentsToExcel = () => {
         const wb = XLSX.utils.book_new();
         const rows = [[
             "STT", "Ngày", "Day", "Giờ", "Hoạt động", "Địa điểm", "Mô tả",
-            "Số tiền (VNĐ)", "Người trả", "Người tham gia", "Dự trù", "Đã thanh toán",
+            "Số tiền (VNĐ)", "Ngoại tệ", "Số tiền NT", "Tỷ giá", "Hình thức trả",
+            "Người trả", "Người tham gia", "Dự trù", "Đã thanh toán",
             "Rút từ quỹ", "Có bill", "Link bill"
         ]];
 
@@ -2879,6 +3012,10 @@ window.exportPaymentsToExcel = exportPaymentsToExcel = () => {
                 ctx.location,
                 p.desc || "",
                 p.amount || 0,
+                p.foreignCurrency || "",
+                p.foreignAmount || "",
+                p.exchangeRate || "",
+                p.paymentMethod === 'cash' ? 'Tiền mặt' : (p.paymentMethod === 'card' ? 'Thẻ' : ""),
                 getPaymentPayerText(p),
                 (p.participants || []).join(", "),
                 p.isEstimate ? "x" : "",
@@ -2892,11 +3029,12 @@ window.exportPaymentsToExcel = exportPaymentsToExcel = () => {
         const ws = XLSX.utils.aoa_to_sheet(rows);
         ws["!cols"] = [
             {wch: 6}, {wch: 12}, {wch: 20}, {wch: 8}, {wch: 24}, {wch: 24}, {wch: 30},
-            {wch: 14}, {wch: 34}, {wch: 36}, {wch: 10}, {wch: 14}, {wch: 22}, {wch: 9}, {wch: 42}
+            {wch: 14}, {wch: 10}, {wch: 12}, {wch: 10}, {wch: 12},
+            {wch: 34}, {wch: 36}, {wch: 10}, {wch: 14}, {wch: 22}, {wch: 9}, {wch: 42}
         ];
         applyVNDFormat(ws, 1, payments.length, [7]);
         if (payments.length) {
-            ws["!autofilter"] = { ref: XLSX.utils.encode_range({ s: { r: 0, c: 0 }, e: { r: payments.length, c: 14 } }) };
+            ws["!autofilter"] = { ref: XLSX.utils.encode_range({ s: { r: 0, c: 0 }, e: { r: payments.length, c: 18 } }) };
         }
         XLSX.utils.book_append_sheet(wb, ws, "Chi_Tieu");
         XLSX.writeFile(wb, `ChiTieu_${getSafeExcelName(DATA.trip?.name)}.xlsx`);
@@ -4521,6 +4659,20 @@ window.savePayment = savePayment = () => {
     const categoryInput = document.getElementById('pmCategory');
     const category = (categoryInput && categoryInput.value) || 'other';
 
+    // Thu thập dữ liệu ngoại tệ nếu chuyến đi Quốc tế và đang ở chế độ Ngoại tệ
+    const currencyModeInput = document.getElementById('pmCurrencyMode');
+    const isForeignMode = isIntlTrip() && currencyModeInput && currencyModeInput.value === 'foreign';
+    let foreignAmount = 0, foreignCurrency = '', exchangeRate = 0, paymentMethod = '';
+    if (isForeignMode) {
+        foreignAmount = parseFloat(document.getElementById('pmForeignAmount').value) || 0;
+        foreignCurrency = getForeignCurrencyCode('pm');
+        exchangeRate = parseFloat(document.getElementById('pmExchangeRate').value) || 0;
+        paymentMethod = document.getElementById('pmPaymentMethod').value || 'card';
+        if (foreignAmount <= 0 || !foreignCurrency || exchangeRate <= 0) {
+            return showToast("Vui lòng nhập đủ số tiền ngoại tệ, đơn vị và tỷ giá", "error");
+        }
+    }
+
     if (!desc || amount <= 0) return showToast("Nhập mô tả và số tiền", "error");
 
     let payer = "", isPaid = false, fromFund = false, participants = [];
@@ -4569,7 +4721,13 @@ window.savePayment = savePayment = () => {
         // 3. LƯU VÀO DATA
         const newPayment = { desc, amount, category, payer, isPaid, fromFund, participants, linkedActId: actId, isEstimate, receiptUrl };
         if (multiPayers) newPayment.multiPayers = multiPayers; // Nhúng cục góp chung vào dữ liệu
-        
+        if (isForeignMode) {
+            newPayment.foreignAmount = foreignAmount;
+            newPayment.foreignCurrency = foreignCurrency;
+            newPayment.exchangeRate = exchangeRate;
+            newPayment.paymentMethod = paymentMethod;
+        }
+
         DATA.payments.push(newPayment);
 
         // 4. RENDER LẠI (TÍNH TIỀN) VÀ ĐỒNG BỘ
@@ -4723,6 +4881,29 @@ window.openEditPayment = openEditPayment = (i) => {
   document.getElementById('editPmAmount').value = p.amount;
   selectCategory('editPm', p.category && EXPENSE_CATEGORIES[p.category] ? p.category : 'other');
 
+  // 💱 Ẩn/hiện khối Ngoại tệ theo vibe chuyến đi, nạp lại đúng dữ liệu đã lưu (nếu có)
+  const editPmCurrencyWrap = document.getElementById('editPmCurrencyModeWrap');
+  if (editPmCurrencyWrap) editPmCurrencyWrap.style.display = isIntlTrip() ? 'block' : 'none';
+  if (isIntlTrip()) {
+      if (p.foreignAmount && p.foreignCurrency) {
+          selectPmCurrencyMode('editPm', 'foreign');
+          document.getElementById('editPmForeignAmount').value = p.foreignAmount;
+          const fSel = document.getElementById('editPmForeignCurrencySelect');
+          const isKnown = COMMON_CURRENCIES.includes(p.foreignCurrency);
+          fSel.value = isKnown ? p.foreignCurrency : 'other';
+          onForeignCurrencySelectChange('editPm');
+          if (!isKnown) document.getElementById('editPmForeignCurrencyCustom').value = p.foreignCurrency;
+          selectPmPaymentMethod('editPm', p.paymentMethod === 'cash' ? 'cash' : 'card');
+          // selectPmPaymentMethod tự điền tỷ giá MẶC ĐỊNH của chuyến đi — ghi đè lại bằng tỷ giá THẬT đã lưu.
+          document.getElementById('editPmExchangeRate').value = p.exchangeRate || '';
+          updatePmForeignPreview('editPm');
+          document.getElementById('editPmAmount').value = p.amount; // Giữ đúng số VNĐ đã lưu, không tính lại từ tỷ giá mặc định
+      } else {
+          selectPmCurrencyMode('editPm', 'vnd');
+          document.getElementById('editPmForeignAmount').value = '';
+      }
+  }
+
   // Bơm dữ liệu hoạt động vào dropdown
   const actSelect = document.getElementById('editPmLinkedActId');
   let optionsHtml = '<option value="">Chưa có liên kết</option>';
@@ -4828,8 +5009,21 @@ window.saveEditPayment = saveEditPayment = () => {
     const editCategoryInput = document.getElementById('editPmCategory');
     const category = (editCategoryInput && editCategoryInput.value) || 'other';
 
+    const editCurrencyModeInput = document.getElementById('editPmCurrencyMode');
+    const isForeignMode = isIntlTrip() && editCurrencyModeInput && editCurrencyModeInput.value === 'foreign';
+    let foreignAmount = 0, foreignCurrency = '', exchangeRate = 0, paymentMethod = '';
+    if (isForeignMode) {
+        foreignAmount = parseFloat(document.getElementById('editPmForeignAmount').value) || 0;
+        foreignCurrency = getForeignCurrencyCode('editPm');
+        exchangeRate = parseFloat(document.getElementById('editPmExchangeRate').value) || 0;
+        paymentMethod = document.getElementById('editPmPaymentMethod').value || 'card';
+        if (foreignAmount <= 0 || !foreignCurrency || exchangeRate <= 0) {
+            return showToast("Vui lòng nhập đủ số tiền ngoại tệ, đơn vị và tỷ giá", "error");
+        }
+    }
+
     if (!desc || amount <= 0) return showToast("Nhập mô tả và số tiền", "error");
-    
+
     let payer = "", isPaid = false, fromFund = false, participants = [];
     let multiPayers = null;
 
@@ -4870,6 +5064,12 @@ window.saveEditPayment = saveEditPayment = () => {
         };
         
         if (multiPayers) updatedPayment.multiPayers = multiPayers;
+        if (isForeignMode) {
+            updatedPayment.foreignAmount = foreignAmount;
+            updatedPayment.foreignCurrency = foreignCurrency;
+            updatedPayment.exchangeRate = exchangeRate;
+            updatedPayment.paymentMethod = paymentMethod;
+        }
 
         DATA.payments[i] = updatedPayment;
 
@@ -5452,10 +5652,27 @@ window.openAddPaymentModal = openAddPaymentModal = (prefillName = "", linkedActI
     document.getElementById('pmAmount').value = '';
     selectCategory('pm', 'food');
     if(document.getElementById('pmLinkedActId')) document.getElementById('pmLinkedActId').value = linkedActId;
-    
+
     // Mặc định reset Dự trù về Tắt
     document.getElementById('pmIsEstimate').checked = false;
     toggleEstimateMode('pm');
+
+    // 💱 Ẩn/hiện khối Ngoại tệ theo vibe chuyến đi, reset về VNĐ mỗi lần mở
+    const pmCurrencyWrap = document.getElementById('pmCurrencyModeWrap');
+    if (pmCurrencyWrap) pmCurrencyWrap.style.display = isIntlTrip() ? 'block' : 'none';
+    if (isIntlTrip()) {
+        selectPmCurrencyMode('pm', 'vnd');
+        document.getElementById('pmForeignAmount').value = '';
+        const defaults = getTripCurrencyDefaults();
+        const fCurSelect = document.getElementById('pmForeignCurrencySelect');
+        if (fCurSelect) {
+            const isKnown = COMMON_CURRENCIES.includes(defaults.code);
+            fCurSelect.value = isKnown ? defaults.code : 'other';
+            onForeignCurrencySelectChange('pm');
+            if (!isKnown) document.getElementById('pmForeignCurrencyCustom').value = defaults.code || '';
+        }
+        selectPmPaymentMethod('pm', 'card');
+    }
 
     // =========================================================
     // 🧹 ÉP RESET TOÀN BỘ CHẾ ĐỘ GÓP CHUNG VỀ MẶC ĐỊNH (VÁ LỖI CỘNG DỒN)
@@ -7556,6 +7773,7 @@ window.openSettingsPage = openSettingsPage = () => {
   if (window.updateManagementUI) window.updateManagementUI();
   refreshGeminiKeyUI();
   refreshOpenRouterKeyUI();
+  refreshCurrencySettingsUI();
 };
 
 window.niceConfirm = niceConfirm = (title, text, type = 'danger') => {

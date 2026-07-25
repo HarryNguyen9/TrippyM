@@ -255,7 +255,7 @@
         <div class="section-header section-title" style="margin:0;">Tổng quan thành viên</div>
         <div style="display:flex; gap:8px; flex-wrap: wrap;">
           <button class="btn" id="btnMemberAiSummary" style="width:auto; padding:6px 12px; font-size:.7rem; background:var(--surface2); color:var(--accent); border:1px dashed var(--accent); border-radius:20px;" onclick="generateMemberFinanceSummary()">🤖 AI tóm tắt</button>
-          <button class="btn" style="width:auto; padding:6px 12px; font-size:.7rem; background:var(--surface2); color:var(--blue); border:1px dashed var(--blue); border-radius:20px;" onclick="openAdvanceOverviewModal()">💳 Ứng tiền</button>
+          <button class="btn" style="width:auto; padding:6px 12px; font-size:.7rem; background:var(--surface2); color:var(--blue); border:1px dashed var(--blue); border-radius:20px;" onclick="openAdvanceOverviewModal()">💳 Khoản chi</button>
           <button class="btn" style="width:auto; padding:6px 12px; font-size:.7rem; background:var(--surface2); color:var(--green); border:1px dashed var(--green); border-radius:20px;" onclick="exportMemberExpensesToExcel()">📊 Export Excel</button>
         </div>
       </div>
@@ -450,7 +450,42 @@
       </div>
       <div style="font-size: 0.65rem; color: var(--text3); margin-top: 6px;">Lưu ý: Đổi ID sẽ ngắt kết nối các thành viên hiện tại.</div>
     </div>
-  </div> <div class="section-header section-title editor-only management-override">Quản lý trạng thái chuyến đi</div>
+  </div>
+
+  <div class="section-header section-title editor-only" id="currencySectionHeader" style="display:none;">💱 Tiền tệ nước ngoài</div>
+  <div class="trip-card editor-only" id="currencySettingsCard" style="display:none; padding:16px;margin-bottom:12px;">
+    <div class="form-group">
+      <label class="form-label">ĐƠN VỊ TIỀN MẶC ĐỊNH</label>
+      <select class="form-input" id="settingDefaultCurrency" onchange="onDefaultCurrencyChange()">
+        <option value="USD">USD - Đô la Mỹ</option>
+        <option value="KRW">KRW - Won Hàn Quốc</option>
+        <option value="THB">THB - Baht Thái</option>
+        <option value="JPY">JPY - Yên Nhật</option>
+        <option value="EUR">EUR - Euro</option>
+        <option value="CNY">CNY - Nhân dân tệ</option>
+        <option value="SGD">SGD - Đô la Singapore</option>
+        <option value="other">Khác...</option>
+      </select>
+      <input class="form-input" id="settingDefaultCurrencyCustom" placeholder="Nhập mã tiền tệ (VD: MYR)" style="margin-top:8px; display:none;">
+    </div>
+
+    <div class="form-group">
+      <label class="form-label">TỶ GIÁ QUẸT THẺ 💳 (1 ĐƠN VỊ = ? VNĐ)</label>
+      <input class="form-input" id="settingCardRate" type="number" step="0.01" placeholder="VD: 18.5">
+    </div>
+
+    <div class="form-group">
+      <label class="form-label">TỶ GIÁ TIỀN MẶT 💵 (1 ĐƠN VỊ = ? VNĐ)</label>
+      <input class="form-input" id="settingCashRate" type="number" step="0.01" placeholder="VD: 18.2">
+    </div>
+
+    <button class="btn btn-primary" onclick="saveCurrencySettings()">💾 Lưu cấu hình tiền tệ</button>
+    <div style="font-size: 0.65rem; color: var(--text3); margin-top: 8px; line-height: 1.5;">
+      Dùng làm gợi ý mặc định khi thêm chi tiêu bằng ngoại tệ ở tab Chi tiêu — mỗi giao dịch vẫn sửa tỷ giá riêng được (vì tỷ giá lúc đổi tiền mặt và lúc quẹt thẻ thường lệch nhau).
+    </div>
+  </div>
+
+  <div class="section-header section-title editor-only management-override">Quản lý trạng thái chuyến đi</div>
   <div class="trip-card editor-only management-override" style="padding:16px;margin-bottom:12px;border-color: rgba(255,255,255,0.1);">
     <div style="display: flex; gap: 8px; margin-bottom: 15px; flex-wrap: wrap;" id="tripStatusIndicators">
       <span class="status-chip status-badge badge-finished" id="indFinished" style="display:none">🔒 Đã kết thúc</span>
@@ -595,6 +630,52 @@
           <div class="form-group"><label class="form-label">Mô tả</label><input class="form-input" id="pmDesc" placeholder="VD: Khách sạn"></div>
           <div class="form-group"><label class="form-label">Số tiền</label><input class="form-input" id="pmAmount" type="number" placeholder="0"></div>
 
+          <div class="form-group" id="pmCurrencyModeWrap" style="display:none;">
+            <label class="form-label">Loại tiền</label>
+            <div class="category-grid" id="pmCurrencyModeGrid">
+              <div class="category-chip selected" data-mode="vnd" onclick="selectPmCurrencyMode('pm','vnd')"><span class="category-chip-icon">💵</span><span>VNĐ</span></div>
+              <div class="category-chip" data-mode="foreign" onclick="selectPmCurrencyMode('pm','foreign')"><span class="category-chip-icon">🌏</span><span>Ngoại tệ</span></div>
+            </div>
+            <input type="hidden" id="pmCurrencyMode" value="vnd">
+
+            <div id="pmForeignBlock" style="display:none; margin-top:12px;">
+              <div style="display:flex; gap:8px;">
+                <div style="flex:1;">
+                  <label class="form-label">Số tiền ngoại tệ</label>
+                  <input class="form-input" id="pmForeignAmount" type="number" placeholder="0" oninput="updatePmForeignPreview('pm')">
+                </div>
+                <div style="width:110px;">
+                  <label class="form-label">Đơn vị</label>
+                  <select class="form-input" id="pmForeignCurrencySelect" onchange="onForeignCurrencySelectChange('pm')">
+                    <option value="USD">USD</option>
+                    <option value="KRW">KRW</option>
+                    <option value="THB">THB</option>
+                    <option value="JPY">JPY</option>
+                    <option value="EUR">EUR</option>
+                    <option value="CNY">CNY</option>
+                    <option value="SGD">SGD</option>
+                    <option value="other">Khác...</option>
+                  </select>
+                </div>
+              </div>
+              <input class="form-input" id="pmForeignCurrencyCustom" placeholder="Nhập mã tiền tệ (VD: MYR)" style="margin-top:8px; display:none;">
+
+              <label class="form-label" style="margin-top:10px;">Hình thức trả</label>
+              <div class="category-grid payment-method-grid">
+                <div class="category-chip selected" data-method="card" onclick="selectPmPaymentMethod('pm','card')"><span class="category-chip-icon">💳</span><span>Thẻ</span></div>
+                <div class="category-chip" data-method="cash" onclick="selectPmPaymentMethod('pm','cash')"><span class="category-chip-icon">💵</span><span>Tiền mặt</span></div>
+              </div>
+              <input type="hidden" id="pmPaymentMethod" value="card">
+
+              <div class="form-group" style="margin-top:10px;">
+                <label class="form-label">Tỷ giá (1 đơn vị = ? VNĐ)</label>
+                <input class="form-input" id="pmExchangeRate" type="number" step="0.01" placeholder="VD: 18.5" oninput="updatePmForeignPreview('pm')">
+              </div>
+
+              <div id="pmForeignPreview" style="font-size:0.72rem; color:var(--accent); margin-top:6px; font-weight:600;"></div>
+            </div>
+          </div>
+
           <div class="form-group">
             <label class="form-label">Danh mục</label>
             <div class="category-grid" id="pmCategoryGrid">
@@ -690,6 +771,52 @@
         <div class="form-section-body">
           <div class="form-group"><label class="form-label">Mô tả</label><input class="form-input" id="editPmDesc"></div>
           <div class="form-group"><label class="form-label">Số tiền</label><input class="form-input" id="editPmAmount" type="number"></div>
+
+          <div class="form-group" id="editPmCurrencyModeWrap" style="display:none;">
+            <label class="form-label">Loại tiền</label>
+            <div class="category-grid" id="editPmCurrencyModeGrid">
+              <div class="category-chip selected" data-mode="vnd" onclick="selectPmCurrencyMode('editPm','vnd')"><span class="category-chip-icon">💵</span><span>VNĐ</span></div>
+              <div class="category-chip" data-mode="foreign" onclick="selectPmCurrencyMode('editPm','foreign')"><span class="category-chip-icon">🌏</span><span>Ngoại tệ</span></div>
+            </div>
+            <input type="hidden" id="editPmCurrencyMode" value="vnd">
+
+            <div id="editPmForeignBlock" style="display:none; margin-top:12px;">
+              <div style="display:flex; gap:8px;">
+                <div style="flex:1;">
+                  <label class="form-label">Số tiền ngoại tệ</label>
+                  <input class="form-input" id="editPmForeignAmount" type="number" placeholder="0" oninput="updatePmForeignPreview('editPm')">
+                </div>
+                <div style="width:110px;">
+                  <label class="form-label">Đơn vị</label>
+                  <select class="form-input" id="editPmForeignCurrencySelect" onchange="onForeignCurrencySelectChange('editPm')">
+                    <option value="USD">USD</option>
+                    <option value="KRW">KRW</option>
+                    <option value="THB">THB</option>
+                    <option value="JPY">JPY</option>
+                    <option value="EUR">EUR</option>
+                    <option value="CNY">CNY</option>
+                    <option value="SGD">SGD</option>
+                    <option value="other">Khác...</option>
+                  </select>
+                </div>
+              </div>
+              <input class="form-input" id="editPmForeignCurrencyCustom" placeholder="Nhập mã tiền tệ (VD: MYR)" style="margin-top:8px; display:none;">
+
+              <label class="form-label" style="margin-top:10px;">Hình thức trả</label>
+              <div class="category-grid payment-method-grid">
+                <div class="category-chip selected" data-method="card" onclick="selectPmPaymentMethod('editPm','card')"><span class="category-chip-icon">💳</span><span>Thẻ</span></div>
+                <div class="category-chip" data-method="cash" onclick="selectPmPaymentMethod('editPm','cash')"><span class="category-chip-icon">💵</span><span>Tiền mặt</span></div>
+              </div>
+              <input type="hidden" id="editPmPaymentMethod" value="card">
+
+              <div class="form-group" style="margin-top:10px;">
+                <label class="form-label">Tỷ giá (1 đơn vị = ? VNĐ)</label>
+                <input class="form-input" id="editPmExchangeRate" type="number" step="0.01" placeholder="VD: 18.5" oninput="updatePmForeignPreview('editPm')">
+              </div>
+
+              <div id="editPmForeignPreview" style="font-size:0.72rem; color:var(--accent); margin-top:6px; font-weight:600;"></div>
+            </div>
+          </div>
 
           <div class="form-group">
             <label class="form-label">Danh mục</label>
@@ -1127,7 +1254,7 @@
 
 <div class="modal-overlay" id="advanceOverviewModal">
   <div class="modal bottom-sheet">
-    <div class="modal-title">💳 Ứng tiền và khoản ứng</div>
+    <div class="modal-title">💳 Khoản chi và ứng tiền</div>
     <div id="advanceOverviewList" style="margin-bottom:16px;max-height:60vh;overflow-y:auto"></div>
     <button class="btn btn-secondary" onclick="closeModal('advanceOverviewModal')">Đóng</button>
   </div>
