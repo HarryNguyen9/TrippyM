@@ -6,6 +6,12 @@
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
 <meta name="theme-color" content="#0a0a0a">
+<script>
+  // Đặt data-theme NGAY LẬP TỨC (trước khi CSS/main.ts chạy) để tránh nháy sai theme lúc tải trang.
+  try {
+    document.documentElement.setAttribute('data-theme', localStorage.getItem('app_theme') || 'dark');
+  } catch (e) {}
+</script>
 <title>Trip Management</title>
 <link rel="manifest" href="/manifest.json">
 <meta name="apple-mobile-web-app-title" content="Trippy">
@@ -278,6 +284,14 @@
 
 <!-- SETTINGS PAGE -->
 <div class="page" id="page-settings">
+  <div class="section-header section-title">🌗 Giao diện</div>
+  <div class="trip-card" style="padding:16px;margin-bottom:12px;">
+    <div class="category-grid">
+      <div class="category-chip selected" id="themeChipDark" data-theme-choice="dark" onclick="setTheme('dark')"><span class="category-chip-icon">🌙</span><span>Tối</span></div>
+      <div class="category-chip" id="themeChipLight" data-theme-choice="light" onclick="setTheme('light')"><span class="category-chip-icon">☀️</span><span>Sáng</span></div>
+    </div>
+  </div>
+
   <div class="section-header section-title">Quyền truy cập</div>
   <div class="trip-card" style="padding:16px;margin-bottom:12px;">
     <div style="display:flex;justify-content:space-between;margin-bottom:10px">
@@ -1089,21 +1103,6 @@
     </div>
     <button class="btn btn-primary" onclick="saveEditDay()">Lưu thay đổi</button>
     <button class="btn btn-secondary" onclick="resetEditDayForm(); closeModal('editDayModal')" style="margin-top:8px">Hủy</button>
-  </div>
-</div>
-
-<div class="modal-overlay" id="dayExpenseModal">
-  <div class="modal bottom-sheet">
-    <div class="modal-title">🔮 Chi tiết ngày: <span id="dayExpenseTitle" style="color:var(--accent)"></span></div>
-    
-    <div id="dayExpenseList" style="margin-bottom:16px; max-height:50vh; overflow-y:auto; padding-right: 5px;">
-        </div>
-    
-    <div style="font-size: 1rem; font-weight: 800; text-align: right; color: var(--red); border-top: 1px dashed rgba(255,255,255,0.1); padding-top: 15px;">
-        Tổng "thiệt hại": <span id="dayExpenseTotal">0đ</span>
-    </div>
-    
-    <button class="btn btn-secondary" onclick="closeModal('dayExpenseModal')" style="margin-top: 15px;">Đóng</button>
   </div>
 </div>
 

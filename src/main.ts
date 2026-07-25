@@ -46,7 +46,7 @@ var _advOverviewData, _advOverviewFilter, _fbSDK, _firebaseApp, _firebaseDb, _we
 var _weatherKey, _weatherLastFetch, _weatherLoc, addActivity, addDay, addEditPayerRow;
 var addMember, addPayerRow, addSuggestedPackingItem, cancelAllSettings, cancelEditCode, cancelEditLoc;
 var cancelEditName, changeTripCode, closeLightbox, connectFirebase, createNewTrip;
-var currentPaymentFilter, currentRandomMode, deleteActivity, deleteDay, deleteGalleryItem, deleteHistoryCashIn;
+var currentDashboardTab, currentPaymentFilter, currentRandomMode, deleteActivity, deleteDay, deleteGalleryItem, deleteHistoryCashIn;
 var deleteMember, deletePackingItem, deletePayment, dialogScrollPos, disconnectFirebase, downloadMasterExcelTemplate;
 var draftActivity, editFundLink, editHistoryCashIn, enableEditCode, enableEditLoc, enableEditMemName;
 var enableEditName, exitRoom, exportItineraryToImage, exportMasterDataToExcel, exportMemberExpensesToExcel, exportPaymentToImage;
@@ -57,10 +57,11 @@ var askAiSuggestions, generateAiItinerary, saveGeminiModel;
 var addSelectedAiPackingItems, generatePackingChecklist, saveOpenRouterModel;
 var openChatModal, saveChatModel, sendChatMessage, sendChatMessageFromInput, sendChatQuickChip, toggleChatMic;
 var copyMemberSummaryToClipboard, generateMemberFinanceSummary;
+var setTheme;
 var onDefaultCurrencyChange, onForeignCurrencySelectChange, saveCurrencySettings, selectPmCurrencyMode, selectPmPaymentMethod, updatePmForeignPreview;
 var openActModal, openAddActivityChoose, openAddMemberModal, openAddModal, openAddPaymentModal, openAdvanceOverviewModal;
 var openAiItineraryModal, selectAiItnStyle, updateAiItnNightsLabel;
-var openAvatarModal, openDayExpenseModal, openEditActivity, openEditDay, openEditMember, openEditPayment;
+var openAvatarModal, openEditActivity, openEditDay, openEditMember, openEditPayment;
 var openExpenseFlow, openFullScheduleFromToday, openFundLink, openHistoryModal, openLightbox, openLinkToActModal;
 var openMapModal, openPackingModal, openRandomModal, openSettingsPage, openTotalExpenseModal, pendingReturnToAct;
 var pendingReturnToHistoryIdx, playCinematicIntro, playTing, randomizeAvatarInModal, randomizeNewMemberAvatar, refreshCurrentTrip;
@@ -1197,12 +1198,64 @@ CHỈ trả về DUY NHẤT 1 JSON array độ dài đúng ${numDays} (không ma
     }
 };
 
+// --- 🌗 DARK MODE / LIGHT MODE ---
+const THEME_STORAGE = 'app_theme';
+
+function getTheme() {
+    return localStorage.getItem(THEME_STORAGE) || 'dark';
+}
+
+// Lấy đúng màu nền hiện tại (dark hay light) để đồng bộ khi xuất ảnh chụp màn hình.
+function getCurrentBgColor() {
+    return getComputedStyle(document.documentElement).getPropertyValue('--bg').trim() || '#0a0a0a';
+}
+
+function hexToRgbParts(hex) {
+    let h = String(hex).replace('#', '');
+    if (h.length === 3) h = h.split('').map(c => c + c).join('');
+    const num = parseInt(h, 16);
+    return { r: (num >> 16) & 255, g: (num >> 8) & 255, b: num & 255 };
+}
+
+// Tối màu accent lại (~28%) khi ở Light mode để chữ/viền màu vibe (vàng, xanh lá, xanh dương...)
+// vẫn đủ tương phản trên nền sáng — giữ nguyên tông màu (hue), chỉ giảm độ sáng.
+function darkenHexForLight(hex, amount = 0.28) {
+    const { r, g, b } = hexToRgbParts(hex);
+    const dr = Math.max(0, Math.round(r * (1 - amount)));
+    const dg = Math.max(0, Math.round(g * (1 - amount)));
+    const db = Math.max(0, Math.round(b * (1 - amount)));
+    return `#${[dr, dg, db].map(v => v.toString(16).padStart(2, '0')).join('')}`;
+}
+
+function hexToRgbaString(hex, alpha) {
+    const { r, g, b } = hexToRgbParts(hex);
+    return `rgba(${r},${g},${b},${alpha})`;
+}
+
+window.setTheme = setTheme = (theme) => {
+    localStorage.setItem(THEME_STORAGE, theme);
+    document.documentElement.setAttribute('data-theme', theme);
+    applyTripTheme(); // Tính lại màu vibe (accent) cho đúng độ tương phản với theme mới
+    refreshThemeSettingsUI();
+};
+
+function refreshThemeSettingsUI() {
+    const theme = getTheme();
+    const darkChip = document.getElementById('themeChipDark');
+    const lightChip = document.getElementById('themeChipLight');
+    if (darkChip) darkChip.classList.toggle('selected', theme === 'dark');
+    if (lightChip) lightChip.classList.toggle('selected', theme === 'light');
+}
+
 function applyTripTheme() {
   const theme = getTripTheme();
+  const isLight = getTheme() === 'light';
   const root = document.documentElement;
-  root.style.setProperty('--accent', theme.accent);
-  root.style.setProperty('--accent2', theme.accent2);
-  root.style.setProperty('--accent-glow', theme.glow);
+  const accent = isLight ? darkenHexForLight(theme.accent) : theme.accent;
+  const accent2 = isLight ? darkenHexForLight(theme.accent2, 0.35) : theme.accent2;
+  root.style.setProperty('--accent', accent);
+  root.style.setProperty('--accent2', accent2);
+  root.style.setProperty('--accent-glow', isLight ? hexToRgbaString(accent, 0.12) : theme.glow);
   root.style.setProperty('--trip-cover', theme.cover);
   const islandIcon = document.getElementById('island-icon');
   if (islandIcon && !islandIcon.dataset.weatherOverride) islandIcon.textContent = theme.icon;
@@ -2018,7 +2071,7 @@ function renderItinerary(flash = false) {
                 <span style="font-size: 0.5rem; text-transform: uppercase; opacity: 0.7;">Day</span>
                 <span style="font-size: 1rem;">${di+1}</span>
               </div>
-              <span id="weather-icon-${di}" style="display:none; position: absolute; bottom: -8px; right: -10px; font-size: 1.3rem; filter: drop-shadow(0 2px 4px rgba(0,0,0,0.5)); z-index: 10;"></span>
+              <span id="weather-icon-${di}" style="display:none; position: absolute; bottom: -8px; right: -10px; font-size: 1.3rem; filter: drop-shadow(0 2px 4px var(--shadow-2)); z-index: 10;"></span>
             </div>
             
             <div class="day-info" style="flex: 1; min-width: 0; padding-right: 5px;">
@@ -2101,7 +2154,13 @@ window.setPaymentFilter = setPaymentFilter = (filter) => {
     renderPayments(); // Gọi lại hàm render để cập nhật ngay lập tức
 };
 
+// Nhớ lại tab đang chọn (Tổng quan/Danh mục) qua các lần renderPayments() render lại toàn bộ
+// (VD: khi đổi filter "Tất cả/Thực chi/Dự trù" ở list bên dưới) — nếu không, statsUI luôn dựng
+// lại với tab mặc định "Tổng quan", làm mất lựa chọn "Danh mục" người dùng vừa bấm.
+window.currentDashboardTab = currentDashboardTab = window.currentDashboardTab || 'overview';
+
 window.switchDashboardTab = switchDashboardTab = (tab) => {
+    window.currentDashboardTab = currentDashboardTab = tab;
     const overviewBtn = document.getElementById('dbTabBtn_overview');
     const categoryBtn = document.getElementById('dbTabBtn_category');
     const overviewContent = document.getElementById('dbTabContent_overview');
@@ -2111,7 +2170,24 @@ window.switchDashboardTab = switchDashboardTab = (tab) => {
     categoryBtn.classList.toggle('active', tab === 'category');
     overviewContent.style.display = tab === 'overview' ? 'block' : 'none';
     categoryContent.style.display = tab === 'category' ? 'block' : 'none';
+
+    if (tab === 'category') animateCategoryBars();
 };
+
+// Chạy hiệu ứng animate độ dài cột danh mục (đợi 1 tick để "width: 0%" ban đầu kịp render
+// trước khi đổi sang width thật, mới thấy hiệu ứng chạy). Dùng ở cả switchDashboardTab (bấm tay)
+// và renderPayments (khi render lại toàn bộ mà tab Danh mục đang là tab đang được chọn sẵn).
+function animateCategoryBars() {
+    const categoryContent = document.getElementById('dbTabContent_category');
+    if (!categoryContent) return;
+    // Dùng setTimeout thay vì requestAnimationFrame — rAF có thể không chạy nếu tab đang bị
+    // trình duyệt tạm ngưng vẽ (background tab, tab ẩn...), setTimeout thì luôn chạy được.
+    setTimeout(() => {
+        categoryContent.querySelectorAll('.cat-bar-fill').forEach(el => {
+            el.style.width = (el.getAttribute('data-target-width') || 0) + '%';
+        });
+    }, 20);
+}
 
 window.renderPayments = renderPayments = (flash = false) => {
     const list = document.getElementById('paymentList');
@@ -2180,7 +2256,7 @@ window.renderPayments = renderPayments = (flash = false) => {
         }
     }
 
-    // --- BIỂU ĐỒ TRÒN: CHI TIÊU THEO DANH MỤC ---
+    // --- BIỂU ĐỒ CỘT: CHI TIÊU THEO DANH MỤC ---
     const categoryTotals = {};
     payments.forEach(p => {
         if (p.isPaid && !p.isEstimate) {
@@ -2190,13 +2266,6 @@ window.renderPayments = renderPayments = (flash = false) => {
     });
     const catEntries = Object.entries(categoryTotals).filter(([, amt]) => amt > 0).sort((a, b) => b[1] - a[1]);
     const catTotal = catEntries.reduce((s, [, amt]) => s + amt, 0);
-    let catCumulative = 0;
-    const pieGradient = catEntries.map(([key, amt]) => {
-        const pct = catTotal > 0 ? (amt / catTotal) * 100 : 0;
-        const start = catCumulative;
-        catCumulative += pct;
-        return `${EXPENSE_CATEGORIES[key].color} ${start}% ${catCumulative}%`;
-    }).join(', ');
 
     const styleTag = `
     <style>
@@ -2205,15 +2274,26 @@ window.renderPayments = renderPayments = (flash = false) => {
         @keyframes pulse-fast { 0%{opacity:1} 50%{opacity:0.3} 100%{opacity:1} }
         .animate-pulse-fast { animation: pulse-fast 0.5s ease-in-out infinite; }
         
-        .db-container { display: flex; align-items: center; gap: 15px; background: rgba(0,0,0,0.3); padding: 15px; border-radius: 18px; border: 1px solid rgba(255,255,255,0.05); flex-wrap: wrap; }
+        .db-container { display: flex; align-items: center; gap: 15px; background: var(--shadow-1); padding: 15px; border-radius: 18px; border: 1px solid var(--line-2); flex-wrap: wrap; }
         .db-chart { width: 85px; height: 85px; border-radius: 50%; display: flex; align-items: center; justify-content: center; flex-shrink: 0; margin: 0 auto; }
         .db-stats { flex: 1; min-width: 180px; display: flex; flex-direction: column; gap: 8px; }
-        .db-box { padding: 8px 12px; border-radius: 10px; border-left: 3px solid; background: rgba(255,255,255,0.02); }
+        .db-box { padding: 8px 12px; border-radius: 10px; border-left: 3px solid; background: var(--line-1); }
         
         @media (max-width: 360px) {
             .db-container { flex-direction: column; text-align: center; }
             .db-stats { width: 100%; }
         }
+
+        .cat-bar-total { text-align: center; margin-bottom: 16px; }
+        .cat-bar-total .amt { font-size: 1.5rem; font-weight: 900; color: var(--text); text-shadow: 0 0 20px var(--line-2); }
+        .cat-bar-total .label { font-size: 0.62rem; color: var(--text3); text-transform: uppercase; letter-spacing: 1px; margin-top: 2px; }
+        .cat-bar-chart { display: flex; flex-direction: column; gap: 14px; }
+        .cat-bar-row { display: flex; flex-direction: column; gap: 6px; }
+        .cat-bar-label { display: flex; justify-content: space-between; align-items: baseline; font-size: 0.75rem; color: var(--text2); gap: 8px; }
+        .cat-bar-label .name { display: flex; align-items: center; gap: 6px; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+        .cat-bar-label .amt { font-weight: 800; color: var(--text); white-space: nowrap; }
+        .cat-bar-track { height: 10px; border-radius: 6px; background: var(--line-2); overflow: hidden; }
+        .cat-bar-fill { height: 100%; border-radius: 6px; width: 0%; transition: width 0.7s cubic-bezier(0.22, 1, 0.36, 1); }
     </style>`;
 
     // 2. GIAO DIỆN DASHBOARD ĐÃ GỘP DÒNG THEO Ý BÁC
@@ -2222,21 +2302,20 @@ window.renderPayments = renderPayments = (flash = false) => {
 
         <div class="metric-card stat-card wide highlight ${animationClass}" style="padding: 22px; border-color: ${barColor}40; transition: 0.3s; margin-bottom: 25px; border-radius: 20px;">
 
-            <div style="text-align: center; margin-bottom: 15px; cursor: pointer;" onclick="openTotalExpenseModal()">
-                <div style="font-size: 0.65rem; color: var(--text3); text-transform: uppercase; letter-spacing: 2px; margin-bottom: 5px;">Thực chi</div>
-                <div class="stat-value gold" style="font-size: 2.3rem; text-shadow: 0 0 25px ${barColor}30;">${formatVND(actualTotal)}</div>
-                <div style="font-size: 0.62rem; color: var(--text3); margin-top: 4px;">Tổng toàn bộ chi tiêu của cả chuyến đi</div>
-            </div>
-
             <div class="tab-bar" style="margin-bottom: 15px;">
-                <button class="tab active" id="dbTabBtn_overview" onclick="switchDashboardTab('overview')">💰 Tổng quan</button>
-                <button class="tab" id="dbTabBtn_category" onclick="switchDashboardTab('category')">🍕 Danh mục</button>
+                <button class="tab ${window.currentDashboardTab !== 'category' ? 'active' : ''}" id="dbTabBtn_overview" onclick="switchDashboardTab('overview')">💰 Tổng quan</button>
+                <button class="tab ${window.currentDashboardTab === 'category' ? 'active' : ''}" id="dbTabBtn_category" onclick="switchDashboardTab('category')">🍕 Danh mục</button>
             </div>
 
-            <div id="dbTabContent_overview">
+            <div id="dbTabContent_overview" style="display: ${window.currentDashboardTab === 'category' ? 'none' : 'block'};">
+                <div style="text-align: center; margin-bottom: 15px; cursor: pointer;" onclick="openTotalExpenseModal()">
+                    <div style="font-size: 0.65rem; color: var(--text3); text-transform: uppercase; letter-spacing: 2px; margin-bottom: 5px;">Thực chi</div>
+                    <div class="stat-value gold" style="font-size: 2.3rem; text-shadow: 0 0 25px ${barColor}30;">${formatVND(actualTotal)}</div>
+                    <div style="font-size: 0.62rem; color: var(--text3); margin-top: 4px;">Tổng toàn bộ chi tiêu của cả chuyến đi</div>
+                </div>
                 <div class="db-container">
                     <div class="db-chart" style="background: conic-gradient(${barColor} ${displayPercent}%, var(--surface3) 0); box-shadow: 0 0 20px ${barColor}30;">
-                        <div style="width: 70px; height: 70px; border-radius: 50%; background: #0a0a0a; display: flex; flex-direction: column; align-items: center; justify-content: center; line-height: 1;">
+                        <div style="width: 70px; height: 70px; border-radius: 50%; background: var(--bg); display: flex; flex-direction: column; align-items: center; justify-content: center; line-height: 1;">
                             <span style="font-size: 1rem; font-weight: 900; color: ${barColor};">${Math.round(percent)}%</span>
                             <span style="font-size: 0.4rem; color: var(--text3); margin-top: 4px; text-transform: uppercase;">Máu</span>
                         </div>
@@ -2288,26 +2367,24 @@ window.renderPayments = renderPayments = (flash = false) => {
                 ` : ''}
             </div>
 
-            <div id="dbTabContent_category" style="display: none;">
+            <div id="dbTabContent_category" style="display: ${window.currentDashboardTab === 'category' ? 'block' : 'none'};">
                 ${catEntries.length ? `
-                <div class="db-container">
-                    <div class="db-chart" style="background: conic-gradient(${pieGradient}); box-shadow: 0 0 20px rgba(0,0,0,0.3);">
-                        <div style="width: 70px; height: 70px; border-radius: 50%; background: #0a0a0a; display: flex; flex-direction: column; align-items: center; justify-content: center; line-height: 1.15; padding: 4px; box-sizing: border-box; overflow: hidden;">
-                            <span style="font-size: 0.6rem; font-weight: 900; color: var(--text); text-align: center; word-break: break-word; max-width: 58px;">${formatVND(catTotal)}</span>
-                        </div>
-                    </div>
-                    <div class="db-stats">
-                        ${catEntries.map(([key, amt]) => {
-                            const cat = EXPENSE_CATEGORIES[key];
-                            const pct = catTotal > 0 ? Math.round((amt / catTotal) * 100) : 0;
-                            return `<div style="display: flex; align-items: center; gap: 8px; font-size: 0.68rem;">
-                                <span style="width: 10px; height: 10px; border-radius: 50%; background: ${cat.color}; flex-shrink: 0;"></span>
-                                <span style="flex: 1; color: var(--text2);">${cat.icon} ${cat.label}</span>
-                                <span style="font-weight: 800; color: ${cat.color};">${pct}%</span>
-                                <span style="color: var(--text3); min-width: 72px; text-align: right;">${formatVND(amt)}</span>
-                            </div>`;
-                        }).join('')}
-                    </div>
+                <div class="cat-bar-total">
+                    <div class="amt">${formatVND(catTotal)}</div>
+                    <div class="label">Tổng chi theo danh mục</div>
+                </div>
+                <div class="cat-bar-chart">
+                    ${catEntries.map(([key, amt]) => {
+                        const cat = EXPENSE_CATEGORIES[key];
+                        const pct = catTotal > 0 ? Math.round((amt / catTotal) * 100) : 0;
+                        return `<div class="cat-bar-row">
+                            <div class="cat-bar-label">
+                                <span class="name">${cat.icon} ${cat.label}</span>
+                                <span class="amt">${pct}% · ${formatVND(amt)}</span>
+                            </div>
+                            <div class="cat-bar-track"><div class="cat-bar-fill" data-target-width="${pct}" style="background:${cat.color};"></div></div>
+                        </div>`;
+                    }).join('')}
                 </div>
                 ` : `<div class="today-muted" style="text-align:center; padding: 20px 0;">Chưa có chi tiêu để phân loại.</div>`}
             </div>
@@ -2325,89 +2402,12 @@ window.renderPayments = renderPayments = (flash = false) => {
         return;
         list.innerHTML = statsUI + `
             <div class="empty-state" style="padding: 60px 20px; text-align: center; background: var(--surface2); border-radius: 20px; border: 1px dashed var(--surface3); margin: 20px 0;">
-                <div style="font-size: 4rem; margin-bottom: 15px; filter: drop-shadow(0 5px 15px rgba(0,0,0,0.3));">💸</div>
+                <div style="font-size: 4rem; margin-bottom: 15px; filter: drop-shadow(0 5px 15px var(--shadow-1));">💸</div>
                 <div style="color: var(--text); font-weight: 800; font-size: 1.2rem; margin-bottom: 8px;">Ví vẫn còn nguyên!</div>
                 <div style="font-size: 0.75rem; color: var(--text3); line-height: 1.5; max-width: 250px; margin: 0 auto;">Ghi lại những khoản chi tiêu đầu tiên để không bị "mất tích" tiền trong chuyến đi này nhé.</div>
             </div>`; 
         return; 
     }
-
-    // --- 3. THUẬT TOÁN QUẢ CẦU NĂNG LƯỢNG ---
-    let bubblesData = [];
-    bubblesData.push({ id: '✨ PS', title: 'Phát sinh', amt: 0, isManual: true });
-
-    if (DATA.days) {
-        DATA.days.filter(d => d !== null).forEach((day, idx) => {
-            bubblesData.push({ id: `D${idx+1}`, title: day.date, amt: 0, isManual: false });
-        });
-    }
-
-    payments.forEach(p => {
-    // Chỉ tính "Thực chi" (Đã trả và Không phải dự trù) vào biểu đồ
-    if (p.isPaid && !p.isEstimate) {
-        let foundDay = false;
-
-        // Nếu có liên kết hoạt động, đi tìm xem nó thuộc ngày nào
-        if (p.linkedActId) {
-            // Dùng (DATA.days || []) để chống crash nếu dữ liệu chưa khởi tạo
-            (DATA.days || []).forEach((day, di) => {
-                // Dùng ?. (Optional Chaining) để check an toàn thay vì day && day.activities
-                if (day?.activities?.some(a => a?.id === p.linkedActId)) {
-                    if (bubblesData[di + 1]) {
-                        bubblesData[di + 1].amt += (p.amount || 0);
-                        foundDay = true;
-                    }
-                }
-            });
-        }
-            // Gom chung 2 trường hợp: 
-            // 1. Không có linkedActId (Chi tiêu tự do ngoài lịch)
-            // 2. Có linkedActId nhưng không tìm thấy ngày (Hoạt động đã bị xóa)
-            if (!foundDay) {
-                if (bubblesData[0]) {
-                    bubblesData[0].amt += (p.amount || 0);
-                }
-            }
-        }
-    });
-
-    const maxSpend = Math.max(...bubblesData.map(b => b.amt), 1);
-    const heatmapHtml = bubblesData.map((b) => {
-        const ratio = b.amt / maxSpend;
-        const scale = 0.9 + (ratio * 0.15); // Scale nhẹ nhàng từ 0.9 đến 1.05 để không bị tràn viền
-        
-        let bgColor = 'var(--surface3)';
-        if (b.amt > 0) {
-            if (ratio < 0.4) bgColor = 'linear-gradient(135deg, #4ade80, #16a34a)';
-            else if (ratio < 0.7) bgColor = 'linear-gradient(135deg, #facc15, #ca8a04)';
-            else bgColor = 'linear-gradient(135deg, #f87171, #dc2626)';
-        }
-
-        // ĐÂY LÀ THUẬT TOÁN ĐỊNH DẠNG TIỀN "CỨU RỖI" UI
-        let displayAmt = '0';
-        if (b.amt > 0) {
-            if (b.amt >= 1000000) {
-                // Trở lên hàng Triệu -> Hiển thị "37.2Tr"
-                displayAmt = (b.amt / 1000000).toFixed(1).replace('.0', '') + 'Tr';
-            } else {
-                // Hàng trăm ngàn -> Hiển thị "500k"
-                displayAmt = (b.amt / 1000).toFixed(0) + 'k';
-            }
-        }
-
-        return `
-        <div class="heat-bubble ${ratio === 1 && b.amt > 0 ? 'hot' : ''}" style="background: ${bgColor}; transform: scale(${scale}); cursor: pointer;" title="Xem chi tiết: ${b.title}" onclick="openDayExpenseModal('${b.title}')">
-            <div class="heat-bubble-day" style="${b.isManual ? 'color: var(--accent);' : ''}">${b.id}</div>
-            <span class="heat-bubble-val">${displayAmt}</span>
-        </div>`;
-    }).join('');
-
-    const heatmapUI = `
-        <div class="heatmap-section" style="margin-bottom: 20px;">
-            <div class="section-header section-title" style="margin-top:0">🔮 Cầu năng lượng chi tiêu</div>
-            <div class="heatmap-container">${heatmapHtml}</div>
-        </div>
-    `;
 
     // --- 4. LỌC & SẮP XẾP DANH SÁCH CHI TIÊU ---
     let filteredPayments = payments.map((p, index) => {
@@ -2517,9 +2517,9 @@ window.renderPayments = renderPayments = (flash = false) => {
 
     // --- 6. GIAO DIỆN BỘ LỌC MINI (NÂNG CẤP STICKY) ---
     const filterUI = `
-        <div style="position: sticky; top: 55px; z-index: 90; display: flex; justify-content: space-between; align-items: center; margin: 0 -16px 12px -16px; padding: 12px 16px; background: rgba(10, 10, 10, 0.85); backdrop-filter: blur(15px); border-bottom: 1px solid rgba(255,255,255,0.05); transition: background 0.3s;">
+        <div style="position: sticky; top: 55px; z-index: 90; display: flex; justify-content: space-between; align-items: center; margin: 0 -16px 12px -16px; padding: 12px 16px; background: var(--glass-2); backdrop-filter: blur(15px); border-bottom: 1px solid var(--line-2); transition: background 0.3s;">
             <div class="section-header section-title" style="margin: 0; border: none;">Chi tiết chi tiêu</div>
-            <div style="display: flex; gap: 6px; background: var(--surface2); padding: 4px; border-radius: 8px; border: 1px solid rgba(255,255,255,0.05);">
+            <div style="display: flex; gap: 6px; background: var(--surface2); padding: 4px; border-radius: 8px; border: 1px solid var(--line-2);">
                 <button style="padding: 4px 10px; font-size: 0.65rem; font-weight: 600; border-radius: 6px; border: none; background: ${window.currentPaymentFilter === 'all' ? 'var(--surface3)' : 'transparent'}; color: ${window.currentPaymentFilter === 'all' ? 'var(--text)' : 'var(--text3)'}; transition: 0.2s;" onclick="setPaymentFilter('all')">Tất cả</button>
                 <button style="padding: 4px 10px; font-size: 0.65rem; font-weight: 600; border-radius: 6px; border: none; background: ${window.currentPaymentFilter === 'paid' ? 'var(--green-bg)' : 'transparent'}; color: ${window.currentPaymentFilter === 'paid' ? 'var(--green)' : 'var(--text3)'}; transition: 0.2s;" onclick="setPaymentFilter('paid')">Thực chi</button>
                 <button style="padding: 4px 10px; font-size: 0.65rem; font-weight: 600; border-radius: 6px; border: none; background: ${window.currentPaymentFilter === 'estimate' ? 'var(--accent-glow)' : 'transparent'}; color: ${window.currentPaymentFilter === 'estimate' ? 'var(--accent)' : 'var(--text3)'}; transition: 0.2s;" onclick="setPaymentFilter('estimate')">Dự trù</button>
@@ -2527,9 +2527,12 @@ window.renderPayments = renderPayments = (flash = false) => {
         </div>
     `;
 
-    list.innerHTML = mainTitleHtml + heatmapUI + statsUI + filterUI + (listItemsHtml || '<div class="empty" style="padding-top: 20px;">Không có khoản chi nào trong mục này</div>');
+    list.innerHTML = mainTitleHtml + statsUI + filterUI + (listItemsHtml || '<div class="empty" style="padding-top: 20px;">Không có khoản chi nào trong mục này</div>');
     if (flash) list.classList.add('update-flash'), setTimeout(()=>list.classList.remove('update-flash'),700);
     setTimeout(window.initSwipeActions, 100);
+    // Nếu đang ở tab "Danh mục" mà render lại (VD: đổi filter Tất cả/Thực chi/Dự trù bên dưới),
+    // statsUI dựng lại từ đầu nên .cat-bar-fill mất hiệu ứng width đã chạy — chạy lại animate ở đây.
+    if (window.currentDashboardTab === 'category') animateCategoryBars();
 };
 
 window.renderCollection = renderCollection = (flash = false) => {
@@ -2688,7 +2691,7 @@ window.renderCollection = renderCollection = (flash = false) => {
         <div class="hp-bar-container"><div class="hp-bar-fill" style="width: ${hpPercent}%; background: ${hpColor};"></div></div>
         <div class="status-label" style="color: ${hpColor};">${statusText} (${hpPercent}%)</div>
         
-        <div style="width: 100%; margin-top: 12px; border-top: 1px dashed rgba(255,255,255,0.1); padding-top: 12px; display: flex; flex-direction: column; gap: 6px;">
+        <div style="width: 100%; margin-top: 12px; border-top: 1px dashed var(--line-2); padding-top: 12px; display: flex; flex-direction: column; gap: 6px;">
             <div style="font-size: 0.65rem; color: var(--text2); display: flex; justify-content: space-between; align-items: center;">
                 <span>💰 Đóng quỹ</span>
                 <span style="color: var(--green); font-weight: 600;">${formatVND(totalContributed)}</span>
@@ -2705,7 +2708,7 @@ window.renderCollection = renderCollection = (flash = false) => {
                 <span style="color: var(--red); font-weight: 600;">-${formatVND(totalConsumed)}</span>
             </div>
 
-            <div style="width: 100%; font-size: 0.8rem; font-weight: 800; color: ${balanceColor}; display: flex; justify-content: space-between; align-items: center; margin-top: 4px; padding-top: 6px; border-top: 1px solid rgba(255,255,255,0.03);">
+            <div style="width: 100%; font-size: 0.8rem; font-weight: 800; color: ${balanceColor}; display: flex; justify-content: space-between; align-items: center; margin-top: 4px; padding-top: 6px; border-top: 1px solid var(--line-1);">
                 <span>${balanceLabel}</span>
                 <span>${formatVND(Math.abs(balance))}</span>
             </div>
@@ -4221,7 +4224,7 @@ window.exportItineraryToImage = exportItineraryToImage = async () => {
         // 2. BẤM MÁY CHỤP
         const canvas = await html2canvas(listEl, {
             scale: 2, // Tăng độ phân giải gấp đôi cho nét căng
-            backgroundColor: '#0a0a0a', // Ép nền đen đồng bộ với App
+            backgroundColor: getCurrentBgColor(), // Đồng bộ đúng màu nền theo theme hiện tại (dark/light)
             useCORS: true, // Cho phép tải các icon/ảnh từ link ngoài
             logging: false
         });
@@ -4264,7 +4267,7 @@ window.exportPaymentToImage = exportPaymentToImage = async () => {
         // 2. BẤM MÁY CHỤP
         const canvas = await html2canvas(listEl, {
             scale: 2, // Tăng độ phân giải gấp đôi cho nét căng
-            backgroundColor: '#0a0a0a', // Ép nền đen chuẩn App
+            backgroundColor: getCurrentBgColor(), // Đồng bộ đúng màu nền theo theme hiện tại (dark/light)
             useCORS: true, // Cho phép tải các icon
             logging: false
         });
@@ -4458,7 +4461,7 @@ window.openEditActivity = openEditActivity = (di, ai) => {
                     const p = DATA.payments[pIdx];
                     totalAmt += p.amount || 0;
                     pItemsHtml += `
-                        <div style="display: flex; justify-content: space-between; align-items: center; gap: 8px; margin-bottom: 8px; padding-bottom: 8px; border-bottom: 1px dashed rgba(255,255,255,0.05);">
+                        <div style="display: flex; justify-content: space-between; align-items: center; gap: 8px; margin-bottom: 8px; padding-bottom: 8px; border-bottom: 1px dashed var(--line-2);">
                             <div style="flex: 1; min-width: 0;">
                                 <div style="font-size: 0.72rem; font-weight: 600; color: var(--text); white-space: nowrap; overflow: hidden; text-overflow: ellipsis;">${esc(p.desc)}</div>
                                 <div style="color: var(--orange); font-weight: 700; font-size: 0.75rem;">💰 ${formatVND(p.amount)}</div>
@@ -4480,14 +4483,14 @@ window.openEditActivity = openEditActivity = (di, ai) => {
                             <span style="color: var(--orange);">Tổng: ${formatVND(totalAmt)}</span>
                         </div>
                         ${pItemsHtml}
-                        <button type="button" class="btn" style="background: var(--surface); color: var(--text2); border: 1px dashed rgba(255,255,255,0.1); font-size: 0.75rem; width: 100%; margin-top: 10px; display: flex; align-items: center; justify-content: flex-start; padding-left: 15px; gap: 8px;" onclick="saveEditActivity(true)">
+                        <button type="button" class="btn" style="background: var(--surface); color: var(--text2); border: 1px dashed var(--line-2); font-size: 0.75rem; width: 100%; margin-top: 10px; display: flex; align-items: center; justify-content: flex-start; padding-left: 15px; gap: 8px;" onclick="saveEditActivity(true)">
                             <span style="font-size: 1rem;">➕</span> Thêm khoản chi mới
                         </button>
                     </div>`;
             } else {
                 // UI khi chưa có chi tiêu nào
                 expContainer.innerHTML = `
-                    <button type="button" class="btn" style="background: var(--surface2); color: var(--text2); border: 1px dashed rgba(255,255,255,0.1); font-size: 0.75rem; width: 100%; margin-top: 10px; display: flex; align-items: center; justify-content: flex-start; padding-left: 15px; gap: 8px;" onclick="saveEditActivity(true)">
+                    <button type="button" class="btn" style="background: var(--surface2); color: var(--text2); border: 1px dashed var(--line-2); font-size: 0.75rem; width: 100%; margin-top: 10px; display: flex; align-items: center; justify-content: flex-start; padding-left: 15px; gap: 8px;" onclick="saveEditActivity(true)">
                         <span style="font-size: 1.1rem;">💰</span> Thêm khoản chi tiêu cho HĐ này
                     </button>`;
             }
@@ -4570,7 +4573,7 @@ window.toggleEstimateMode = toggleEstimateMode = (prefix) => {
         // NẾU BỎ CHỌN -> Hiện input, nút chìm xuống màu xám
         dynamicFields.style.display = 'block'; 
         labelEl.style.background = 'var(--surface2)';
-        labelEl.style.borderColor = 'rgba(255,255,255,0.06)';
+        labelEl.style.borderColor = 'var(--line-2)';
         labelEl.style.color = 'var(--text3)';
         labelEl.innerHTML = '⬜ Đánh dấu là khoản dự trù';
     }
@@ -4628,7 +4631,7 @@ window.addPayerRow = addPayerRow = () => {
         
         <label class="chip-checkbox" style="height: 44px; margin: 0; flex-shrink: 0;">
             <input type="checkbox" class="payer-fund" onchange="window.updateMultiTotal()">
-            <span class="chip-label fund" style="height: 100%; display: flex; align-items: center; justify-content: center; padding: 0 10px; font-size: 0.65rem; border-radius: 10px; border: 1px solid rgba(255,255,255,0.06);">💰 Quỹ</span>
+            <span class="chip-label fund" style="height: 100%; display: flex; align-items: center; justify-content: center; padding: 0 10px; font-size: 0.65rem; border-radius: 10px; border: 1px solid var(--line-2);">💰 Quỹ</span>
         </label>
         
         <button class="btn-remove-payer" style="width: 44px; height: 44px; border-radius: 10px; border: none; flex-shrink: 0;" onclick="this.parentElement.remove(); window.updateMultiTotal();">✕</button>
@@ -4815,7 +4818,7 @@ window.addEditPayerRow = addEditPayerRow = (name = "", amt = "", fromFund = fals
         <input type="number" class="form-input payer-amt" placeholder="Số tiền" value="${amt}" oninput="window.updateEditMultiTotal()" style="min-height: 44px !important; height: 44px; padding: 0 10px !important; font-size: 0.85rem; border-radius: 10px; text-align: right;">
         <label class="chip-checkbox" style="height: 44px; margin: 0; flex-shrink: 0;">
             <input type="checkbox" class="payer-fund" onchange="window.updateEditMultiTotal()" ${fromFund ? 'checked' : ''}>
-            <span class="chip-label fund" style="height: 100%; display: flex; align-items: center; justify-content: center; padding: 0 10px; font-size: 0.65rem; border-radius: 10px; border: 1px solid rgba(255,255,255,0.06);">💰 Quỹ</span>
+            <span class="chip-label fund" style="height: 100%; display: flex; align-items: center; justify-content: center; padding: 0 10px; font-size: 0.65rem; border-radius: 10px; border: 1px solid var(--line-2);">💰 Quỹ</span>
         </label>
         <button class="btn-remove-payer" style="width: 44px; height: 44px; border-radius: 10px; border: none; flex-shrink: 0;" onclick="this.parentElement.remove(); window.updateEditMultiTotal();">✕</button>
     `;
@@ -5086,72 +5089,6 @@ window.saveEditPayment = saveEditPayment = () => {
         console.error(err);
         showToast("Lỗi cập nhật dữ liệu", "error");
     }
-};
-
-window.openDayExpenseModal = openDayExpenseModal = (targetTitle) => {
-    document.getElementById('dayExpenseTitle').textContent = targetTitle;
-    const listEl = document.getElementById('dayExpenseList');
-    let total = 0;
-    let html = '';
-
-    const payments = DATA.payments || [];
-    
-    payments.forEach((p) => {
-        if (!p.isPaid || p.isEstimate) return; // Bỏ qua đồ dự trù và chưa trả
-
-        let isMatch = false;
-
-        if (targetTitle === 'Phát sinh') {
-            // NẾU BẤM VÀO QUẢ CẦU "PHÁT SINH": Lấy những khoản KHÔNG có linkedActId
-            if (!p.linkedActId) {
-                isMatch = true;
-            } else {
-                // Check thêm: Nhỡ khoản này có link nhưng hoạt động đã bị xóa thì cũng coi như Phát sinh
-                let actExists = false;
-                if (DATA.days) {
-                    DATA.days.forEach(day => {
-                        if (day.activities && day.activities.some(a => a.id === p.linkedActId)) actExists = true;
-                    });
-                }
-                if (!actExists) isMatch = true;
-            }
-        } else {
-            // NẾU BẤM VÀO NGÀY BÌNH THƯỜNG (D1, D2...)
-            if (p.linkedActId && DATA.days) {
-                DATA.days.forEach(day => {
-                    if (day.date === targetTitle && day.activities && day.activities.some(a => a.id === p.linkedActId)) {
-                        isMatch = true;
-                    }
-                });
-            }
-        }
-
-        // Render HTML nếu khớp điều kiện
-        if (isMatch) {
-            total += p.amount || 0;
-            const isFund = p.fromFund ? '<span style="color:var(--orange); font-size: 0.6rem; font-weight: 800;">(QUỸ)</span>' : '';
-            const manualBadge = !p.linkedActId ? `<span style="margin-left:6px; font-size:0.55rem; padding:1px 5px; border-radius:4px; background:var(--accent-glow); color:var(--accent); border:1px dashed var(--accent);">✨ PHÁT SINH</span>` : '';
-            
-            html += `
-                <div style="display:flex; justify-content:space-between; align-items:center; padding:12px; background:var(--surface2); border-radius:var(--radius-sm); margin-bottom:8px; border-left: 3px solid ${p.fromFund ? 'var(--orange)' : 'var(--surface3)'}">
-                    <div style="flex: 1; padding-right: 10px;">
-                        <div style="font-size:.8rem; font-weight:bold; color:var(--text); word-break: break-word;">${esc(p.desc)} ${manualBadge}</div>
-                        <div style="font-size:.65rem; color:var(--text3); margin-top:4px;">👤 ${esc(p.payer)} ${isFund}</div>
-                    </div>
-                    <div style="font-size:.85rem; font-weight:bold; color:var(--accent); flex-shrink: 0;">${formatVND(p.amount)}</div>
-                </div>
-            `;
-        }
-    });
-
-    if (html === '') {
-        html = `<div class="empty" style="padding: 20px 0;">Không có chi tiêu nào trong mục này! 🧘‍♂️</div>`;
-    }
-
-    listEl.innerHTML = html;
-    document.getElementById('dayExpenseTotal').textContent = formatVND(total);
-    
-    openModal('dayExpenseModal');
 };
 
 window.openTotalExpenseModal = openTotalExpenseModal = () => {
@@ -5861,7 +5798,7 @@ window.openHistoryModal = openHistoryModal = (i) => {
   const overallLabel = overallBalance > 0 ? '✅ Được hoàn lại' : (overallBalance < 0 ? '⚠️ Còn phải đóng thêm' : '⚖️ Huề vốn');
 
   const summaryCheckHtml = `
-    <div style="background: var(--surface3); border-radius: var(--radius); padding:14px 16px; margin-bottom:14px; border: 1px solid rgba(255,255,255,0.06); box-shadow: var(--shadow);">
+    <div style="background: var(--surface3); border-radius: var(--radius); padding:14px 16px; margin-bottom:14px; border: 1px solid var(--line-2); box-shadow: var(--shadow);">
       <div style="font-size:0.6rem; color:var(--text3); text-transform:uppercase; letter-spacing:1px; margin-bottom:10px;">🧮 Đối chiếu nhanh: Quỹ + Ứng − Chi</div>
       <div style="display:flex; flex-direction:column; gap:7px;">
         <div style="display:flex; justify-content:space-between; align-items:center; font-size:0.78rem;">
@@ -5872,7 +5809,7 @@ window.openHistoryModal = openHistoryModal = (i) => {
           <span style="display:inline-flex; align-items:center; gap:6px; color:var(--text2);"><span style="display:inline-flex; align-items:center; justify-content:center; width:16px; font-size:0.9rem; line-height:1;">💳</span>Đã ứng hộ</span>
           <span style="color:var(--blue); font-weight:700;">+${formatVND(totalAdvanced)}</span>
         </div>
-        <div style="display:flex; justify-content:space-between; align-items:center; font-size:0.78rem; padding-bottom:7px; border-bottom:1px dashed rgba(255,255,255,0.12);">
+        <div style="display:flex; justify-content:space-between; align-items:center; font-size:0.78rem; padding-bottom:7px; border-bottom:1px dashed var(--line-3);">
           <span style="display:inline-flex; align-items:center; gap:6px; color:var(--text2);"><span style="display:inline-flex; align-items:center; justify-content:center; width:16px; font-size:0.9rem; line-height:1;">💸</span>Đã chi</span>
           <span style="color:var(--red); font-weight:700;">-${formatVND(Math.abs(totalConsumed))}</span>
         </div>
@@ -5899,7 +5836,7 @@ window.openHistoryModal = openHistoryModal = (i) => {
         </div>
       </div>
 
-      <div style="display:flex; justify-content:space-between; align-items:center; gap: 10px; background: var(--surface2); border-radius: var(--radius-sm); padding: 10px 14px; margin-bottom:15px; border: 1px dashed rgba(255,255,255,0.1);">
+      <div style="display:flex; justify-content:space-between; align-items:center; gap: 10px; background: var(--surface2); border-radius: var(--radius-sm); padding: 10px 14px; margin-bottom:15px; border: 1px dashed var(--line-2);">
         <span style="font-size:0.68rem; color:var(--text2); font-weight:600;">${balLabel}</span>
         <span style="font-size:0.85rem; font-weight:800; color:${balColor}; white-space:nowrap;">${formatVND(Math.abs(expenseBalance))}</span>
       </div>
@@ -5907,7 +5844,7 @@ window.openHistoryModal = openHistoryModal = (i) => {
       <div style="font-size: 0.7rem; color: var(--text3); text-transform: uppercase; letter-spacing: 1px; margin-bottom: 10px; padding-left: 5px;">Chi tiết từng khoản:</div>
 
       ${involvedPayments.map(p => `
-        <div style="padding:12px; background:var(--surface2); border-radius:var(--radius-sm); margin-bottom:8px; border: 1px solid rgba(255,255,255,0.02);">
+        <div style="padding:12px; background:var(--surface2); border-radius:var(--radius-sm); margin-bottom:8px; border: 1px solid var(--line-1);">
             <div style="display:flex; justify-content:space-between; align-items:flex-start;">
                 <div style="flex: 1; padding-right: 10px;">
                     <div style="font-size:0.8rem; font-weight:bold; color:var(--text);">${esc(p.desc)}</div>
@@ -6054,7 +5991,7 @@ function renderAdvanceOverview() {
 
         return `
           <div style="margin-bottom:16px;">
-            <div style="display:flex; justify-content:space-between; align-items:center; padding:8px 4px; border-bottom: 1px dashed rgba(255,255,255,0.1); margin-bottom:8px;">
+            <div style="display:flex; justify-content:space-between; align-items:center; padding:8px 4px; border-bottom: 1px dashed var(--line-2); margin-bottom:8px;">
               <div style="font-size:0.85rem; font-weight:800; color:var(--text);">👤 ${esc(m.name)}</div>
               <div style="font-size:0.85rem; font-weight:800; color:var(--text);">${formatVND(memberTotal)}</div>
             </div>
@@ -7063,7 +7000,7 @@ window.openLinkToActModal = openLinkToActModal = (paymentIdx) => {
                 
                 day.activities.forEach(act => {
                     // Kiểm tra xem hoạt động này đã có chi tiêu nào gắn vào chưa (chỉ nên gắn 1 chi tiêu cho 1 hoạt động để dễ quản lý, tuy nhiên tùy logic của bạn, ở đây cứ cho gắn thoải mái)
-                    optionsHtml += `<option value="${act.id}" style="padding:8px; border-bottom:1px solid rgba(255,255,255,0.05);">${act.time} - ${esc(act.name)}</option>`;
+                    optionsHtml += `<option value="${act.id}" style="padding:8px; border-bottom:1px solid var(--line-2);">${act.time} - ${esc(act.name)}</option>`;
                 });
                 optionsHtml += `</optgroup>`;
             }
@@ -7307,7 +7244,7 @@ window.renderGallery = renderGallery = () => {
         if (item.isImage) {
             previewHtml = `
             <img src="${item.url}" style="width:100%; height:100%; object-fit:cover;" onclick="var e=arguments[0]||window.event; e.stopPropagation(); openLightbox('${item.url}')">
-            <div style="position:absolute; bottom:26px; left:0; right:0; background:rgba(0,0,0,0.6); color:var(--text); font-size:0.55rem; padding:3px 5px; text-align:center; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; pointer-events:none;">${esc(item.name)}</div>`;
+            <div style="position:absolute; bottom:26px; left:0; right:0; background:var(--shadow-3); color:var(--text); font-size:0.55rem; padding:3px 5px; text-align:center; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; pointer-events:none;">${esc(item.name)}</div>`;
         } else {
             let icon = "📄";
             if (item.type && item.type.includes('pdf')) icon = "📕";
@@ -7774,6 +7711,7 @@ window.openSettingsPage = openSettingsPage = () => {
   refreshGeminiKeyUI();
   refreshOpenRouterKeyUI();
   refreshCurrencySettingsUI();
+  refreshThemeSettingsUI();
 };
 
 window.niceConfirm = niceConfirm = (title, text, type = 'danger') => {
@@ -8048,7 +7986,7 @@ window.updateSmartIsland = updateSmartIsland = () => {
     if (promptHtml !== '') {
         const prompterDiv = document.createElement('div');
         prompterDiv.id = 'island-prompter';
-        prompterDiv.style = "background: rgba(255,255,255,0.05); padding: 12px; border-radius: 12px; margin-bottom: 5px; text-align: left; border: 1px solid rgba(255,255,255,0.05); width: 100%; box-sizing: border-box;";
+        prompterDiv.style = "background: var(--line-2); padding: 12px; border-radius: 12px; margin-bottom: 5px; text-align: left; border: 1px solid var(--line-2); width: 100%; box-sizing: border-box;";
         prompterDiv.innerHTML = promptHtml;
         subEl.prepend(prompterDiv);
     }
