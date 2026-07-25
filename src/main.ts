@@ -65,6 +65,8 @@ var openAiItineraryModal, selectAiItnStyle, updateAiItnNightsLabel;
 var openAvatarModal, openEditActivity, openEditDay, openEditMember, openEditPayment;
 var openExpenseFlow, openFullScheduleFromToday, openFundLink, openHistoryModal, openLightbox, openLinkToActModal;
 var openMapModal, openPackingModal, openRandomModal, openSettingsPage, openTotalExpenseModal, pendingReturnToAct;
+var openVaultModal, openAddVaultCardModal, selectVaultCardType, saveVaultCard, editVaultCard, deleteVaultCard;
+var copyVaultCardContent, openVaultZoom, closeVaultZoom, uploadVaultImage, removeVaultImage, openVaultLocation, renderVaultCards;
 var pendingReturnToHistoryIdx, playCinematicIntro, playTing, randomizeAvatarInModal, randomizeNewMemberAvatar, refreshCurrentTrip;
 var removeEditPmReceipt, removeFundQr, removeTripCover, renderCollection, renderGallery;
 var renderPackingList, renderPayments, renderTodayView, resetDayForm, resetEditDayForm, saveAvatar;
@@ -1925,6 +1927,7 @@ window.renderTodayView = renderTodayView = () => {
               <button class="today-action-btn" onclick="openModal('qrModal')">💸 QR quỹ</button>
               <button class="today-action-btn" onclick="openFullScheduleFromToday()">📅 Lịch đầy đủ</button>
               <button class="today-action-btn" ${DATA.trip?.location ? `onclick="askAiSuggestions()"` : 'disabled'}>🤖 Gợi ý AI</button>
+              <button class="today-action-btn" onclick="openVaultModal()">🔐 Trip Vault</button>
             </div>
           </div>
         </div>
@@ -6787,18 +6790,25 @@ window.renderPackingList = renderPackingList = (flash = false) => {
     const sortedItems = items.map((item, originalIndex) => ({...item, originalIndex}))
                              .sort((a, b) => (a.isPacked === b.isPacked) ? 0 : a.isPacked ? 1 : -1);
 
+    // Ghi lại vị trí hiện tại của từng dòng (trước khi render lại) để chạy hiệu ứng FLIP bên dưới,
+    // tránh cảm giác "giật" do dòng vừa tick nhảy thẳng xuống cuối danh sách khi đổi thứ tự.
+    const oldRects = {};
+    list.querySelectorAll('.swipe-container[data-pk-idx]').forEach(el => {
+        oldRects[el.getAttribute('data-pk-idx')] = el.getBoundingClientRect().top;
+    });
+
     list.innerHTML = sortedItems.map(item => {
         const i = item.originalIndex;
         return `
-        <div class="swipe-container" style="margin-bottom: 8px;">
+        <div class="swipe-container" data-pk-idx="${i}" style="margin-bottom: 8px;">
             <div class="swipe-actions editor-only">
                 <button class="action-btn action-edit" onclick="openPackingModal(${i})">✎</button>
                 <button class="action-btn action-delete" onclick="deletePackingItem(${i})">🗑️</button>
             </div>
             <div class="swipe-content payment-item" style="border-left: 4px solid ${item.isPacked ? 'var(--green)' : 'var(--accent)'}; padding: 0 !important; margin-bottom: 0; cursor: default; width: 100%; box-sizing: border-box;">
-                
+
                 <div style="display:flex; align-items:center; gap:12px; flex:1; cursor:pointer; padding: 12px 14px; opacity: ${item.isPacked ? '0.5' : '1'};" onclick="togglePackingItem(${i})">
-                    <div style="width:24px; height:24px; border-radius:6px; border: 2px solid ${item.isPacked ? 'var(--green)' : 'var(--surface3)'}; background: ${item.isPacked ? 'var(--green)' : 'transparent'}; display:flex; align-items:center; justify-content:center; flex-shrink:0;">
+                    <div style="width:24px; height:24px; border-radius:6px; border: 2px solid ${item.isPacked ? 'var(--green)' : 'var(--surface3)'}; background: ${item.isPacked ? 'var(--green)' : 'transparent'}; display:flex; align-items:center; justify-content:center; flex-shrink:0; transition: background 0.2s, border-color 0.2s;">
                         ${item.isPacked ? '<span style="color:#000; font-size:14px; font-weight:bold;">✓</span>' : ''}
                     </div>
                     <div style="flex: 1; min-width: 0;">
@@ -6814,8 +6824,275 @@ window.renderPackingList = renderPackingList = (flash = false) => {
         </div>`;
     }).join('');
 
+    // Chạy FLIP: đặt lại các dòng vào vị trí CŨ bằng transform (không transition), rồi ở frame kế tiếp
+    // trả transform về 0 kèm transition -> mắt thấy dòng trượt êm tới vị trí mới thay vì nhảy cục.
+    const newRows = Array.from(list.querySelectorAll('.swipe-container[data-pk-idx]'));
+    const toAnimate = [];
+    newRows.forEach(el => {
+        const key = el.getAttribute('data-pk-idx');
+        const oldTop = oldRects[key];
+        if (oldTop === undefined) return;
+        const newTop = el.getBoundingClientRect().top;
+        const delta = oldTop - newTop;
+        if (Math.abs(delta) < 1) return;
+        el.style.transition = 'none';
+        el.style.transform = `translateY(${delta}px)`;
+        toAnimate.push(el);
+    });
+    if (toAnimate.length) {
+        requestAnimationFrame(() => {
+            requestAnimationFrame(() => {
+                toAnimate.forEach(el => {
+                    el.style.transition = 'transform 0.35s cubic-bezier(0.22, 1, 0.36, 1)';
+                    el.style.transform = '';
+                });
+            });
+        });
+    }
+
     if (flash) list.classList.add('update-flash'), setTimeout(()=>list.classList.remove('update-flash'),700);
     setTimeout(window.initSwipeActions, 100);
+};
+
+// ============================================
+// 🔐 TRIP VAULT (KÉT SẮT CHUYẾN ĐI)
+// ============================================
+window.openVaultModal = openVaultModal = () => {
+    // Lần đầu mở: tự tạo sẵn 2 ô quan trọng nhất (Wifi & Địa chỉ Taxi) để không bị trống trơn
+    if (!DATA.vault) {
+        DATA.vault = [
+            { id: Date.now(), type: 'text', title: '📶 Wifi khách sạn', content: '', zoomable: false },
+            { id: Date.now() + 1, type: 'text', title: '🚖 Địa chỉ cho Taxi', content: '', zoomable: true },
+            { id: Date.now() + 2, type: 'text', title: '🚑 Y Tế & SOS Khẩn Cấp', content: '', zoomable: true }
+        ];
+        save(); autoSync();
+    }
+    renderVaultCards();
+    openModal('vaultModal');
+};
+
+function renderVaultCardHtml(card) {
+    const editBtns = `
+        <div style="display:flex; gap:6px; flex-shrink:0;">
+            <button class="action-btn action-edit editor-only" onclick="event.stopPropagation(); editVaultCard(${card.id})">✎</button>
+            <button class="action-btn action-delete editor-only" onclick="event.stopPropagation(); deleteVaultCard(${card.id})">🗑️</button>
+        </div>`;
+
+    if (card.type === 'image') {
+        const files = card.files || [];
+        return `
+        <div class="vault-card">
+            <div class="vault-card-head">
+                <div class="vault-card-title">${esc(card.title)}${files.length ? ` <span class="vault-card-count">${files.length} ảnh/file</span>` : ''}</div>
+                ${editBtns}
+            </div>
+            <div class="vault-card-files">
+                ${files.map((f, fi) => `
+                    <div class="vault-file-thumb" ${f.isImage !== false ? `onclick="window.openLightbox('${f.url}')"` : `onclick="window.open('${f.url}','_blank')"`}>
+                        ${f.isImage !== false ? `<img src="${f.url}" alt="${esc(f.name || '')}">` : `<span style="font-size:1.6rem;">📄</span>`}
+                        <button class="vault-file-remove editor-only" onclick="event.stopPropagation(); removeVaultImage(${card.id}, ${fi})">✕</button>
+                    </div>
+                `).join('')}
+                <label class="vault-file-add editor-only">
+                    +<input type="file" accept="image/*,.pdf" style="display:none;" onchange="uploadVaultImage(${card.id}, this)">
+                </label>
+            </div>
+        </div>`;
+    }
+
+    if (card.type === 'location') {
+        const hasAddr = !!(card.address && card.address.trim());
+        return `
+        <div class="vault-card">
+            <div class="vault-card-head">
+                <div class="vault-card-title">${esc(card.title)}</div>
+                ${editBtns}
+            </div>
+            ${hasAddr ? `
+                <div class="vault-card-body">📍 ${esc(card.address)}</div>
+                <div class="vault-card-actions">
+                    <button class="vault-card-btn" onclick="openVaultLocation(${card.id})">🗺️ Mở Google Maps</button>
+                </div>
+            ` : `<div class="vault-card-empty editor-only" onclick="editVaultCard(${card.id})">Bấm ✎ để điền địa chỉ</div>`}
+        </div>`;
+    }
+
+    // Mặc định: card loại "text" (Wifi, mã cửa/lockbox, ghi chú, địa chỉ taxi phóng to...)
+    const hasContent = !!(card.content && card.content.trim());
+    return `
+    <div class="vault-card">
+        <div class="vault-card-head">
+            <div class="vault-card-title">${esc(card.title)}</div>
+            ${editBtns}
+        </div>
+        ${hasContent ? `
+            <div class="vault-card-body">${esc(card.content).replace(/\n/g, '<br>')}</div>
+            <div class="vault-card-actions">
+                <button class="vault-card-btn" onclick="copyVaultCardContent(${card.id})">📋 Copy</button>
+                ${card.zoomable ? `<button class="vault-card-btn" onclick="openVaultZoom(${card.id})">🔍 Phóng to</button>` : ''}
+            </div>
+        ` : `<div class="vault-card-empty editor-only" onclick="editVaultCard(${card.id})">Bấm ✎ để điền thông tin</div>`}
+    </div>`;
+}
+
+window.renderVaultCards = renderVaultCards = () => {
+    const container = document.getElementById('vaultCardsContainer');
+    if (!container) return;
+    const cards = DATA.vault || [];
+    if (!cards.length) {
+        container.innerHTML = `<div class="empty" style="padding:20px 0;">Chưa có ô thông tin nào. Bấm "+ Thêm ô mới" để tạo.</div>`;
+        return;
+    }
+    container.innerHTML = cards.map(renderVaultCardHtml).join('');
+};
+
+window.openAddVaultCardModal = openAddVaultCardModal = () => {
+    if (!isEditor) return;
+    document.getElementById('vaultCardEditId').value = '';
+    document.getElementById('vaultCardTitle').value = '';
+    document.getElementById('vaultCardContent').value = '';
+    document.getElementById('vaultCardZoomable').checked = false;
+    document.getElementById('vaultCardAddress').value = '';
+    document.querySelectorAll('#vaultTypePicker .category-chip').forEach(el => el.style.pointerEvents = '');
+    document.getElementById('vaultTypePicker').style.opacity = '1';
+    selectVaultCardType('text');
+    openModal('vaultCardFormModal');
+};
+
+window.selectVaultCardType = selectVaultCardType = (type) => {
+    document.getElementById('vaultCardTypeInput').value = type;
+    document.querySelectorAll('#vaultTypePicker .category-chip').forEach(el => el.classList.toggle('selected', el.dataset.type === type));
+    document.getElementById('vaultFieldsText').style.display = type === 'text' ? 'block' : 'none';
+    document.getElementById('vaultFieldsImage').style.display = type === 'image' ? 'block' : 'none';
+    document.getElementById('vaultFieldsLocation').style.display = type === 'location' ? 'block' : 'none';
+};
+
+window.editVaultCard = editVaultCard = (id) => {
+    if (!isEditor) return;
+    const card = (DATA.vault || []).find(c => c.id === id);
+    if (!card) return;
+    document.getElementById('vaultCardEditId').value = id;
+    document.getElementById('vaultCardTitle').value = card.title || '';
+    document.getElementById('vaultCardContent').value = card.content || '';
+    document.getElementById('vaultCardZoomable').checked = !!card.zoomable;
+    document.getElementById('vaultCardAddress').value = card.address || '';
+    selectVaultCardType(card.type);
+    // Không cho đổi loại card khi đang sửa (đổi loại giữa chừng sẽ mất dữ liệu con: content/files/address)
+    document.querySelectorAll('#vaultTypePicker .category-chip').forEach(el => el.style.pointerEvents = 'none');
+    document.getElementById('vaultTypePicker').style.opacity = '0.5';
+    openModal('vaultCardFormModal');
+};
+
+window.saveVaultCard = saveVaultCard = () => {
+    if (!isEditor) return;
+    const editId = document.getElementById('vaultCardEditId').value;
+    const type = document.getElementById('vaultCardTypeInput').value;
+    const title = document.getElementById('vaultCardTitle').value.trim();
+    if (!title) return showToast("Điền tên cho ô thông tin", "error");
+
+    if (!DATA.vault) DATA.vault = [];
+
+    if (editId) {
+        const card = DATA.vault.find(c => c.id === Number(editId));
+        if (!card) return;
+        card.title = title;
+        if (card.type === 'text') {
+            card.content = document.getElementById('vaultCardContent').value.trim();
+            card.zoomable = document.getElementById('vaultCardZoomable').checked;
+        } else if (card.type === 'location') {
+            card.address = document.getElementById('vaultCardAddress').value.trim();
+            card.mapUrl = card.address ? `https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(card.address)}` : '';
+        }
+    } else {
+        const newCard = { id: Date.now(), type, title };
+        if (type === 'text') {
+            newCard.content = document.getElementById('vaultCardContent').value.trim();
+            newCard.zoomable = document.getElementById('vaultCardZoomable').checked;
+        } else if (type === 'image') {
+            newCard.files = [];
+        } else if (type === 'location') {
+            newCard.address = document.getElementById('vaultCardAddress').value.trim();
+            newCard.mapUrl = newCard.address ? `https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(newCard.address)}` : '';
+        }
+        DATA.vault.push(newCard);
+    }
+
+    save(); autoSync(); renderVaultCards();
+    closeModal('vaultCardFormModal');
+    showToast(editId ? "Đã cập nhật!" : "Đã thêm ô mới!", "success");
+};
+
+window.deleteVaultCard = deleteVaultCard = async (id) => {
+    if (!isEditor) return;
+    const ok = await window.niceConfirm("Xóa ô thông tin?", "Xóa ô này khỏi Trip Vault?", "danger");
+    if (!ok) return;
+    DATA.vault = (DATA.vault || []).filter(c => c.id !== id);
+    save(); autoSync(); renderVaultCards();
+    showToast("Đã xóa", "info");
+};
+
+window.copyVaultCardContent = copyVaultCardContent = (id) => {
+    const card = (DATA.vault || []).find(c => c.id === id);
+    if (!card || !card.content) return;
+    navigator.clipboard.writeText(card.content)
+        .then(() => showToast("Đã copy!", "success"))
+        .catch(() => showToast("Không copy được", "error"));
+};
+
+window.openVaultZoom = openVaultZoom = (id) => {
+    const card = (DATA.vault || []).find(c => c.id === id);
+    if (!card) return;
+    document.getElementById('vaultZoomText').textContent = card.content || '';
+    document.getElementById('vaultZoomOverlay').classList.add('show');
+};
+
+window.closeVaultZoom = closeVaultZoom = () => {
+    document.getElementById('vaultZoomOverlay').classList.remove('show');
+};
+
+window.uploadVaultImage = uploadVaultImage = async (id, input) => {
+    if (!isEditor) return;
+    if (!input.files || !input.files[0]) return;
+    const file = input.files[0];
+    const card = (DATA.vault || []).find(c => c.id === id);
+    if (!card) return;
+
+    showToast("Đang tải lên...", "info");
+    const formData = new FormData();
+    formData.append('file', file);
+    formData.append('upload_preset', CLOUDINARY_PRESET);
+
+    try {
+        const response = await fetch(`https://api.cloudinary.com/v1_1/${CLOUDINARY_NAME}/auto/upload`, { method: 'POST', body: formData });
+        const result = await response.json();
+        if (!result.secure_url) throw new Error("Không lấy được link file");
+
+        if (!card.files) card.files = [];
+        card.files.push({ url: result.secure_url, name: file.name, isImage: file.type.startsWith('image/') });
+
+        save(); autoSync(); renderVaultCards();
+        showToast("Tải lên thành công!", "success");
+    } catch (e) {
+        showToast("❌ Lỗi tải lên", "error");
+    } finally {
+        input.value = '';
+    }
+};
+
+window.removeVaultImage = removeVaultImage = async (cardId, fileIdx) => {
+    if (!isEditor) return;
+    const card = (DATA.vault || []).find(c => c.id === cardId);
+    if (!card || !card.files) return;
+    const ok = await window.niceConfirm("Xóa file?", "Xóa file/ảnh này khỏi Trip Vault?", "danger");
+    if (!ok) return;
+    card.files.splice(fileIdx, 1);
+    save(); autoSync(); renderVaultCards();
+};
+
+window.openVaultLocation = openVaultLocation = (id) => {
+    const card = (DATA.vault || []).find(c => c.id === id);
+    if (!card || !card.mapUrl) return;
+    window.open(card.mapUrl, '_blank');
 };
 
 // ============================================

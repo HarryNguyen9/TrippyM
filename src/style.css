@@ -478,6 +478,22 @@ body.trip-finished .swipe-content {
     border-color: var(--accent);
 }
 
+/* --- 🔐 TRIP VAULT (KÉT SẮT CHUYẾN ĐI) --- */
+.vault-card { background: var(--surface2); border-radius: 14px; padding: 14px; margin-bottom: 12px; border: 1px solid var(--line-2); }
+.vault-card-head { display: flex; align-items: center; justify-content: space-between; gap: 8px; }
+.vault-card-title { font-size: 0.8rem; font-weight: 700; color: var(--text); }
+.vault-card-count { font-size: 0.62rem; font-weight: 600; color: var(--text3); }
+.vault-card-body { font-size: 0.75rem; color: var(--text2); margin-top: 8px; line-height: 1.5; word-break: break-word; }
+.vault-card-actions { display: flex; gap: 8px; margin-top: 10px; flex-wrap: wrap; }
+.vault-card-btn { background: var(--surface3); color: var(--accent); border: none; border-radius: 8px; padding: 6px 12px; font-size: 0.65rem; font-weight: 700; cursor: pointer; }
+.vault-card-btn:active { transform: scale(0.95); }
+.vault-card-empty { font-size: 0.7rem; color: var(--text3); margin-top: 8px; padding: 10px; text-align: center; border: 1px dashed var(--line-3); border-radius: 10px; cursor: pointer; }
+.vault-card-files { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 10px; }
+.vault-file-thumb { position: relative; width: 60px; height: 60px; border-radius: 10px; overflow: hidden; background: var(--surface3); display: flex; align-items: center; justify-content: center; cursor: pointer; flex-shrink: 0; }
+.vault-file-thumb img { width: 100%; height: 100%; object-fit: cover; }
+.vault-file-remove { position: absolute; top: 2px; right: 2px; width: 16px; height: 16px; border-radius: 50%; background: rgba(0,0,0,0.6); color: #fff; border: none; font-size: 0.5rem; display: flex; align-items: center; justify-content: center; cursor: pointer; }
+.vault-file-add { width: 60px; height: 60px; border-radius: 10px; border: 1px dashed var(--line-3); display: flex; align-items: center; justify-content: center; font-size: 1.3rem; color: var(--text3); cursor: pointer; flex-shrink: 0; }
+
 /* --- GỢI Ý AI (MÓN NGON / ĐỊA ĐIỂM HOT) --- */
 .ai-suggest-item {
     display: flex;
@@ -736,8 +752,10 @@ body:not(.is-editor) .editor-only { display: none !important; }
     text-overflow: ellipsis;
     white-space: nowrap;
 }
+.header-icon-btn-row { display: flex; flex-direction: row; align-items: center; gap: 8px; }
 @media (max-width: 430px) {
     .header-badges-left { top: 6px !important; transform: none !important; left: 10px !important; flex-direction: column; align-items: flex-start; gap: 3px; }
+    .header-icon-btn-row { gap: 5px; }
     .header-badges-left .header-icon-btn { width: 25px; height: 25px; font-size: 0.75rem; }
     .header-badges-right { right: 10px !important; gap: 4px; }
     .header-badges-left .status-badge { max-width: 78px; padding-left: 7px !important; padding-right: 7px !important; }
@@ -749,11 +767,11 @@ body:not(.is-editor) .editor-only { display: none !important; }
 
 /* --- 🏝️ TRIPPY ISLAND UI --- */
 .island-wrapper { position: absolute !important; top: 12px !important; left: 50% !important; transform: translateX(-50%) !important; margin: 0 !important; z-index: 10; pointer-events: auto; }
-.island-pill { background: #000; color: #fff; border-radius: 30px; padding: 8px 16px; min-width: 120px; max-width: calc(100vw - 170px); height: 36px; display: flex; align-items: center; justify-content: center; gap: 10px; box-shadow: 0 10px 30px rgba(0,0,0,0.5); border: 1px solid rgba(255,255,255,0.08); transition: all 0.5s cubic-bezier(0.18, 0.89, 0.32, 1.28); cursor: pointer; overflow: hidden; }
+.island-pill { background: #000; color: #fff; border-radius: 30px; padding: 8px 16px; min-width: 120px; max-width: calc(100vw - 170px); height: 36px; display: flex; align-items: center; justify-content: center; gap: 10px; box-shadow: 0 10px 30px rgba(0,0,0,0.5); border: 1px solid rgba(255,255,255,0.08); transition: width 0.4s cubic-bezier(0.18, 0.89, 0.32, 1.28), height 0.4s cubic-bezier(0.18, 0.89, 0.32, 1.28), max-width 0.4s cubic-bezier(0.18, 0.89, 0.32, 1.28), border-radius 0.4s cubic-bezier(0.18, 0.89, 0.32, 1.28), padding 0.4s cubic-bezier(0.18, 0.89, 0.32, 1.28), background-color 0.3s ease; cursor: pointer; overflow: hidden; will-change: width, height; }
 .island-wrapper.notif:not(.expanded) .island-pill { width: auto !important; min-width: 50px !important; height: 36px !important; padding: 0 15px !important; background: var(--surface2) !important; border-color: var(--accent) !important; box-shadow: 0 0 15px rgba(232, 197, 71, 0.4) !important; justify-content: center !important; }
 .island-wrapper.notif:not(.expanded) #island-text-group { display: none !important; }
 .island-wrapper.notif:not(.expanded) #island-icon { font-size: 0.75rem !important; font-weight: 700; margin: 0 !important; white-space: nowrap !important; }
-.island-wrapper.expanded .island-pill { width: 320px; max-width: 90vw; min-height: 230px; height: auto; border-radius: 24px; flex-direction: column; padding: 20px; background: var(--surface); justify-content: flex-start; }
+.island-wrapper.expanded .island-pill { width: 320px; max-width: 90vw; height: 260px; border-radius: 24px; flex-direction: column; padding: 20px; background: var(--surface); justify-content: flex-start; }
 #island-text-group { width: 100%; display: flex; flex-direction: column; align-items: center; flex: 1; }
 #island-main-content { font-size: 0.75rem; font-weight: 700; white-space: nowrap; transition: opacity 0.3s; overflow: hidden; text-overflow: ellipsis; width: 100%; text-align: center; flex-shrink: 0; }
 .island-wrapper.expanded #island-main-content { white-space: normal; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; }
