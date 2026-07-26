@@ -203,6 +203,7 @@
         <div class="section-header section-title" style="margin:0;">Lịch trình</div>
         <div style="display:flex; gap:8px; flex-wrap:wrap;">
             <button class="btn" style="width:auto; padding:6px 12px; font-size:.7rem; background:var(--surface2); color:var(--accent); border: 1px dashed var(--accent);" onclick="askAiSuggestions()">🤖 AI gợi ý</button>
+            <button class="btn" id="btnCheckItineraryReality" style="width:auto; padding:6px 12px; font-size:.7rem; background:var(--surface2); color:var(--orange); border: 1px dashed var(--orange);" onclick="checkItineraryReality()">🚨 Rà soát lịch trình</button>
             <button class="btn" style="width:auto; padding:6px 12px; font-size:.7rem; background:var(--surface2); color:var(--accent); border: 1px dashed var(--accent);" onclick="exportItineraryToImage()">📸 Chụp lịch trình</button>
         </div>
     </div>
@@ -991,6 +992,15 @@
     <button class="btn btn-primary" onclick="addSelectedAiPackingItems()">➕ Thêm món đã chọn vào Checklist</button>
     <button class="btn" style="background: var(--surface2); color: var(--accent); border: 1px dashed var(--accent); margin-top: 8px;" onclick="generatePackingChecklist()">🔄 Tạo gợi ý mới</button>
     <button class="btn btn-secondary" onclick="closeModal('aiPackingModal')" style="margin-top:8px">Đóng</button>
+  </div>
+</div>
+
+<div class="modal-overlay" id="itineraryCheckModal">
+  <div class="modal bottom-sheet">
+    <div class="modal-title modal-title-balanced"><span class="title-icon">🚨</span><span>AI Rà Soát Lịch Trình</span></div>
+    <div id="itineraryCheckList" style="max-height: 55vh; overflow-y: auto; margin: 10px 0;"></div>
+    <button class="btn" style="background: var(--surface2); color: var(--orange); border: 1px dashed var(--orange); margin-top: 8px;" onclick="checkItineraryReality()">🔄 Rà soát lại</button>
+    <button class="btn btn-secondary" onclick="closeModal('itineraryCheckModal')" style="margin-top:8px">Đóng</button>
   </div>
 </div>
 

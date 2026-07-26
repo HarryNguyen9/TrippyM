@@ -55,7 +55,7 @@ var exportPaymentsToExcel, finalActId, getLinkedPaymentIndices, handleQrUpload, 
 var isEditMultiPayerMode, isMultiPayerMode, isOpeningExpenseFlow, isSavingActivityFlow, isUploadingImage, joinTrip;
 var loadWeatherForItinerary, logoutEditor, manualDayCollapseState, moveGalleryItem, niceConfirm, nicePrompt;
 var askAiSuggestions, generateAiItinerary, saveGeminiModel;
-var addSelectedAiPackingItems, generatePackingChecklist, saveOpenRouterModel;
+var addSelectedAiPackingItems, generatePackingChecklist, saveOpenRouterModel, checkItineraryReality;
 var openChatModal, saveChatModel, sendChatMessage, sendChatMessageFromInput, sendChatQuickChip, toggleChatMic;
 var copyMemberSummaryToClipboard, generateMemberFinanceSummary;
 var setTheme, toggleTheme;
@@ -6687,6 +6687,104 @@ Chỉ trả về DUY NHẤT 1 JSON array (không markdown, không giải thích 
         if (btn) { btn.disabled = false; btn.innerHTML = PACKING_BTN_DEFAULT_HTML; }
     }
 };
+
+// ============================================
+// 🚨 AI RÀ SOÁT LỊCH TRÌNH (Itinerary Reality Check)
+// ============================================
+let _isCheckingItinerary = false;
+const ITN_CHECK_BTN_DEFAULT_HTML = '🚨 Rà soát lịch trình';
+
+window.checkItineraryReality = checkItineraryReality = async () => {
+    if (!DATA.days || !DATA.days.length) {
+        showToast("Chưa có lịch trình để AI soi — thêm lịch trình trước đã!", "info");
+        return;
+    }
+
+    // Chặn gọi chồng, tránh nút bị kẹt mãi ở "Đang soi..." (giống lỗi từng gặp ở nút packing)
+    if (_isCheckingItinerary) {
+        showToast("Đang soi rồi, chờ chút nhé!", "info");
+        return;
+    }
+
+    const apiKey = getOpenRouterApiKey();
+    if (!apiKey) {
+        showToast("Chưa cấu hình OpenRouter API Key! Nhờ Admin set biến VITE_OPENROUTER_API_KEY trên Vercel.", "error");
+        openSettingsPage();
+        return;
+    }
+
+    openModal('itineraryCheckModal');
+    const listEl = document.getElementById('itineraryCheckList');
+    if (listEl) listEl.innerHTML = `
+        <div style="text-align:center; padding: 30px 10px; color: var(--text3);">
+            <div style="font-size: 2rem; margin-bottom: 10px;">🕵️</div>
+            <div style="font-size: 0.8rem;">Đang soi độ khả thi của lịch trình...</div>
+        </div>`;
+
+    const btn = document.getElementById('btnCheckItineraryReality');
+    _isCheckingItinerary = true;
+    if (btn) { btn.disabled = true; btn.innerHTML = '🚨 Đang soi...'; }
+
+    try {
+        const itinerarySummary = getItinerarySummaryForAi();
+
+        const prompt = `Bạn là "Gã giám sát khó tính" chuyên soi lịch trình du lịch có bị dồn dập/phi thực tế không, trả lời bằng tiếng Việt, luôn trả về JSON hợp lệ.
+
+Lịch trình từng ngày (giờ + tên hoạt động + địa điểm nếu có):
+${itinerarySummary}
+
+Nhiệm vụ: Soi từng cặp hoạt động LIỀN KỀ trong cùng 1 ngày, dựa trên khoảng cách thời gian giữa 2 giờ và tính chất địa điểm (khác khu vực/xa nhau, giờ cao điểm dễ kẹt xe, địa điểm cần xếp hàng mua vé/chờ như sân bay-bảo tàng-điểm tham quan nổi tiếng...) để phát hiện những chỗ LỊCH TRÌNH QUÁ SÁT GIỜ, khó khả thi ngoài thực tế (VD: xếp 2 hoạt động cách nhau 15-30 phút nhưng ở 2 nơi khác nhau, giờ tan tầm 17h-19h, hoặc giờ ăn sáng/trưa/tối bị chen vào giữa 2 hoạt động sát giờ khác).
+
+CHỈ nêu những cảnh báo thực sự đáng lo (đừng bới lông tìm vết những chỗ hợp lý). Nếu lịch trình ngày nào ổn thì bỏ qua ngày đó.
+Giọng văn: thẳng thắn, hơi khó tính nhưng xây dựng, kèm gợi ý cách xử lý (dời giờ, bỏ bớt hoạt động...).
+
+Chỉ trả về DUY NHẤT 1 JSON array (không markdown, không giải thích thêm ngoài JSON, mảng rỗng [] nếu không có vấn đề gì), đúng cấu trúc:
+[{"day":"Ngày X (dd/mm)","issue":"Mô tả ngắn vấn đề phát hiện được","suggestion":"Gợi ý xử lý ngắn gọn"}]`;
+
+        const { content: rawContent } = await callOpenRouterChat(apiKey, getOpenRouterModel(), [{ role: 'user', content: prompt }], 'Trippy - AI Itinerary Reality Check');
+
+        const parsed = extractJsonPayload(rawContent);
+        const warnings = Array.isArray(parsed) ? parsed : (parsed && Array.isArray(parsed.warnings) ? parsed.warnings : null);
+        if (!warnings) throw new Error("AI trả về sai định dạng");
+
+        renderItineraryCheckResults(warnings);
+
+    } catch (e) {
+        console.error(e);
+        if (listEl) listEl.innerHTML = `
+            <div style="text-align:center; padding: 30px 10px; color: var(--red);">
+                <div style="font-size: 2rem; margin-bottom: 10px;">😵</div>
+                <div style="font-size: 0.8rem; line-height:1.5;">Không hỏi được AI: ${esc(e.message || 'Lỗi không xác định')}</div>
+                <div style="font-size: 0.65rem; color: var(--text3); margin-top: 6px;">Kiểm tra lại API Key trong Cài đặt hoặc thử lại sau.</div>
+            </div>`;
+    } finally {
+        _isCheckingItinerary = false;
+        if (btn) { btn.disabled = false; btn.innerHTML = ITN_CHECK_BTN_DEFAULT_HTML; }
+    }
+};
+
+function renderItineraryCheckResults(warnings) {
+    const listEl = document.getElementById('itineraryCheckList');
+    if (!listEl) return;
+
+    if (!warnings.length) {
+        listEl.innerHTML = `
+            <div style="text-align:center; padding: 30px 10px;">
+                <div style="font-size: 2rem; margin-bottom: 10px;">✅</div>
+                <div style="font-size: 0.85rem; font-weight: 700; color: var(--green);">Lịch trình ổn áp!</div>
+                <div style="font-size: 0.7rem; color: var(--text3); margin-top: 6px;">AI không phát hiện chỗ nào bị dồn dập/phi thực tế.</div>
+            </div>`;
+        return;
+    }
+
+    listEl.innerHTML = warnings.map(w => `
+        <div style="background: var(--surface2); border-left: 3px solid var(--orange); border-radius: 10px; padding: 12px 14px; margin-bottom: 10px;">
+            <div style="font-size: 0.65rem; font-weight: 800; color: var(--orange); text-transform: uppercase; letter-spacing: 0.5px; margin-bottom: 6px;">⚠️ ${esc(w.day || 'Cảnh báo')}</div>
+            <div style="font-size: 0.78rem; color: var(--text); line-height: 1.5; margin-bottom: 6px;">${esc(w.issue || '')}</div>
+            ${w.suggestion ? `<div style="font-size: 0.72rem; color: var(--text2); line-height: 1.5;">💡 ${esc(w.suggestion)}</div>` : ''}
+        </div>
+    `).join('');
+}
 
 window.addSelectedAiPackingItems = addSelectedAiPackingItems = () => {
     if (!isEditor) return;
