@@ -459,12 +459,14 @@ body.trip-finished .swipe-content {
     gap: 4px;
     padding: 8px 6px;
     background: var(--surface2);
-    color: var(--text3);
+    color: var(--text2);
     border-radius: var(--radius-sm);
     font-size: 0.65rem;
     font-weight: 600;
     cursor: pointer;
-    border: 1px solid transparent;
+    /* Viền rõ ràng thay vì trong suốt: ở light mode --surface2 gần như trùng màu nền trang,
+       không có viền thì nút không được chọn gần như vô hình, nhất là trên di động. */
+    border: 1px solid var(--line-3);
     transition: 0.2s;
     user-select: none;
     text-align: center;
