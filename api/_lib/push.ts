@@ -20,6 +20,7 @@ const DEFAULT_MAIN_DB_URL = "https://trip-app-8e382-default-rtdb.asia-southeast1
 export const SUBS = "push_subscriptions";
 export const ROOM_META = "push_room_meta";
 export const REMINDERS_SENT = "push_reminders_sent";
+export const CHECKINS = "group_checkins";
 
 function loadServiceAccount() {
   const raw = process.env.FIREBASE_PUSH_SERVICE_ACCOUNT;
@@ -51,6 +52,7 @@ export interface SubscriptionDoc {
   keys: { p256dh: string; auth: string };
   deviceId: string;
   roomCode: string;
+  memberName?: string; // "Tôi là ai" trong nhóm (để gửi thông báo riêng: nhắc nợ, nhắc tới điểm hẹn)
   tz: string;
   prefs: { changes: boolean; reminders: boolean; leadMinutes: number };
 }

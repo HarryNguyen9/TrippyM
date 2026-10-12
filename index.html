@@ -280,6 +280,9 @@
         <button class="btn btn-primary" style="width: auto; padding: 10px 30px; border-radius: 25px; font-weight: bold; box-shadow: 0 4px 15px rgba(232,197,71,0.2);" onclick="openAddMemberModal()">
           + Thêm thành viên
         </button>
+        <button class="btn btn-secondary" style="width: auto; padding: 10px 20px; border-radius: 25px; font-weight: bold; margin-left: 8px;" onclick="sendDebtRemindersUI()">
+          🔔 Nhắc nợ
+        </button>
       </div>
 
       <div id="memberDetailList"></div>
@@ -304,6 +307,11 @@
     </div>
     <div id="pushHint" style="display:none;font-size:.72rem;color:var(--text3);line-height:1.5;margin-bottom:10px"></div>
     <button class="btn btn-primary" id="pushToggleBtn" onclick="togglePush()">Bật thông báo</button>
+
+    <div id="pushMeLine" style="display:none;justify-content:space-between;align-items:center;gap:10px;margin-top:12px;font-size:.8rem">
+      <span>👤 Bạn là:</span>
+      <span><b id="pushMeName">Chưa chọn</b> <a href="javascript:void(0)" onclick="openWhoAmI()" style="color:var(--accent);margin-left:6px">Đổi</a></span>
+    </div>
 
     <div id="pushPrefsArea" style="display:none;margin-top:12px">
       <div class="option-group" style="display:flex;flex-direction:column;gap:8px;margin-bottom:10px">
@@ -1262,6 +1270,18 @@
     </div>
     
     <button class="btn btn-secondary" onclick="closeModal('totalExpenseModal')" style="margin-top: 15px;">Đóng</button>
+  </div>
+</div>
+
+<div class="modal-overlay" id="whoAmIModal">
+  <div class="modal bottom-sheet">
+    <div class="modal-title">👤 Bạn là ai trong nhóm?</div>
+    <div style="font-size:.75rem;color:var(--text3);margin-bottom:14px;line-height:1.5">
+      Chỉ lưu trên máy này. Dùng để xem số dư của bạn, check-in điểm hẹn và nhận thông báo riêng (nhắc nợ, nhắc tới điểm hẹn).
+    </div>
+    <div id="whoAmIList" class="whoami-list"></div>
+    <button class="btn btn-secondary" id="whoAmIClearBtn" style="margin-top:12px" onclick="setMyMember(null)">Bỏ chọn</button>
+    <button class="btn btn-secondary" style="margin-top:8px" onclick="closeModal('whoAmIModal')">Đóng</button>
   </div>
 </div>
 

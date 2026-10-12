@@ -2,7 +2,7 @@
 // Gọi định kỳ mỗi 5 phút (cron-job.org / Vercel Cron bản Pro) để nhắc trước các hoạt động sắp diễn ra.
 // Mỗi (thiết bị, hoạt động, giờ bắt đầu) chỉ nhắc 1 lần nhờ bản ghi trong push_reminders_sent.
 import {
-  db, FieldValue, fetchRoom, hashId, listTimedActivities, REMINDERS_SENT, sendToSubs, SUBS, SubscriptionDoc,
+  CHECKINS, db, FieldValue, fetchRoom, hashId, listTimedActivities, REMINDERS_SENT, sendToSubs, SUBS, SubscriptionDoc,
 } from "../_lib/push.js";
 
 export default async function handler(req: any, res: any) {
@@ -52,15 +52,18 @@ export default async function handler(req: any, res: any) {
         }
       }
     }
-    // Dọn bản ghi nhắc đã hết hạn (thay cho TTL policy - TTL cần bật billing)
-    const expired = await db().collection(REMINDERS_SENT).where("expireAt", "<", new Date()).limit(300).get();
-    if (!expired.empty) {
+    // Dọn bản ghi đã hết hạn (thay cho TTL policy - TTL cần bật billing)
+    let cleaned = 0;
+    for (const col of [REMINDERS_SENT, CHECKINS]) {
+      const expired = await db().collection(col).where("expireAt", "<", new Date()).limit(300).get();
+      if (expired.empty) continue;
       const batch = db().batch();
       expired.docs.forEach((d) => batch.delete(d.ref));
       await batch.commit();
+      cleaned += expired.size;
     }
 
-    return res.status(200).json({ ok: true, rooms: byRoom.size, sent, cleaned: expired.size });
+    return res.status(200).json({ ok: true, rooms: byRoom.size, sent, cleaned });
   } catch (e: any) {
     console.error(e);
     return res.status(500).json({ error: e.message });

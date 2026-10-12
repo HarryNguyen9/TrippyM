@@ -19,7 +19,8 @@ import {
 import { FIREBASE_CONFIG, CLOUDINARY_NAME, CLOUDINARY_PRESET } from "./config";
 import {
   enablePush, disablePush, getPushStatus, getPushPrefs, savePushPrefs, syncPushRoom,
-  sendTestPush, sendManualPush, notifyTripChanged,
+  sendTestPush, sendManualPush, notifyTripChanged, setChangeBaseline, setPushMember,
+  sendDebtReminders, getCheckins, postCheckin, nudgeLateMembers,
 } from "./push";
 
 // --- Khai báo các thư viện load qua CDN (xlsx, html2canvas, confetti) ---
@@ -1914,6 +1915,8 @@ window.renderTodayView = renderTodayView = () => {
 
       <div class="today-grid">
         <div class="today-stack">
+          ${renderMeCardHtml()}
+          ${renderCheckinCardHtml(now)}
           <div class="today-card">
             <div class="today-section-title"><span>Hoạt động tiếp theo</span></div>
             ${nextBlock}
@@ -3802,7 +3805,9 @@ function startRealtimeListener() {
   // Hiện badge LIVE
   document.getElementById('liveBadge').classList.add('visible');
 
-  // Gắn token push của máy này vào room hiện tại
+  // Gắn subscription push của máy này (kèm "Tôi là ai") vào room hiện tại
+  setPushMember(getMyMemberName());
+  setChangeBaseline(DATA);
   syncPushRoom(DATA.trip.code);
 
   let isFirst = true;
@@ -3836,6 +3841,7 @@ function startRealtimeListener() {
     DATA = remoteData;
     save();
     verifyRole();
+    setChangeBaseline(DATA);
 
     if (openModal || activeInputs.length > 0) {
       // Đang có modal mở hoặc đang nhập → render âm thầm, không flash, không toast gây xao nhãng
@@ -3943,7 +3949,7 @@ function autoSync() {
       document.getElementById('fbStatus').textContent = "Online";
 
       // Báo cho các máy khác trong nhóm (gom nhiều lần sửa thành 1 thông báo)
-      notifyTripChanged(DATA.trip.code, localStorage.getItem('trip_secret_key') || "");
+      notifyTripChanged(DATA.trip.code, localStorage.getItem('trip_secret_key') || "", () => DATA);
     } catch(e) {
       _ignoreNextSnapshot = false;
       document.getElementById('fbDot').className = 'firebase-dot connected';
@@ -8949,6 +8955,15 @@ async function renderPushSettings() {
 
   const hasRoom = !!(DATA && DATA.trip && DATA.trip.code);
   document.getElementById('pushBroadcastArea').style.display = (status !== 'unconfigured' && hasRoom) ? 'block' : 'none';
+
+  const meLine = document.getElementById('pushMeLine');
+  if (meLine) {
+    const me = getMyMemberName();
+    meLine.style.display = (status === 'on' && hasRoom && (DATA.members || []).length) ? 'flex' : 'none';
+    const meName = document.getElementById('pushMeName');
+    meName.textContent = me || 'Chưa chọn';
+    meName.style.color = me ? 'var(--text)' : 'var(--orange)';
+  }
 }
 window.renderPushSettings = renderPushSettings;
 
@@ -9002,6 +9017,286 @@ window.sendBroadcastPushUI = async () => {
 
 document.addEventListener('visibilitychange', () => { if (!document.hidden) renderPushSettings(); });
 window.addEventListener('load', () => renderPushSettings());
+
+// ===== "TÔI LÀ AI" - THÀNH VIÊN CỦA MÁY NÀY TRONG CHUYẾN ĐI =====
+// Lưu theo từng room trên máy. Dùng cho: số dư cá nhân, nhắc nợ riêng, check-in điểm hẹn.
+function meStorageKey(code) { return `trippy_me_${code}`; }
+
+function getMyMemberName() {
+  const code = DATA?.trip?.code;
+  if (!code) return null;
+  const name = localStorage.getItem(meStorageKey(code));
+  return name && (DATA.members || []).some(m => m && m.name === name) ? name : null;
+}
+window.getMyMemberName = getMyMemberName;
+
+function avatarUrl(m) { return `https://api.dicebear.com/8.x/adventurer/svg?seed=${encodeURIComponent((m && (m.avatarSeed || m.name)) || '?')}&backgroundColor=b6e3f4,c0aede,d1d4f9,ffd5dc,ffdfbf`; }
+
+// Số dư từng người - cùng công thức với tab Thành viên: Đóng quỹ + Ứng hộ - Bị chia
+function getMemberFinance() {
+  const stats = {};
+  (DATA?.members || []).forEach(m => {
+    if (!m) return;
+    const contributed = (m.payments || []).reduce((s, v) => s + v, 0) || m.paid || 0;
+    stats[m.name] = { contributed, consumed: 0, advanced: 0, balance: 0 };
+  });
+  (DATA?.payments || []).forEach(p => {
+    if (!p || typeof p !== 'object' || !p.isPaid || p.isEstimate) return;
+    const parts = p.participants || [];
+    if (parts.length) {
+      const split = Math.round(p.amount / parts.length);
+      parts.forEach(n => { if (stats[n]) stats[n].consumed += split; });
+    }
+    if (p.multiPayers) p.multiPayers.forEach(mp => { if (!mp.fromFund && stats[mp.name]) stats[mp.name].advanced += mp.amount; });
+    else if (!p.fromFund && stats[p.payer]) stats[p.payer].advanced += p.amount;
+  });
+  Object.values(stats).forEach((st: any) => { st.balance = st.contributed + st.advanced - st.consumed; });
+  return stats;
+}
+
+function renderMeCardHtml() {
+  const members = (DATA?.members || []).filter(Boolean);
+  if (!members.length) return '';
+  const me = getMyMemberName();
+  if (!me) {
+    return `
+      <div class="today-card me-card">
+        <div class="me-card-row">
+          <div class="me-avatar me-avatar-empty">👤</div>
+          <div style="flex:1;min-width:0;">
+            <div class="me-name">Bạn là ai trong nhóm?</div>
+            <div class="me-sub">Chọn để xem số dư của bạn, check-in điểm hẹn và nhận thông báo riêng.</div>
+          </div>
+          <button class="today-action-btn primary" style="padding:0 14px;" onclick="openWhoAmI()">Chọn</button>
+        </div>
+      </div>`;
+  }
+  const member = members.find(m => m.name === me);
+  const st = getMemberFinance()[me] || { contributed: 0, consumed: 0, advanced: 0, balance: 0 };
+  const owe = st.balance < 0;
+  return `
+    <div class="today-card me-card">
+      <div class="me-card-row">
+        <img class="me-avatar" src="${avatarUrl(member)}" alt="">
+        <div style="flex:1;min-width:0;">
+          <div class="me-name">${esc(me)} <span class="me-change" onclick="openWhoAmI()">Đổi</span></div>
+          <div class="me-sub">Đã tiêu ${formatVND(st.consumed)} · Đóng quỹ ${formatVND(st.contributed)}${st.advanced ? ` · Ứng ${formatVND(st.advanced)}` : ''}</div>
+        </div>
+        <div style="text-align:right;">
+          <div class="me-sub">${owe ? 'Nợ nhóm' : 'Còn lại'}</div>
+          <div class="me-balance" style="color:${owe ? 'var(--red)' : st.balance > 0 ? 'var(--green)' : 'var(--text3)'}">${formatVND(Math.abs(st.balance))}</div>
+        </div>
+      </div>
+      ${owe ? `<button class="today-action-btn" style="width:100%;margin-top:10px;" onclick="openModal('qrModal')">💸 Chuyển trả quỹ</button>` : ''}
+    </div>`;
+}
+
+window.openWhoAmI = () => {
+  const list = document.getElementById('whoAmIList');
+  if (!list || !DATA) return;
+  const me = getMyMemberName();
+  const members = (DATA.members || []).filter(Boolean);
+  list.innerHTML = members.length ? members.map((m, i) => `
+    <button class="whoami-item ${m.name === me ? 'selected' : ''}" onclick="setMyMember(${i})">
+      <img src="${avatarUrl(m)}" alt=""><span>${esc(m.name)}</span>${m.name === me ? '<span class="whoami-check">✓</span>' : ''}
+    </button>`).join('') : '<div class="today-muted">Chuyến đi chưa có thành viên.</div>';
+  document.getElementById('whoAmIClearBtn').style.display = me ? '' : 'none';
+  openModal('whoAmIModal');
+};
+
+window.setMyMember = (index) => {
+  const code = DATA?.trip?.code;
+  if (!code) return;
+  const member = index === null ? null : (DATA.members || [])[index];
+  if (member) localStorage.setItem(meStorageKey(code), member.name);
+  else localStorage.removeItem(meStorageKey(code));
+  setPushMember(member ? member.name : null);
+  syncPushRoom(code);
+  closeModal('whoAmIModal');
+  if (typeof window.renderTodayView === 'function') window.renderTodayView();
+  renderPushSettings();
+  showToast(member ? `Xin chào ${member.name}! 👋` : "Đã bỏ chọn", "success");
+};
+
+// ===== NHẮC NỢ (EDITOR) =====
+window.sendDebtRemindersUI = async () => {
+  if (!DATA?.trip?.code) return;
+  const fin = getMemberFinance();
+  const targets = Object.entries(fin)
+    .filter(([, st]: any) => st.balance < 0)
+    .map(([member, st]: any) => ({ member, amount: -st.balance }));
+  if (!targets.length) return showToast("Không ai đang nợ nhóm 🎉", "success");
+
+  const ok = await window.niceConfirm(
+    `Nhắc ${targets.length} người đang nợ?`,
+    targets.map(t => `${t.member}: ${formatVND(t.amount)}`).join(' · '),
+    'warning'
+  );
+  if (!ok) return;
+  try {
+    const r = await sendDebtReminders(DATA.trip.code, localStorage.getItem('trip_secret_key') || "", targets);
+    const reached = targets.length - (r.noDevice || []).length;
+    showToast(
+      (reached ? `Đã nhắc ${reached} người 💰` : "Chưa nhắc được ai") +
+      ((r.noDevice || []).length ? ` · Chưa nhận được: ${r.noDevice.join(', ')} (chưa bật thông báo hoặc chưa chọn "Tôi là ai")` : ''),
+      reached ? "success" : "info"
+    );
+  } catch (e) { showToast(e.message, "error"); }
+};
+
+// ===== CHECK-IN TẠI ĐIỂM HẸN =====
+// Hiện cho hoạt động đang diễn ra: từ 60 phút trước tới 2 tiếng sau giờ bắt đầu.
+// (dùng var vì renderTodayView có thể chạy lúc khởi động, trước khi tới đoạn code này)
+var CHECKIN_BEFORE_MS = 60 * 60 * 1000;
+var CHECKIN_AFTER_MS = 2 * 60 * 60 * 1000;
+var _checkin = { key: '', members: {}, loadedAt: 0, loading: false };
+
+function getCheckinActivity(now = new Date()) {
+  let best = null;
+  (DATA?.days || []).forEach(day => {
+    (day?.activities || []).forEach(act => {
+      if (!act || !act.name || !act.time) return;
+      const dt = getActivityDateTime(day, act);
+      if (!dt) return;
+      const diff = now.getTime() - dt.getTime();
+      if (diff < -CHECKIN_BEFORE_MS || diff > CHECKIN_AFTER_MS) return;
+      // Ưu tiên hoạt động có giờ bắt đầu gần bây giờ nhất
+      if (!best || Math.abs(diff) < Math.abs(best.diff)) {
+        best = { act, day, diff, key: String(act.id || `${day.date}|${act.time}|${act.name}`) };
+      }
+    });
+  });
+  return best;
+}
+
+function checkinRowsHtml(target) {
+  const me = getMyMemberName();
+  const members = (DATA?.members || []).filter(Boolean);
+  const data = _checkin.key === target.key ? _checkin.members : {};
+  const ago = (t) => {
+    const mins = Math.max(0, Math.round((Date.now() - t) / 60000));
+    return mins < 1 ? 'vừa xong' : mins < 60 ? `${mins} phút trước` : `${Math.floor(mins / 60)} giờ trước`;
+  };
+  return members.map(m => {
+    const c = data[m.name];
+    const mapLink = c && c.lat != null ? ` · <a href="https://www.google.com/maps?q=${c.lat},${c.lng}" target="_blank" rel="noopener">Xem vị trí</a>` : '';
+    const status = !c ? '<span class="checkin-status wait">⏳ Chưa tới</span>'
+      : c.status === 'arrived' ? `<span class="checkin-status ok">✅ Đã tới ${new Date(c.at).toLocaleTimeString('vi-VN', { hour: '2-digit', minute: '2-digit' })}</span>`
+      : `<span class="checkin-status otw">🚶 Đang tới · ${ago(c.at)}</span>`;
+    return `
+      <div class="checkin-row">
+        <img src="${avatarUrl(m)}" alt="">
+        <div class="checkin-name">${esc(m.name)}${m.name === me ? ' <span class="today-chip">Bạn</span>' : ''}</div>
+        <div class="checkin-right">${status}${mapLink}</div>
+      </div>`;
+  }).join('');
+}
+
+function renderCheckinCardHtml(now = new Date()) {
+  const target = getCheckinActivity(now);
+  if (!target || !(DATA?.members || []).length) return '';
+  if (_checkin.key !== target.key) _checkin = { key: target.key, members: {}, loadedAt: 0, loading: false };
+  if (Date.now() - _checkin.loadedAt > 20000) setTimeout(refreshCheckins, 0);
+
+  const members = (DATA.members || []).filter(Boolean);
+  const me = getMyMemberName();
+  const myStatus = me ? _checkin.members[me]?.status : null;
+  const arrived = members.filter(m => _checkin.members[m.name]?.status === 'arrived').length;
+  const startsIn = Math.round(-target.diff / 60000);
+  const when = startsIn > 0 ? `bắt đầu sau ${startsIn} phút` : startsIn === 0 ? 'bắt đầu bây giờ' : `đã bắt đầu ${-startsIn} phút`;
+
+  const actions = !me
+    ? `<button class="today-action-btn primary" onclick="openWhoAmI()">👤 Chọn bạn là ai để check-in</button>`
+    : `
+      ${myStatus !== 'arrived' ? `<button class="today-action-btn primary" onclick="checkinUI('arrived')">✅ Tôi tới rồi</button>` : ''}
+      <button class="today-action-btn" onclick="checkinUI('location')">📍 Gửi vị trí</button>
+      ${arrived < members.length ? `<button class="today-action-btn" onclick="nudgeLateUI()">🔔 Nhắc người chưa tới</button>` : ''}`;
+
+  return `
+    <div class="today-card checkin-card" id="checkinCard">
+      <div class="today-section-title"><span>📍 Điểm hẹn</span><span>${arrived}/${members.length} đã tới</span></div>
+      <div class="today-next-card" style="margin-bottom:10px;">
+        <div class="today-next-time">${esc(target.act.time)}</div>
+        <div style="min-width:0;">
+          <div class="today-next-name">${esc(target.act.name)}</div>
+          <div class="today-next-sub">${target.act.location ? `📍 ${esc(target.act.location)} · ` : ''}${when}</div>
+        </div>
+      </div>
+      <div>${checkinRowsHtml(target)}</div>
+      <div class="today-actions" style="margin-top:10px;">${actions}</div>
+    </div>`;
+}
+
+async function refreshCheckins() {
+  const target = getCheckinActivity();
+  if (!target || !DATA?.trip?.code || _checkin.loading) return;
+  _checkin.loading = true;
+  try {
+    const members = await getCheckins(DATA.trip.code, target.key);
+    _checkin = { key: target.key, members, loadedAt: Date.now(), loading: false };
+    updateCheckinCard();
+  } catch (e) {
+    _checkin.loading = false;
+    _checkin.loadedAt = Date.now(); // lỗi mạng: đợi chu kỳ sau thử lại, tránh gọi dồn
+  }
+}
+
+// Chỉ vẽ lại thẻ check-in (không render lại cả trang Hôm nay)
+function updateCheckinCard() {
+  const card = document.getElementById('checkinCard');
+  if (!card) return;
+  const tmp = document.createElement('div');
+  tmp.innerHTML = renderCheckinCardHtml();
+  if (tmp.firstElementChild) card.replaceWith(tmp.firstElementChild);
+  else card.remove();
+}
+
+function getMyPosition(): Promise<{ lat: number; lng: number }> {
+  return new Promise((resolve, reject) => {
+    if (!navigator.geolocation) return reject(new Error("Thiết bị không hỗ trợ định vị"));
+    navigator.geolocation.getCurrentPosition(
+      p => resolve({ lat: p.coords.latitude, lng: p.coords.longitude }),
+      err => reject(new Error(err.code === 1 ? "Bạn chưa cho phép truy cập vị trí" : "Không lấy được vị trí, thử lại nhé")),
+      { enableHighAccuracy: true, timeout: 15000, maximumAge: 60000 }
+    );
+  });
+}
+
+window.checkinUI = async (mode) => {
+  const target = getCheckinActivity();
+  const me = getMyMemberName();
+  if (!target || !me || !DATA?.trip?.code) return;
+  try {
+    const body: any = { room: DATA.trip.code, act: target.key, actName: target.act.name, member: me, status: mode === 'arrived' ? 'arrived' : 'otw' };
+    if (mode === 'location') {
+      showToast("Đang lấy vị trí…", "info");
+      Object.assign(body, await getMyPosition());
+    }
+    const members = await postCheckin(body);
+    _checkin = { key: target.key, members, loadedAt: Date.now(), loading: false };
+    updateCheckinCard();
+    showToast(mode === 'arrived' ? "Đã check-in ✅" : "Đã gửi vị trí cho cả nhóm 📍", "success");
+  } catch (e) { showToast(e.message, "error"); }
+};
+
+window.nudgeLateUI = async () => {
+  const target = getCheckinActivity();
+  const me = getMyMemberName();
+  if (!target || !me || !DATA?.trip?.code) return;
+  try {
+    const r = await nudgeLateMembers(DATA.trip.code, target.key, target.act.name, me);
+    if (!(r.waiting || []).length) return showToast("Mọi người đều tới rồi 🎉", "success");
+    const reached = r.waiting.length - (r.noDevice || []).length;
+    showToast(
+      (reached ? `Đã nhắc ${reached} người 🔔` : "Chưa nhắc được ai") +
+      ((r.noDevice || []).length ? ` · Chưa nhận được: ${r.noDevice.join(', ')}` : ''),
+      reached ? "success" : "info"
+    );
+  } catch (e) { showToast(e.message, "error"); }
+};
+
+// Cập nhật danh sách check-in mỗi 20 giây khi đang mở app
+setInterval(() => { if (!document.hidden && document.getElementById('checkinCard')) refreshCheckins(); }, 20000);
 
 // 1. Đăng ký Service Worker (Trợ lý chạy ngầm)
 if ('serviceWorker' in navigator) {

@@ -1,19 +1,25 @@
 // POST /api/push/notify
-// body: { type: "change" | "manual" | "test", roomCode, deviceId, editorKey?, message?, endpoint? }
-//   change -> báo cả nhóm là chuyến đi vừa được sửa (editor gọi sau khi autoSync xong)
-//   manual -> editor gửi 1 tin nhắn tới cả nhóm
-//   test   -> gửi thử 1 thông báo tới chính thiết bị đang bật
+// body: { type, roomCode, deviceId, editorKey?, ... }
+//   change -> { changes: string[] } báo cả nhóm nội dung vừa sửa (editor gọi sau khi autoSync xong)
+//   manual -> { message } editor gửi 1 tin nhắn tới cả nhóm
+//   debt   -> { targets: [{ member, amount }] } editor nhắc từng người đang nợ nhóm
+//   test   -> { endpoint } gửi thử 1 thông báo tới chính thiết bị đang bật
 import {
   db, fetchRoom, FieldValue, hashId, isEditorKeyValid, readBody, ROOM_META, sendToSubs, SUBS, subsForRoom,
 } from "../_lib/push.js";
 
-const CHANGE_THROTTLE_MS = 5 * 60 * 1000; // tối đa 1 thông báo "có thay đổi" / room / 5 phút
-const MANUAL_THROTTLE_MS = 20 * 1000;
+const THROTTLE_MS: Record<string, number> = {
+  change: 60 * 1000, // client đã gom các lần sửa; bị chặn thì client giữ lại thay đổi và gửi lại sau
+  manual: 20 * 1000,
+  debt: 60 * 1000,
+};
+
+const vnd = (n: number) => Math.round(n || 0).toLocaleString("vi-VN") + "đ";
 
 export default async function handler(req: any, res: any) {
   if (req.method !== "POST") return res.status(405).json({ error: "Method not allowed" });
   try {
-    const { type, roomCode, deviceId, editorKey, message, endpoint } = readBody(req);
+    const { type, roomCode, deviceId, editorKey, message, endpoint, changes, targets } = readBody(req);
 
     if (type === "test") {
       const snap = await db().collection(SUBS).doc(hashId(String(endpoint || ""))).get();
@@ -24,40 +30,70 @@ export default async function handler(req: any, res: any) {
       return res.status(200).json(r);
     }
 
+    if (!THROTTLE_MS[type]) return res.status(400).json({ error: "type không hợp lệ" });
     if (!roomCode || typeof roomCode !== "string") return res.status(400).json({ error: "Thiếu roomCode" });
     const room = await fetchRoom(roomCode);
     if (!room) return res.status(404).json({ error: "Không tìm thấy chuyến đi" });
     if (!isEditorKeyValid(room, editorKey)) return res.status(403).json({ error: "Sai mã Editor" });
-
     const tripName = room.trip?.name || "Chuyến đi";
-    const isChange = type === "change";
-    if (!isChange && type !== "manual") return res.status(400).json({ error: "type không hợp lệ" });
 
+    // Kiểm tra dữ liệu trước khi tốn lượt throttle
+    const lines = (Array.isArray(changes) ? changes : []).map((c) => String(c).slice(0, 150)).filter(Boolean).slice(0, 30);
     const text = String(message || "").trim().slice(0, 200);
-    if (!isChange && !text) return res.status(400).json({ error: "Nội dung trống" });
+    const debts = (Array.isArray(targets) ? targets : [])
+      .map((t) => ({ member: String(t?.member || ""), amount: Number(t?.amount) || 0 }))
+      .filter((t) => t.member && t.amount > 0)
+      .slice(0, 50);
+    if (type === "change" && !lines.length) return res.status(400).json({ error: "Không có thay đổi" });
+    if (type === "manual" && !text) return res.status(400).json({ error: "Nội dung trống" });
+    if (type === "debt" && !debts.length) return res.status(400).json({ error: "Không có ai đang nợ" });
 
-    // Throttle theo room, dùng transaction để 2 request song song không cùng lọt
+    // Throttle theo room + loại, dùng transaction để 2 request song song không cùng lọt
     const metaRef = db().collection(ROOM_META).doc(roomCode);
-    const field = isChange ? "lastChangeAt" : "lastManualAt";
-    const limit = isChange ? CHANGE_THROTTLE_MS : MANUAL_THROTTLE_MS;
-    const allowed = await db().runTransaction(async (tx) => {
+    const field = `last_${type}_at`;
+    const limit = THROTTLE_MS[type];
+    const waitMs = await db().runTransaction(async (tx) => {
       const last = (await tx.get(metaRef)).get(field)?.toMillis?.() || 0;
-      if (Date.now() - last < limit) return false;
+      const wait = last + limit - Date.now();
+      if (wait > 0) return wait;
       tx.set(metaRef, { [field]: FieldValue.serverTimestamp() }, { merge: true });
-      return true;
+      return 0;
     });
-    if (!allowed) {
-      if (isChange) return res.status(200).json({ skipped: "throttled" });
-      return res.status(429).json({ error: "Vừa gửi xong, đợi chút rồi gửi tiếp nhé" });
+    if (waitMs > 0) {
+      if (type === "change") return res.status(200).json({ skipped: "throttled", retryAfterMs: waitMs });
+      return res.status(429).json({ error: `Vừa gửi xong, đợi ${Math.ceil(waitMs / 1000)} giây rồi gửi tiếp nhé` });
     }
 
-    const subs = (await subsForRoom(roomCode))
-      .filter((s) => s.data.deviceId !== deviceId)
-      .filter((s) => !isChange || s.data.prefs?.changes !== false);
+    const roomSubs = (await subsForRoom(roomCode)).filter((s) => s.data.deviceId !== deviceId);
 
-    const r = await sendToSubs(subs, isChange
-      ? { title: `✏️ ${tripName}`, body: "Lịch trình vừa được cập nhật. Mở app để xem thay đổi mới nhất.", tag: `change-${roomCode}` }
-      : { title: `📣 ${tripName}`, body: text, tag: `manual-${roomCode}-${Date.now()}` });
+    if (type === "debt") {
+      let sent = 0;
+      const noDevice: string[] = [];
+      for (const { member, amount } of debts) {
+        const subs = roomSubs.filter((s) => s.data.memberName === member);
+        if (!subs.length) { noDevice.push(member); continue; }
+        const r = await sendToSubs(subs, {
+          title: `💰 ${tripName}`,
+          body: `${member} ơi, bạn đang nợ nhóm ${vnd(amount)}. Mở app xem chi tiết và chuyển cho quỹ nhé!`,
+          tag: `debt-${roomCode}`,
+        });
+        sent += r.sent;
+      }
+      return res.status(200).json({ sent, noDevice });
+    }
+
+    if (type === "change") {
+      const shown = lines.slice(0, 3);
+      const more = lines.length - shown.length;
+      const r = await sendToSubs(roomSubs.filter((s) => s.data.prefs?.changes !== false), {
+        title: `✏️ ${tripName}`,
+        body: shown.join("\n") + (more > 0 ? `\n… và ${more} thay đổi khác` : ""),
+        tag: `change-${roomCode}`,
+      });
+      return res.status(200).json(r);
+    }
+
+    const r = await sendToSubs(roomSubs, { title: `📣 ${tripName}`, body: text, tag: `manual-${roomCode}-${Date.now()}` });
     return res.status(200).json(r);
   } catch (e: any) {
     console.error(e);

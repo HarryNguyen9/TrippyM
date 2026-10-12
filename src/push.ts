@@ -1,6 +1,8 @@
 // ===== PUSH NOTIFICATION (Web Push chuẩn + VAPID - chạy được trên iOS 16.4+ khi đã "Thêm vào MH chính") =====
 // Thiết bị đăng ký thẳng với dịch vụ push của trình duyệt (Apple/Google/Mozilla) qua pushManager.subscribe,
 // không dùng Firebase Messaging SDK. Server (api/push/*) lưu subscription và gửi bằng thư viện web-push.
+import { describeTripChanges } from "./tripDiff";
+
 const VAPID_KEY = (import.meta.env.VITE_PUSH_VAPID_KEY || "").trim();
 
 const LS_ENABLED = "trippy_push_enabled";
@@ -54,16 +56,20 @@ export async function getPushStatus(): Promise<PushStatus> {
   return (await currentSub().catch(() => null)) ? "on" : "off";
 }
 
-async function api(path: string, method: string, body: any) {
-  const res = await fetch(path, { method, headers: { "Content-Type": "application/json" }, body: JSON.stringify(body) });
+export async function api(path: string, method: string, body?: any) {
+  const res = await fetch(path, body === undefined ? { method } : { method, headers: { "Content-Type": "application/json" }, body: JSON.stringify(body) });
   const json = await res.json().catch(() => ({}));
   if (!res.ok) throw new Error(json.error || `Lỗi ${res.status}`);
   return json;
 }
 
+// "Tôi là ai" của máy này trong room hiện tại (main.ts set khi vào phòng / khi người dùng chọn)
+let _memberName = "";
+export function setPushMember(name: string | null) { _memberName = name || ""; }
+
 async function register(sub: PushSubscription, roomCode: string) {
   await api("/api/push/subscription", "POST", {
-    subscription: sub.toJSON(), roomCode, deviceId: getDeviceId(), prefs: getPushPrefs(),
+    subscription: sub.toJSON(), roomCode, deviceId: getDeviceId(), prefs: getPushPrefs(), memberName: _memberName,
     tz: Intl.DateTimeFormat().resolvedOptions().timeZone,
   });
 }
@@ -131,14 +137,63 @@ export async function sendManualPush(roomCode: string, editorKey: string, messag
   return api("/api/push/notify", "POST", { type: "manual", roomCode, editorKey, message, deviceId: getDeviceId() });
 }
 
-// Gom các lần sửa liên tiếp thành 1 thông báo (server còn throttle thêm 5 phút/room)
+export async function sendDebtReminders(roomCode: string, editorKey: string, targets: { member: string; amount: number }[]) {
+  return api("/api/push/notify", "POST", { type: "debt", roomCode, editorKey, targets, deviceId: getDeviceId() });
+}
+
+// ===== THÔNG BÁO "CHUYẾN ĐI ĐƯỢC CẬP NHẬT" KÈM NỘI DUNG CỤ THỂ =====
+// _baseline = dữ liệu lúc đã báo lần cuối (hoặc lúc nhận bản mới từ server). Khi editor sửa, sau 20s
+// không sửa thêm sẽ so _baseline với dữ liệu hiện tại để ra danh sách thay đổi rồi gửi 1 thông báo.
+let _baseline: string | null = null;
 let _changeTimer: ReturnType<typeof setTimeout> | null = null;
-export function notifyTripChanged(roomCode: string, editorKey: string) {
-  if (!VAPID_KEY) return;
+const CHANGE_DEBOUNCE_MS = 20000;
+
+// Gọi khi vào phòng và mỗi khi nhận dữ liệu mới từ người khác (để không báo nhầm thay đổi của họ)
+export function setChangeBaseline(data: any) {
+  if (_changeTimer || !data) return; // đang có thay đổi chờ gửi -> giữ mốc cũ
+  _baseline = JSON.stringify(data);
+}
+
+export function notifyTripChanged(roomCode: string, editorKey: string, getData: () => any) {
+  if (!VAPID_KEY || _baseline === null) return;
   if (_changeTimer) clearTimeout(_changeTimer);
-  _changeTimer = setTimeout(() => {
-    _changeTimer = null;
-    api("/api/push/notify", "POST", { type: "change", roomCode, editorKey, deviceId: getDeviceId() })
-      .catch((e) => console.warn("Push: báo thay đổi lỗi", e));
-  }, 15000);
+  _changeTimer = setTimeout(() => flushTripChanges(roomCode, editorKey, getData), CHANGE_DEBOUNCE_MS);
+}
+
+async function flushTripChanges(roomCode: string, editorKey: string, getData: () => any) {
+  _changeTimer = null;
+  const data = getData();
+  if (!data || data.trip?.code !== roomCode || _baseline === null) return;
+  const snapshot = JSON.stringify(data);
+  const changes = describeTripChanges(JSON.parse(_baseline), data);
+  if (!changes.length) { _baseline = snapshot; return; }
+  try {
+    const r = await api("/api/push/notify", "POST", { type: "change", roomCode, editorKey, changes, deviceId: getDeviceId() });
+    if (r.skipped === "throttled") {
+      // Giữ mốc cũ để lần gửi sau gộp luôn các thay đổi này
+      _changeTimer = setTimeout(() => flushTripChanges(roomCode, editorKey, getData), (r.retryAfterMs || 30000) + 1000);
+      return;
+    }
+  } catch (e) {
+    console.warn("Push: báo thay đổi lỗi", e);
+  }
+  _baseline = snapshot;
+}
+
+// ===== CHECK-IN TẠI ĐIỂM HẸN =====
+export type CheckinEntry = { status: "arrived" | "otw"; at: number; lat?: number; lng?: number };
+
+export async function getCheckins(room: string, act: string): Promise<Record<string, CheckinEntry>> {
+  const r = await api(`/api/push/checkin?room=${encodeURIComponent(room)}&act=${encodeURIComponent(act)}`, "GET");
+  return r.members || {};
+}
+
+export async function postCheckin(body: {
+  room: string; act: string; actName: string; member: string; status?: "arrived" | "otw"; lat?: number; lng?: number;
+}): Promise<Record<string, CheckinEntry>> {
+  return (await api("/api/push/checkin", "POST", body)).members || {};
+}
+
+export async function nudgeLateMembers(room: string, act: string, actName: string, member: string) {
+  return api("/api/push/checkin", "POST", { action: "nudge", room, act, actName, member });
 }

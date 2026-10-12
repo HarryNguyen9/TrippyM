@@ -35,6 +35,7 @@ export default async function handler(req: any, res: any) {
       endpoint,
       keys,
       deviceId: String(body.deviceId || "").slice(0, 100),
+      memberName: String(body.memberName || "").slice(0, 100),
       roomCode,
       tz,
       prefs: {
