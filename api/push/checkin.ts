@@ -6,7 +6,7 @@
 // không bị autoSync của editor (ghi đè cả room) xoá mất.
 import { CHECKINS, db, FieldValue, fetchRoom, hashId, memberNames, readBody, sendToSubs, subsForRoom } from "../_lib/push.js";
 
-const NUDGE_THROTTLE_MS = 60 * 1000;
+const NUDGE_THROTTLE_MS = 15 * 1000; // theo từng người gửi, chỉ để chống bấm liên tục
 const KEEP_MS = 3 * 864e5;
 
 export default async function handler(req: any, res: any) {
@@ -28,33 +28,54 @@ export default async function handler(req: any, res: any) {
     if (!roomData) return res.status(404).json({ error: "Không tìm thấy chuyến đi" });
     const names = memberNames(roomData);
     const member = String(q.member || "");
-    if (!names.includes(member)) return res.status(400).json({ error: "Chọn \"Tôi là ai\" trước khi check-in" });
     const actName = String(q.actName || "điểm hẹn").slice(0, 100);
     const tripName = roomData.trip?.name || "Chuyến đi";
 
     if (q.action === "nudge") {
+      // Ai cũng nhắc được, kể cả chưa chọn "Tôi là ai". Throttle tính riêng từng người/máy gửi
+      // (chống bấm liên tục) nên nhiều người nhắc cùng lúc không chặn nhau.
+      const requester = names.includes(member) ? member : "";
+      const deviceId = String(q.deviceId || "");
+      const senderKey = hashId(requester || deviceId || "anon").slice(0, 16);
       const result = await db().runTransaction(async (tx) => {
         const snap = await tx.get(ref);
-        const last = snap.get("lastNudgeAt")?.toMillis?.() || 0;
+        const last = Number(snap.get(`nudges.${senderKey}`)) || 0;
         if (Date.now() - last < NUDGE_THROTTLE_MS) return null;
-        tx.set(ref, { room, act, lastNudgeAt: FieldValue.serverTimestamp(), expireAt: new Date(Date.now() + KEEP_MS) }, { merge: true });
+        tx.set(ref, { room, act, nudges: { [senderKey]: Date.now() }, expireAt: new Date(Date.now() + KEEP_MS) }, { merge: true });
         return (snap.get("members") || {}) as Record<string, any>;
       });
-      if (!result) return res.status(429).json({ error: "Vừa nhắc xong, đợi 1 phút nhé" });
+      if (!result) return res.status(429).json({ error: "Bạn vừa nhắc xong, đợi chút rồi nhắc lại nhé" });
 
       const arrived = names.filter((n) => result[n]?.status === "arrived");
-      const waiting = names.filter((n) => n !== member && result[n]?.status !== "arrived");
-      if (!waiting.length) return res.status(200).json({ sent: 0, waiting: [], noDevice: [] });
+      const waiting = names.filter((n) => n !== requester && result[n]?.status !== "arrived");
+      if (!waiting.length) return res.status(200).json({ sent: 0, genericSent: 0, waiting: [], noDevice: [] });
 
-      const subs = (await subsForRoom(room)).filter((s) => waiting.includes(s.data.memberName || ""));
-      const r = await sendToSubs(subs, {
+      const roomSubs = (await subsForRoom(room)).filter((s) => !deviceId || s.data.deviceId !== deviceId);
+      const progress = `${arrived.length}/${names.length} người đã tới`;
+
+      // Người đã chọn "Tôi là ai" -> nhắc đích danh
+      const named = roomSubs.filter((s) => waiting.includes(s.data.memberName || ""));
+      const r = await sendToSubs(named, {
         title: `⏳ ${tripName} · ${actName}`,
-        body: `${member} nhắc: cả nhóm đang chờ bạn! (${arrived.length}/${names.length} người đã tới)`,
+        body: `${requester || "Cả nhóm"} nhắc: mọi người đang chờ bạn! (${progress})`,
         tag: `nudge-${act}`,
       });
-      const withDevice = new Set(subs.map((s) => s.data.memberName));
-      return res.status(200).json({ sent: r.sent, waiting, noDevice: waiting.filter((n) => !withDevice.has(n)) });
+
+      // Máy chưa chọn "Tôi là ai" -> không biết có phải người chưa tới không, gửi thông báo chung
+      const unnamed = roomSubs.filter((s) => !s.data.memberName);
+      const g = await sendToSubs(unnamed, {
+        title: `⏳ ${tripName} · ${actName}`,
+        body: `Cả nhóm đang chờ ở ${actName}! Ai chưa tới thì nhanh lên nhé (${progress})`,
+        tag: `nudge-${act}`,
+      });
+
+      const withDevice = new Set(named.map((s) => s.data.memberName));
+      return res.status(200).json({
+        sent: r.sent, genericSent: g.sent, waiting, noDevice: waiting.filter((n) => !withDevice.has(n)),
+      });
     }
+
+    if (!names.includes(member)) return res.status(400).json({ error: "Chọn \"Tôi là ai\" trước khi check-in" });
 
     // ---- Check-in / gửi vị trí ----
     const status = q.status === "otw" ? "otw" : "arrived";

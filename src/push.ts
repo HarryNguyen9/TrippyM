@@ -197,7 +197,7 @@ export async function postCheckin(body: {
 }
 
 export async function nudgeLateMembers(room: string, act: string, actName: string, member: string) {
-  return api("/api/push/checkin", "POST", { action: "nudge", room, act, actName, member });
+  return api("/api/push/checkin", "POST", { action: "nudge", room, act, actName, member: member || "", deviceId: getDeviceId() });
 }
 
 // ===== KHOẢN CHI CHỜ DUYỆT + SOS (api/push/group) =====

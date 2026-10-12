@@ -9142,14 +9142,22 @@ window.sendDebtRemindersUI = async () => {
   if (!ok) return;
   try {
     const r = await sendDebtReminders(DATA.trip.code, localStorage.getItem('trip_secret_key') || "", targets);
-    const reached = targets.length - (r.noDevice || []).length;
-    showToast(
-      (reached ? `Đã nhắc ${reached} người 💰` : "Chưa nhắc được ai") +
-      ((r.noDevice || []).length ? ` · Chưa nhận được: ${r.noDevice.join(', ')} (chưa bật thông báo hoặc chưa chọn "Tôi là ai")` : ''),
-      reached ? "success" : "info"
-    );
+    showReminderResult(targets.length - (r.noDevice || []).length, r.genericSent || 0, r.noDevice || [], '💰');
   } catch (e) { showToast(e.message, "error"); }
 };
+
+// Kết quả nhắc nợ / nhắc người chưa tới: nhắc riêng (máy đã chọn "Tôi là ai") + nhắc chung (máy chưa chọn)
+function showReminderResult(namedCount, genericSent, noDevice, icon) {
+  const parts = [];
+  if (namedCount) parts.push(`Đã nhắc riêng ${namedCount} người ${icon}`);
+  if (genericSent) parts.push(`gửi nhắc chung tới ${genericSent} máy chưa chọn tên`);
+  if (!parts.length) {
+    return showToast("Chưa gửi được thông báo nào: mọi người cần bật thông báo trong Cài đặt", "info");
+  }
+  if (noDevice.length && !genericSent) parts.push(`chưa nhắc được: ${noDevice.join(', ')}`);
+  const text = parts.join(' · ');
+  showToast(text.charAt(0).toUpperCase() + text.slice(1), "success");
+}
 
 // ===== CHECK-IN TẠI ĐIỂM HẸN =====
 // Ngày có lịch: hiện cho hoạt động đang diễn ra (bắt đầu chưa quá 2 tiếng), nếu không có thì
@@ -9211,12 +9219,13 @@ function renderCheckinCardHtml(now = new Date()) {
   const dur = (mins) => mins >= 60 ? `${Math.floor(mins / 60)} giờ${mins % 60 ? ` ${mins % 60} phút` : ''}` : `${mins} phút`;
   const when = startsIn > 0 ? `bắt đầu sau ${dur(startsIn)}` : startsIn === 0 ? 'bắt đầu bây giờ' : `đã bắt đầu ${dur(-startsIn)}`;
 
+  const nudgeBtn = arrived < members.length ? `<button class="today-action-btn" onclick="nudgeLateUI()">🔔 Nhắc người chưa tới</button>` : '';
   const actions = !me
-    ? `<button class="today-action-btn primary" onclick="openWhoAmI()">👤 Chọn bạn là ai để check-in</button>`
+    ? `<button class="today-action-btn primary" onclick="openWhoAmI()">👤 Chọn bạn là ai để check-in</button>${nudgeBtn}`
     : `
       ${myStatus !== 'arrived' ? `<button class="today-action-btn primary" onclick="checkinUI('arrived')">✅ Tôi tới rồi</button>` : ''}
       <button class="today-action-btn" onclick="checkinUI('location')">📍 Gửi vị trí</button>
-      ${arrived < members.length ? `<button class="today-action-btn" onclick="nudgeLateUI()">🔔 Nhắc người chưa tới</button>` : ''}`;
+      ${nudgeBtn}`;
 
   return `
     <div class="today-card checkin-card" id="checkinCard">
@@ -9287,17 +9296,12 @@ window.checkinUI = async (mode) => {
 
 window.nudgeLateUI = async () => {
   const target = getCheckinActivity();
-  const me = getMyMemberName();
-  if (!target || !me || !DATA?.trip?.code) return;
+  if (!target || !DATA?.trip?.code) return;
   try {
-    const r = await nudgeLateMembers(DATA.trip.code, target.key, target.act.name, me);
+    // Chưa chọn "Tôi là ai" vẫn nhắc được (thông báo ghi "Cả nhóm nhắc")
+    const r = await nudgeLateMembers(DATA.trip.code, target.key, target.act.name, getMyMemberName() || '');
     if (!(r.waiting || []).length) return showToast("Mọi người đều tới rồi 🎉", "success");
-    const reached = r.waiting.length - (r.noDevice || []).length;
-    showToast(
-      (reached ? `Đã nhắc ${reached} người 🔔` : "Chưa nhắc được ai") +
-      ((r.noDevice || []).length ? ` · Chưa nhận được: ${r.noDevice.join(', ')}` : ''),
-      reached ? "success" : "info"
-    );
+    showReminderResult(r.waiting.length - (r.noDevice || []).length, r.genericSent || 0, r.noDevice || [], '🔔');
   } catch (e) { showToast(e.message, "error"); }
 };
 

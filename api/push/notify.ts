@@ -10,8 +10,8 @@ import {
 
 const THROTTLE_MS: Record<string, number> = {
   change: 60 * 1000, // client đã gom các lần sửa; bị chặn thì client giữ lại thay đổi và gửi lại sau
-  manual: 20 * 1000,
-  debt: 60 * 1000,
+  manual: 15 * 1000, // tính riêng từng máy gửi -> nhiều người gửi cùng lúc không chặn nhau
+  debt: 15 * 1000,
 };
 
 const vnd = (n: number) => Math.round(n || 0).toLocaleString("vi-VN") + "đ";
@@ -48,9 +48,11 @@ export default async function handler(req: any, res: any) {
     if (type === "manual" && !text) return res.status(400).json({ error: "Nội dung trống" });
     if (type === "debt" && !debts.length) return res.status(400).json({ error: "Không có ai đang nợ" });
 
-    // Throttle theo room + loại, dùng transaction để 2 request song song không cùng lọt
+    // Throttle: "change" tính theo room (gom thay đổi của cả nhóm), còn lại tính theo TỪNG MÁY gửi
+    // (chỉ để chống bấm liên tục, không chặn người khác gửi cùng lúc).
+    // Dùng transaction để 2 request song song của cùng 1 máy không cùng lọt.
     const metaRef = db().collection(ROOM_META).doc(roomCode);
-    const field = `last_${type}_at`;
+    const field = type === "change" ? "last_change_at" : `last_${type}_${hashId(String(deviceId || "anon")).slice(0, 16)}`;
     const limit = THROTTLE_MS[type];
     const waitMs = await db().runTransaction(async (tx) => {
       const last = (await tx.get(metaRef)).get(field)?.toMillis?.() || 0;
@@ -81,7 +83,21 @@ export default async function handler(req: any, res: any) {
         });
         sent += r.sent;
       }
-      return res.status(200).json({ sent, noDevice });
+
+      // Máy chưa chọn "Tôi là ai" -> không biết là ai, gửi 1 thông báo chung kèm danh sách người đang nợ
+      let genericSent = 0;
+      const unnamed = allSubs.filter((s) => !s.data.memberName && s.data.deviceId !== deviceId);
+      if (unnamed.length) {
+        const shown = debts.slice(0, 4).map((d) => `${d.member} ${vnd(d.amount)}`).join(", ");
+        const more = debts.length > 4 ? ` và ${debts.length - 4} người khác` : "";
+        const r = await sendToSubs(unnamed, {
+          title: `💰 ${tripName} · Nhắc trả quỹ`,
+          body: `Còn ${debts.length} người đang nợ nhóm: ${shown}${more}. Có tên bạn thì chuyển cho quỹ nhé!`,
+          tag: `debt-${roomCode}`,
+        });
+        genericSent = r.sent;
+      }
+      return res.status(200).json({ sent, noDevice, genericSent });
     }
 
     if (type === "change") {
