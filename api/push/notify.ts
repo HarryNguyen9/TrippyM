@@ -1,5 +1,5 @@
 // POST /api/push/notify
-// body: { type: "change" | "manual" | "test", roomCode, deviceId, editorKey?, message?, token? }
+// body: { type: "change" | "manual" | "test", roomCode, deviceId, editorKey?, message?, endpoint? }
 //   change -> báo cả nhóm là chuyến đi vừa được sửa (editor gọi sau khi autoSync xong)
 //   manual -> editor gửi 1 tin nhắn tới cả nhóm
 //   test   -> gửi thử 1 thông báo tới chính thiết bị đang bật
@@ -13,10 +13,10 @@ const MANUAL_THROTTLE_MS = 20 * 1000;
 export default async function handler(req: any, res: any) {
   if (req.method !== "POST") return res.status(405).json({ error: "Method not allowed" });
   try {
-    const { type, roomCode, deviceId, editorKey, message, token } = readBody(req);
+    const { type, roomCode, deviceId, editorKey, message, endpoint } = readBody(req);
 
     if (type === "test") {
-      const snap = await db().collection(SUBS).doc(hashId(String(token || ""))).get();
+      const snap = await db().collection(SUBS).doc(hashId(String(endpoint || ""))).get();
       if (!snap.exists) return res.status(404).json({ error: "Thiết bị chưa đăng ký nhận thông báo" });
       const r = await sendToSubs([{ id: snap.id, data: snap.data() as any }], {
         title: "🔔 Trippy", body: "Thông báo đã hoạt động trên thiết bị này!", tag: "test",

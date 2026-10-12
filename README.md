@@ -103,8 +103,9 @@ HTML cũ.
 
 ## 🔔 Push notification (iOS / Android / Desktop)
 
-Dùng Web Push qua **Firebase Cloud Messaging** của 1 Firebase project **riêng** cho push
-(không phải `trip-app-8e382`). Gồm 3 loại thông báo:
+Dùng **Web Push chuẩn + VAPID** (thiết bị đăng ký thẳng với Apple/Google qua `pushManager.subscribe`,
+server gửi bằng thư viện `web-push`). Firestore của 1 Firebase project **riêng** chỉ dùng để lưu
+các thiết bị đã đăng ký. Gồm 3 loại thông báo:
 
 | Loại | Kích hoạt |
 |---|---|
@@ -115,20 +116,18 @@ Dùng Web Push qua **Firebase Cloud Messaging** của 1 Firebase project **riên
 **Lưu ý iOS:** cần iOS/iPadOS **16.4+**, người dùng phải mở Safari → Chia sẻ → **Thêm vào MH chính**,
 rồi mở Trippy từ icon đó và bấm "Bật thông báo" trong Cài đặt. Trong tab Safari thường sẽ không bật được.
 
-### Cài đặt 1 lần
+### Biến môi trường trên Vercel
 
-1. Tạo Firebase project mới (VD `trippy-push`) tại https://console.firebase.google.com
-2. Project settings → General → **Add app → Web** → copy `apiKey`, `projectId`,
-   `messagingSenderId`, `appId` vào các biến `VITE_PUSH_FIREBASE_*`
-3. Project settings → Cloud Messaging → **Web Push certificates → Generate key pair** → `VITE_PUSH_VAPID_KEY`
-4. Build → **Firestore Database → Create database** (production mode; chỉ server đọc/ghi qua Admin SDK)
-5. Project settings → Service accounts → **Generate new private key** → dán nguyên JSON vào
-   `FIREBASE_PUSH_SERVICE_ACCOUNT` (chỉ set trên Vercel, KHÔNG commit)
-6. Đặt `CRON_SECRET` là 1 chuỗi ngẫu nhiên
-7. Set toàn bộ biến trên Vercel → Redeploy
-8. Nhắc lịch trình: Vercel Hobby chỉ cho cron 1 lần/ngày, nên dùng https://cron-job.org (miễn phí):
-   URL `https://<domain>/api/push/cron`, mỗi 5 phút, header `Authorization: Bearer <CRON_SECRET>`
-   (Bản ghi chống nhắc trùng `push_reminders_sent` được cron tự dọn sau 7 ngày, không cần TTL policy / billing.)
+| Biến | Type | Giá trị |
+|---|---|---|
+| `VITE_PUSH_VAPID_KEY` | Config | VAPID public key (`npx web-push generate-vapid-keys`) |
+| `VAPID_PRIVATE_KEY` | Secret | VAPID private key của cùng cặp |
+| `FIREBASE_PUSH_SERVICE_ACCOUNT` | Secret | JSON service account của Firebase project push (đã bật Firestore) |
+| `CRON_SECRET` | Secret | Chuỗi ngẫu nhiên |
+
+Nhắc lịch trình: Vercel Hobby chỉ cho cron 1 lần/ngày, nên dùng https://cron-job.org (miễn phí):
+URL `https://<domain>/api/push/cron`, mỗi 5 phút, header `Authorization: Bearer <CRON_SECRET>`.
+Bản ghi chống nhắc trùng (`push_reminders_sent`) được cron tự dọn sau 7 ngày.
 
 Code: `src/push.ts` (client), `public/sw.js` (nhận push), `api/push/*` (Vercel Functions).
 Local `npm run dev` không chạy được `/api` — dùng `vercel dev` để test đầy đủ.

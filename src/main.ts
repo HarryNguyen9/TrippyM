@@ -8916,7 +8916,7 @@ setTimeout(initDraggableModals, 1000);
 
 // ===== PUSH NOTIFICATION (trang Cài đặt) =====
 const PUSH_STATUS_TEXT = {
-  unconfigured: ["Chưa cấu hình", "var(--text3)", "Admin cần set các biến VITE_PUSH_* trên Vercel (xem .env.example)."],
+  unconfigured: ["Chưa cấu hình", "var(--text3)", "Admin cần set biến VITE_PUSH_VAPID_KEY trên Vercel (xem .env.example)."],
   unsupported: ["Không hỗ trợ", "var(--text3)", "Trình duyệt này không hỗ trợ thông báo đẩy. iPhone cần iOS 16.4 trở lên."],
   "needs-install": ["Cần cài app", "var(--orange)", "Trên iPhone: mở bằng Safari → bấm nút Chia sẻ → \"Thêm vào MH chính\", rồi mở Trippy từ icon ngoài màn hình chính để bật thông báo."],
   denied: ["Đã bị chặn", "var(--red)", "Bạn đã từ chối thông báo. Vào Cài đặt iPhone → Thông báo → Trippy để cho phép lại."],

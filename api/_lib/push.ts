@@ -1,15 +1,19 @@
 // ===== PUSH NOTIFICATION - SERVER HELPERS =====
-// Chạy trên Vercel Serverless Functions (Node). Dùng 1 Firebase project RIÊNG
-// cho push (FCM + Firestore lưu token), tách khỏi project chính chứa dữ liệu chuyến đi.
+// Chạy trên Vercel Serverless Functions (Node). Gửi bằng Web Push chuẩn (thư viện web-push + VAPID),
+// không qua FCM SDK ở client -> iPhone đăng ký thẳng với Apple. Firestore của 1 Firebase project
+// RIÊNG dùng để lưu các subscription, tách khỏi project chính chứa dữ liệu chuyến đi.
 //
 // Biến môi trường (Vercel -> Project Settings -> Environment Variables):
 //   FIREBASE_PUSH_SERVICE_ACCOUNT  JSON service account của project push (dán nguyên JSON hoặc base64)
+//   VITE_PUSH_VAPID_KEY            VAPID public key (client cũng dùng)
+//   VAPID_PRIVATE_KEY              VAPID private key (bí mật)
+//   VAPID_SUBJECT                  (tuỳ chọn) "mailto:email-cua-ban@gmail.com"
 //   MAIN_FIREBASE_DB_URL           (tuỳ chọn) URL Realtime DB của project chính
 //   CRON_SECRET                    chuỗi bí mật bảo vệ endpoint /api/push/cron
 import { createHash } from "node:crypto";
 import { cert, getApps, initializeApp } from "firebase-admin/app";
 import { getFirestore, FieldValue } from "firebase-admin/firestore";
-import { getMessaging } from "firebase-admin/messaging";
+import webpush from "web-push";
 
 const DEFAULT_MAIN_DB_URL = "https://trip-app-8e382-default-rtdb.asia-southeast1.firebasedatabase.app/";
 
@@ -29,13 +33,22 @@ function app() {
 }
 
 export const db = () => getFirestore(app());
-export const messaging = () => getMessaging(app());
 export { FieldValue };
+
+let _vapidReady = false;
+function vapid() {
+  if (_vapidReady) return;
+  const pub = process.env.VITE_PUSH_VAPID_KEY, priv = process.env.VAPID_PRIVATE_KEY;
+  if (!pub || !priv) throw new Error("Thiếu VITE_PUSH_VAPID_KEY / VAPID_PRIVATE_KEY");
+  webpush.setVapidDetails(process.env.VAPID_SUBJECT || "mailto:admin@trippy.app", pub, priv);
+  _vapidReady = true;
+}
 
 export const hashId = (s: string) => createHash("sha256").update(s).digest("hex");
 
 export interface SubscriptionDoc {
-  token: string;
+  endpoint: string;
+  keys: { p256dh: string; auth: string };
   deviceId: string;
   roomCode: string;
   tz: string;
@@ -56,31 +69,28 @@ export function isEditorKeyValid(room: any, editorKey: string | undefined) {
   return actual === "" || actual === (editorKey || "");
 }
 
-// ---- Gửi push tới danh sách subscription, tự xoá token đã chết ----
+// ---- Gửi push tới danh sách subscription, tự xoá subscription đã chết (404/410) ----
 export async function sendToSubs(
   subs: { id: string; data: SubscriptionDoc }[],
   msg: { title: string; body: string; url?: string; tag?: string }
 ) {
   if (!subs.length) return { sent: 0, failed: 0 };
-  const res = await messaging().sendEach(
-    subs.map(({ data }) => ({
-      token: data.token,
-      // Data-only: sw.js tự hiển thị notification (iOS bắt buộc mỗi push phải hiện thông báo)
-      data: { title: msg.title, body: msg.body, url: msg.url || "/", tag: msg.tag || "" },
-      webpush: { headers: { Urgency: "high", TTL: "86400" } },
-    }))
-  );
+  vapid();
+  // sw.js tự hiển thị notification từ payload này (iOS bắt buộc mỗi push phải hiện thông báo)
+  const payload = JSON.stringify({ title: msg.title, body: msg.body, url: msg.url || "/", tag: msg.tag || "" });
 
-  const dead = res.responses
-    .map((r, i) => ({ r, sub: subs[i] }))
-    .filter(({ r }) =>
-      !r.success &&
-      ["messaging/registration-token-not-registered", "messaging/invalid-registration-token", "messaging/invalid-argument"]
-        .includes(r.error?.code || "")
-    );
-  await Promise.all(dead.map(({ sub }) => db().collection(SUBS).doc(sub.id).delete()));
-
-  return { sent: res.successCount, failed: res.failureCount };
+  let sent = 0, failed = 0;
+  await Promise.all(subs.map(async ({ id, data }) => {
+    try {
+      await webpush.sendNotification({ endpoint: data.endpoint, keys: data.keys }, payload, { TTL: 86400, urgency: "high" });
+      sent++;
+    } catch (e: any) {
+      failed++;
+      if (e?.statusCode === 404 || e?.statusCode === 410) await db().collection(SUBS).doc(id).delete();
+      else console.error("web-push lỗi", e?.statusCode, e?.body || e?.message);
+    }
+  }));
+  return { sent, failed };
 }
 
 export async function subsForRoom(roomCode: string) {

@@ -1,18 +1,9 @@
-// ===== PUSH NOTIFICATION (Web Push qua FCM - chạy được trên iOS 16.4+ khi đã "Thêm vào MH chính") =====
-// Dùng 1 Firebase project RIÊNG cho push (app tên "push"), không đụng tới project dữ liệu chính.
-import { initializeApp, getApps } from "firebase/app";
-import { getMessaging, getToken, deleteToken, isSupported, onMessage } from "firebase/messaging";
-
-const PUSH_FIREBASE_CONFIG = {
-  apiKey: import.meta.env.VITE_PUSH_FIREBASE_API_KEY,
-  projectId: import.meta.env.VITE_PUSH_FIREBASE_PROJECT_ID,
-  messagingSenderId: import.meta.env.VITE_PUSH_FIREBASE_SENDER_ID,
-  appId: import.meta.env.VITE_PUSH_FIREBASE_APP_ID,
-};
-const VAPID_KEY = import.meta.env.VITE_PUSH_VAPID_KEY;
+// ===== PUSH NOTIFICATION (Web Push chuẩn + VAPID - chạy được trên iOS 16.4+ khi đã "Thêm vào MH chính") =====
+// Thiết bị đăng ký thẳng với dịch vụ push của trình duyệt (Apple/Google/Mozilla) qua pushManager.subscribe,
+// không dùng Firebase Messaging SDK. Server (api/push/*) lưu subscription và gửi bằng thư viện web-push.
+const VAPID_KEY = (import.meta.env.VITE_PUSH_VAPID_KEY || "").trim();
 
 const LS_ENABLED = "trippy_push_enabled";
-const LS_TOKEN = "trippy_push_token";
 const LS_PREFS = "trippy_push_prefs";
 const LS_DEVICE = "trippy_device_id";
 
@@ -43,28 +34,24 @@ export function getPushPrefs(): PushPrefs {
 const isIOS = () => /iPad|iPhone|iPod/.test(navigator.userAgent) ||
   (navigator.platform === "MacIntel" && navigator.maxTouchPoints > 1);
 const isStandalone = () => window.matchMedia("(display-mode: standalone)").matches || (navigator as any).standalone === true;
+const pushSupported = () => "serviceWorker" in navigator && "PushManager" in window && "Notification" in window;
 
-let _messaging: ReturnType<typeof getMessaging> | null = null;
-async function messaging() {
-  if (_messaging) return _messaging;
-  if (!(await isSupported())) return null;
-  const app = getApps().find((a) => a.name === "push") || initializeApp(PUSH_FIREBASE_CONFIG, "push");
-  _messaging = getMessaging(app);
-  // App đang mở (foreground) thì FCM không hiện banner -> tự hiện qua service worker
-  onMessage(_messaging, async (payload) => {
-    const d = payload.data || {};
-    const reg = await navigator.serviceWorker.ready;
-    reg.showNotification(d.title || "Trippy", { body: d.body || "", icon: "/image.png", tag: d.tag || undefined, data: { url: d.url || "/" } });
-  });
-  return _messaging;
+const b64uToBytes = (s: string) =>
+  Uint8Array.from(atob(s.replace(/-/g, "+").replace(/_/g, "/") + "===".slice((s.length + 3) % 4)), (c) => c.charCodeAt(0));
+
+async function currentSub(): Promise<PushSubscription | null> {
+  if (!pushSupported()) return null;
+  const reg = await navigator.serviceWorker.getRegistration();
+  return reg ? reg.pushManager.getSubscription() : null;
 }
 
 export async function getPushStatus(): Promise<PushStatus> {
-  if (!PUSH_FIREBASE_CONFIG.apiKey || !VAPID_KEY) return "unconfigured";
+  if (!VAPID_KEY) return "unconfigured";
+  if (!pushSupported()) return isIOS() && !isStandalone() ? "needs-install" : "unsupported";
   if (isIOS() && !isStandalone()) return "needs-install";
-  if (!("Notification" in window) || !("serviceWorker" in navigator) || !(await isSupported())) return "unsupported";
   if (Notification.permission === "denied") return "denied";
-  return Notification.permission === "granted" && ls.get(LS_ENABLED) === "1" && ls.get(LS_TOKEN) ? "on" : "off";
+  if (Notification.permission !== "granted" || ls.get(LS_ENABLED) !== "1") return "off";
+  return (await currentSub().catch(() => null)) ? "on" : "off";
 }
 
 async function api(path: string, method: string, body: any) {
@@ -74,11 +61,9 @@ async function api(path: string, method: string, body: any) {
   return json;
 }
 
-async function register(roomCode: string) {
-  const token = ls.get(LS_TOKEN);
-  if (!token) return;
+async function register(sub: PushSubscription, roomCode: string) {
   await api("/api/push/subscription", "POST", {
-    token, roomCode, deviceId: getDeviceId(), prefs: getPushPrefs(),
+    subscription: sub.toJSON(), roomCode, deviceId: getDeviceId(), prefs: getPushPrefs(),
     tz: Intl.DateTimeFormat().resolvedOptions().timeZone,
   });
 }
@@ -86,73 +71,60 @@ async function register(roomCode: string) {
 // PHẢI gọi từ 1 thao tác bấm của người dùng (iOS yêu cầu user gesture để xin quyền)
 export async function enablePush(roomCode: string) {
   const status = await getPushStatus();
-  if (status === "unconfigured") throw new Error("Chưa cấu hình Firebase cho push (xem .env.example)");
+  if (status === "unconfigured") throw new Error("Chưa cấu hình VAPID key cho push (xem .env.example)");
   if (status === "needs-install") throw new Error("Trên iPhone: bấm Chia sẻ → Thêm vào MH chính, rồi mở app từ icon để bật thông báo");
   if (status === "unsupported") throw new Error("Trình duyệt này không hỗ trợ thông báo đẩy");
 
   const permission = await Notification.requestPermission();
   if (permission !== "granted") throw new Error("Bạn chưa cho phép thông báo. Vào Cài đặt iPhone → Thông báo → Trippy để bật lại");
 
-  const m = await messaging();
-  if (!m) throw new Error("Thiết bị không hỗ trợ thông báo đẩy");
-  let token: string;
+  let sub: PushSubscription;
   try {
-    token = await getToken(m, { vapidKey: VAPID_KEY, serviceWorkerRegistration: await navigator.serviceWorker.ready });
+    const reg = await navigator.serviceWorker.ready;
+    sub = (await reg.pushManager.getSubscription())
+      || await reg.pushManager.subscribe({ userVisibleOnly: true, applicationServerKey: b64uToBytes(VAPID_KEY) });
   } catch (e: any) {
-    throw new Error(`[FCM] ${e?.code || ""} ${e?.message || e}`.trim());
+    throw new Error(`[Đăng ký push] ${e?.name || ""} ${e?.message || e}`.trim());
   }
-  if (!token) throw new Error("Không lấy được token thông báo");
 
-  ls.set(LS_TOKEN, token);
   try {
-    await register(roomCode);
+    await register(sub, roomCode);
   } catch (e: any) {
-    ls.del(LS_TOKEN);
     throw new Error(`[Lưu đăng ký] ${e?.message || e}`);
   }
   ls.set(LS_ENABLED, "1");
 }
 
 export async function disablePush() {
-  const token = ls.get(LS_TOKEN);
   ls.del(LS_ENABLED);
-  ls.del(LS_TOKEN);
-  if (!token) return;
-  await api("/api/push/subscription", "DELETE", { token }).catch(() => {});
-  const m = await messaging().catch(() => null);
-  if (m) await deleteToken(m).catch(() => {});
+  const sub = await currentSub().catch(() => null);
+  if (!sub) return;
+  await api("/api/push/subscription", "DELETE", { subscription: { endpoint: sub.endpoint } }).catch(() => {});
+  await sub.unsubscribe().catch(() => {});
 }
 
 export async function savePushPrefs(prefs: Partial<PushPrefs>, roomCode: string | null) {
   ls.set(LS_PREFS, JSON.stringify({ ...getPushPrefs(), ...prefs }));
-  if (roomCode && (await getPushStatus()) === "on") await register(roomCode);
+  const sub = await currentSub().catch(() => null);
+  if (roomCode && sub && (await getPushStatus()) === "on") await register(sub, roomCode);
 }
 
 // Gọi khi vào phòng / đổi phòng (roomCode) hoặc rời phòng (null)
 export async function syncPushRoom(roomCode: string | null) {
   if ((await getPushStatus()) !== "on") return;
+  const sub = await currentSub().catch(() => null);
+  if (!sub) return;
   if (!roomCode) {
-    const token = ls.get(LS_TOKEN);
-    if (token) await api("/api/push/subscription", "DELETE", { token }).catch(() => {});
+    await api("/api/push/subscription", "DELETE", { subscription: { endpoint: sub.endpoint } }).catch(() => {});
     return;
   }
-  // Làm mới token mỗi lần mở app (FCM có thể xoay token)
-  try {
-    const m = await messaging();
-    if (m) {
-      const token = await getToken(m, { vapidKey: VAPID_KEY, serviceWorkerRegistration: await navigator.serviceWorker.ready });
-      const old = ls.get(LS_TOKEN);
-      if (token && token !== old) {
-        if (old) await api("/api/push/subscription", "DELETE", { token: old }).catch(() => {});
-        ls.set(LS_TOKEN, token);
-      }
-    }
-  } catch (e) { console.warn("Push: refresh token lỗi", e); }
-  await register(roomCode).catch((e) => console.warn("Push: đăng ký lỗi", e));
+  await register(sub, roomCode).catch((e) => console.warn("Push: đăng ký lỗi", e));
 }
 
 export async function sendTestPush() {
-  return api("/api/push/notify", "POST", { type: "test", token: ls.get(LS_TOKEN) });
+  const sub = await currentSub();
+  if (!sub) throw new Error("Thiết bị chưa bật thông báo");
+  return api("/api/push/notify", "POST", { type: "test", endpoint: sub.endpoint });
 }
 
 export async function sendManualPush(roomCode: string, editorKey: string, message: string) {
@@ -162,7 +134,7 @@ export async function sendManualPush(roomCode: string, editorKey: string, messag
 // Gom các lần sửa liên tiếp thành 1 thông báo (server còn throttle thêm 5 phút/room)
 let _changeTimer: ReturnType<typeof setTimeout> | null = null;
 export function notifyTripChanged(roomCode: string, editorKey: string) {
-  if (!PUSH_FIREBASE_CONFIG.apiKey) return;
+  if (!VAPID_KEY) return;
   if (_changeTimer) clearTimeout(_changeTimer);
   _changeTimer = setTimeout(() => {
     _changeTimer = null;

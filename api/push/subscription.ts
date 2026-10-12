@@ -1,5 +1,6 @@
-// POST   /api/push/subscription  -> lưu/cập nhật token FCM của thiết bị cho room hiện tại
-// DELETE /api/push/subscription  -> xoá token (tắt thông báo / rời phòng)
+// POST   /api/push/subscription  -> lưu/cập nhật Web Push subscription của thiết bị cho room hiện tại
+// DELETE /api/push/subscription  -> xoá subscription (tắt thông báo / rời phòng)
+// body: { subscription: { endpoint, keys: { p256dh, auth } }, roomCode, deviceId, tz, prefs }
 import { db, FieldValue, hashId, readBody, SUBS } from "../_lib/push.js";
 
 const LEAD_OPTIONS = [10, 15, 30, 60, 120];
@@ -7,9 +8,10 @@ const LEAD_OPTIONS = [10, 15, 30, 60, 120];
 export default async function handler(req: any, res: any) {
   try {
     const body = readBody(req);
-    const token = String(body.token || "");
-    if (!token || token.length > 4096) return res.status(400).json({ error: "token không hợp lệ" });
-    const ref = db().collection(SUBS).doc(hashId(token));
+    const sub = body.subscription || {};
+    const endpoint = String(sub.endpoint || "");
+    if (!/^https:\/\//.test(endpoint) || endpoint.length > 2048) return res.status(400).json({ error: "subscription không hợp lệ" });
+    const ref = db().collection(SUBS).doc(hashId(endpoint));
 
     if (req.method === "DELETE") {
       await ref.delete();
@@ -26,8 +28,12 @@ export default async function handler(req: any, res: any) {
     let tz = String(body.tz || "Asia/Ho_Chi_Minh");
     try { new Intl.DateTimeFormat("en-US", { timeZone: tz }); } catch { tz = "Asia/Ho_Chi_Minh"; }
 
+    const keys = { p256dh: String(sub.keys?.p256dh || ""), auth: String(sub.keys?.auth || "") };
+    if (!keys.p256dh || !keys.auth) return res.status(400).json({ error: "subscription thiếu keys" });
+
     await ref.set({
-      token,
+      endpoint,
+      keys,
       deviceId: String(body.deviceId || "").slice(0, 100),
       roomCode,
       tz,

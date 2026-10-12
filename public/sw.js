@@ -1,4 +1,4 @@
-const CACHE_NAME = 'trippy-v7'; // Đổi số này để ép máy cập nhật bản mới
+const CACHE_NAME = 'trippy-v8'; // Đổi số này để ép máy cập nhật bản mới
 // LƯU Ý: sau khi build bằng Vite, file JS/CSS chính sẽ có tên dạng
 // /assets/main-[hash].js (hash đổi mỗi lần build) nên không thể liệt kê cứng
 // ở đây. File này vẫn được cache tự động ở lần đầu người dùng mở app
@@ -44,13 +44,13 @@ self.addEventListener('fetch', (e) => {
     );
 });
 
-// ===== PUSH NOTIFICATION (Web Push từ FCM) =====
-// Server gửi data-only: { data: { title, body, url, tag } }.
+// ===== PUSH NOTIFICATION (Web Push chuẩn, gửi từ api/push/* bằng thư viện web-push) =====
+// Payload: { title, body, url, tag }.
 // iOS BẮT BUỘC mỗi push phải hiện 1 notification, nếu không Safari sẽ thu hồi quyền.
 self.addEventListener('push', (e) => {
     let payload = {};
     try { payload = e.data ? e.data.json() : {}; } catch (_) { payload = { data: { body: e.data && e.data.text() } }; }
-    const d = Object.assign({}, payload.notification, payload.data);
+    const d = Object.assign({}, payload, payload.notification, payload.data);
 
     e.waitUntil(self.registration.showNotification(d.title || 'Trippy', {
         body: d.body || '',
