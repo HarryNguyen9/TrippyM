@@ -9152,28 +9152,26 @@ window.sendDebtRemindersUI = async () => {
 };
 
 // ===== CHECK-IN TẠI ĐIỂM HẸN =====
-// Hiện cho hoạt động đang diễn ra: từ 60 phút trước tới 2 tiếng sau giờ bắt đầu.
+// Ngày có lịch: hiện cho hoạt động đang diễn ra (bắt đầu chưa quá 2 tiếng), nếu không có thì
+// hoạt động kế tiếp trong ngày. Hoạt động phải có giờ.
 // (dùng var vì renderTodayView có thể chạy lúc khởi động, trước khi tới đoạn code này)
-var CHECKIN_BEFORE_MS = 60 * 60 * 1000;
 var CHECKIN_AFTER_MS = 2 * 60 * 60 * 1000;
 var _checkin = { key: '', members: {}, loadedAt: 0, loading: false };
 
 function getCheckinActivity(now = new Date()) {
-  let best = null;
+  let ongoing = null, upcoming = null;
   (DATA?.days || []).forEach(day => {
     (day?.activities || []).forEach(act => {
       if (!act || !act.name || !act.time) return;
       const dt = getActivityDateTime(day, act);
-      if (!dt) return;
+      if (!dt || !isSameCalendarDay(dt, now)) return;
       const diff = now.getTime() - dt.getTime();
-      if (diff < -CHECKIN_BEFORE_MS || diff > CHECKIN_AFTER_MS) return;
-      // Ưu tiên hoạt động có giờ bắt đầu gần bây giờ nhất
-      if (!best || Math.abs(diff) < Math.abs(best.diff)) {
-        best = { act, day, diff, key: String(act.id || `${day.date}|${act.time}|${act.name}`) };
-      }
+      const item = { act, day, diff, key: String(act.id || `${day.date}|${act.time}|${act.name}`) };
+      if (diff >= 0 && diff <= CHECKIN_AFTER_MS && (!ongoing || diff < ongoing.diff)) ongoing = item;
+      if (diff < 0 && (!upcoming || diff > upcoming.diff)) upcoming = item;
     });
   });
-  return best;
+  return ongoing || upcoming;
 }
 
 function checkinRowsHtml(target) {
@@ -9210,7 +9208,8 @@ function renderCheckinCardHtml(now = new Date()) {
   const myStatus = me ? _checkin.members[me]?.status : null;
   const arrived = members.filter(m => _checkin.members[m.name]?.status === 'arrived').length;
   const startsIn = Math.round(-target.diff / 60000);
-  const when = startsIn > 0 ? `bắt đầu sau ${startsIn} phút` : startsIn === 0 ? 'bắt đầu bây giờ' : `đã bắt đầu ${-startsIn} phút`;
+  const dur = (mins) => mins >= 60 ? `${Math.floor(mins / 60)} giờ${mins % 60 ? ` ${mins % 60} phút` : ''}` : `${mins} phút`;
+  const when = startsIn > 0 ? `bắt đầu sau ${dur(startsIn)}` : startsIn === 0 ? 'bắt đầu bây giờ' : `đã bắt đầu ${dur(-startsIn)}`;
 
   const actions = !me
     ? `<button class="today-action-btn primary" onclick="openWhoAmI()">👤 Chọn bạn là ai để check-in</button>`

@@ -64,13 +64,15 @@ export default async function handler(req: any, res: any) {
       return res.status(429).json({ error: `Vừa gửi xong, đợi ${Math.ceil(waitMs / 1000)} giây rồi gửi tiếp nhé` });
     }
 
-    const roomSubs = (await subsForRoom(roomCode)).filter((s) => s.data.deviceId !== deviceId);
+    const allSubs = await subsForRoom(roomCode);
+    const roomSubs = allSubs.filter((s) => s.data.deviceId !== deviceId);
 
     if (type === "debt") {
       let sent = 0;
       const noDevice: string[] = [];
       for (const { member, amount } of debts) {
-        const subs = roomSubs.filter((s) => s.data.memberName === member);
+        // Nhắc nợ gửi theo tên -> không loại máy người bấm (Editor cũng có thể là người đang nợ)
+        const subs = allSubs.filter((s) => s.data.memberName === member);
         if (!subs.length) { noDevice.push(member); continue; }
         const r = await sendToSubs(subs, {
           title: `💰 ${tripName}`,
