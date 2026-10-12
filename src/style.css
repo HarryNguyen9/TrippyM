@@ -418,6 +418,15 @@ body.trip-finished .swipe-content {
   border-color: var(--orange);
 }
 
+/* Kiểu bật/tắt chung (VD: tuỳ chọn thông báo trong Cài đặt) */
+.chip-label.accent::before { content: "⬜ "; }
+.chip-checkbox input:checked + .chip-label.accent {
+  background: var(--accent-glow);
+  color: var(--accent);
+  border-color: var(--accent);
+}
+.chip-checkbox input:checked + .chip-label.accent::before { content: "✅ "; }
+
 /* --- UI CHỌN THÀNH VIÊN THAM GIA --- */
 .participant-grid {
     display: flex;
