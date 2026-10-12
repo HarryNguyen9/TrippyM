@@ -112,6 +112,14 @@ các thiết bị đã đăng ký. Gồm 3 loại thông báo:
 | ✏️ Chuyến đi được cập nhật | Editor sửa dữ liệu → sau 15s gửi cho các máy khác trong room (tối đa 1 lần / 5 phút / room) |
 | ⏰ Nhắc lịch trình | `/api/push/cron` chạy mỗi 5 phút, nhắc trước giờ hoạt động (10–120 phút, mỗi người tự chọn) |
 | 📣 Gửi thủ công | Editor nhập tin nhắn trong Cài đặt → gửi cho cả nhóm |
+| ☀️ Tóm tắt buổi sáng | 7:00 mỗi ngày có lịch: hoạt động hôm nay, thời tiết, số dư của bạn (cron) |
+| 💰 Nhắc nợ | Editor bấm "Nhắc nợ" ở tab Thành viên → gửi riêng từng người đang nợ |
+| 📍 Check-in điểm hẹn | Trang Hôm nay: Tôi tới rồi / Gửi vị trí / Nhắc người chưa tới |
+| 🧾 Khoản chi chờ duyệt | Viewer "Gửi bill" → Editor nhận thông báo, duyệt trên trang Hôm nay |
+| 🆘 SOS | Báo khẩn kèm vị trí cho cả nhóm, banner đỏ tới khi bấm "Mình ổn rồi" |
+
+Các tính năng cá nhân (nhắc nợ, check-in, SOS, gửi bill) cần mỗi máy chọn **"Tôi là ai"** ở trang Hôm nay.
+Dữ liệu nhóm (check-in, khoản chờ duyệt, SOS) lưu ở Firestore của project push, cron tự dọn khi hết hạn.
 
 **Lưu ý iOS:** cần iOS/iPadOS **16.4+**, người dùng phải mở Safari → Chia sẻ → **Thêm vào MH chính**,
 rồi mở Trippy từ icon đó và bấm "Bật thông báo" trong Cài đặt. Trong tab Safari thường sẽ không bật được.

@@ -4,14 +4,10 @@
 // POST /api/push/checkin { action: "nudge", room, act, actName, member }  -> push cho người chưa tới
 // Lưu ở Firestore (project push) thay vì Realtime DB chính: viewer cũng check-in được và
 // không bị autoSync của editor (ghi đè cả room) xoá mất.
-import { CHECKINS, db, FieldValue, fetchRoom, hashId, readBody, sendToSubs, subsForRoom } from "../_lib/push.js";
+import { CHECKINS, db, FieldValue, fetchRoom, hashId, memberNames, readBody, sendToSubs, subsForRoom } from "../_lib/push.js";
 
 const NUDGE_THROTTLE_MS = 60 * 1000;
 const KEEP_MS = 3 * 864e5;
-
-const memberNames = (room: any) =>
-  (Array.isArray(room?.members) ? room.members : Object.values(room?.members || {}))
-    .map((m: any) => m?.name).filter(Boolean) as string[];
 
 export default async function handler(req: any, res: any) {
   res.setHeader("Cache-Control", "no-store");

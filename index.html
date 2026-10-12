@@ -323,6 +323,10 @@
           <input type="checkbox" id="pushPrefReminders" onchange="savePushPrefsUI()">
           <span class="chip-label accent">Nhắc trước giờ hoạt động</span>
         </label>
+        <label class="chip-checkbox">
+          <input type="checkbox" id="pushPrefMorning" onchange="savePushPrefsUI()">
+          <span class="chip-label accent">Tóm tắt buổi sáng lúc 7:00</span>
+        </label>
       </div>
       <div class="form-group">
         <label class="form-label">Nhắc trước</label>
@@ -1270,6 +1274,43 @@
     </div>
     
     <button class="btn btn-secondary" onclick="closeModal('totalExpenseModal')" style="margin-top: 15px;">Đóng</button>
+  </div>
+</div>
+
+<div class="modal-overlay" id="submitExpenseModal">
+  <div class="modal bottom-sheet">
+    <div class="modal-title">🧾 Gửi khoản chi</div>
+    <div style="font-size:.75rem;color:var(--text3);margin-bottom:14px;line-height:1.5">
+      Khoản chi do <b id="subExpPayer" style="color:var(--text)"></b> trả. Editor duyệt xong sẽ vào sổ chi tiêu chung.
+    </div>
+    <input type="hidden" id="subExpActId">
+    <div class="form-group"><label class="form-label">Nội dung</label><input class="form-input" id="subExpDesc" maxlength="100" placeholder="VD: Taxi về khách sạn"></div>
+    <div class="form-group"><label class="form-label">Số tiền</label><input class="form-input" id="subExpAmount" inputmode="decimal" placeholder="VD: 150k, 1.2tr, 200000"></div>
+    <div class="form-group"><label class="form-label">Loại</label><div class="category-grid" id="subExpCategoryGrid"></div></div>
+    <div class="form-group"><label class="form-label">Chia cho</label><div class="option-group" id="subExpParticipants" style="display:flex;flex-wrap:wrap;gap:6px"></div></div>
+    <button class="btn btn-primary" onclick="submitExpenseUI()">Gửi chờ duyệt</button>
+    <button class="btn btn-secondary" style="margin-top:8px" onclick="closeModal('submitExpenseModal')">Huỷ</button>
+  </div>
+</div>
+
+<div class="modal-overlay" id="sosModal">
+  <div class="modal bottom-sheet">
+    <div class="modal-title">🆘 Báo khẩn cho cả nhóm</div>
+    <div style="font-size:.75rem;color:var(--text3);margin-bottom:14px;line-height:1.5">
+      Gửi ngay thông báo kèm vị trí của bạn tới mọi người. Trường hợp nguy hiểm hãy gọi <a href="tel:113" style="color:var(--red)">113</a> / <a href="tel:115" style="color:var(--red)">115</a> trước.
+    </div>
+    <div class="category-grid" id="sosPresets" style="margin-bottom:10px">
+      <div class="category-chip" data-msg="Mình bị lạc, không tìm thấy nhóm!" onclick="pickSosPreset(this)"><span class="category-chip-icon">🧭</span><span>Bị lạc</span></div>
+      <div class="category-chip" data-msg="Mình bị mệt / không khoẻ, cần người tới giúp." onclick="pickSosPreset(this)"><span class="category-chip-icon">🤒</span><span>Không khoẻ</span></div>
+      <div class="category-chip" data-msg="Mình gặp sự cố (mất đồ / xe hỏng), cần hỗ trợ." onclick="pickSosPreset(this)"><span class="category-chip-icon">⚠️</span><span>Sự cố</span></div>
+      <div class="category-chip" data-msg="Điện thoại sắp hết pin, đây là vị trí cuối của mình." onclick="pickSosPreset(this)"><span class="category-chip-icon">🪫</span><span>Sắp hết pin</span></div>
+    </div>
+    <textarea class="form-input" id="sosMessage" rows="2" maxlength="200" placeholder="Hoặc tự nhập lời nhắn…"></textarea>
+    <div class="option-group" style="margin:10px 0 12px">
+      <label class="chip-checkbox"><input type="checkbox" id="sosShareLocation" checked><span class="chip-label accent">Gửi kèm vị trí hiện tại</span></label>
+    </div>
+    <button class="btn btn-danger" id="sosSendBtn" onclick="sendSosUI()">🆘 Gửi báo khẩn</button>
+    <button class="btn btn-secondary" style="margin-top:8px" onclick="closeModal('sosModal')">Huỷ</button>
   </div>
 </div>
 

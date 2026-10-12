@@ -20,7 +20,7 @@ import { FIREBASE_CONFIG, CLOUDINARY_NAME, CLOUDINARY_PRESET } from "./config";
 import {
   enablePush, disablePush, getPushStatus, getPushPrefs, savePushPrefs, syncPushRoom,
   sendTestPush, sendManualPush, notifyTripChanged, setChangeBaseline, setPushMember,
-  sendDebtReminders, getCheckins, postCheckin, nudgeLateMembers,
+  sendDebtReminders, getCheckins, postCheckin, nudgeLateMembers, getGroupState, groupAction,
 } from "./push";
 
 // --- Khai báo các thư viện load qua CDN (xlsx, html2canvas, confetti) ---
@@ -1886,6 +1886,7 @@ window.renderTodayView = renderTodayView = () => {
 
   container.innerHTML = `
     <div class="today-stack">
+      ${renderSosBannerHtml()}
       <div class="today-hero">
         <div class="today-kicker">Hôm nay</div>
         <div class="today-title-row">
@@ -1916,6 +1917,7 @@ window.renderTodayView = renderTodayView = () => {
       <div class="today-grid">
         <div class="today-stack">
           ${renderMeCardHtml()}
+          ${renderPendingCardHtml()}
           ${renderCheckinCardHtml(now)}
           <div class="today-card">
             <div class="today-section-title"><span>Hoạt động tiếp theo</span></div>
@@ -1936,12 +1938,15 @@ window.renderTodayView = renderTodayView = () => {
             <div class="today-section-title"><span>Thao tác nhanh</span></div>
             <div class="today-actions">
               <button class="today-action-btn" ${nextLocation ? `onclick='openMapModal(${jsAttr(nextLocation)})'` : 'disabled'}>📍 Map</button>
-              <button class="today-action-btn" ${canAddBill ? `onclick='openAddPaymentModal(${jsAttr(billName)}, ${jsAttr(billActId)})'` : 'disabled'}>💳 Thêm bill</button>
+              ${canAddBill
+                ? `<button class="today-action-btn" onclick='openAddPaymentModal(${jsAttr(billName)}, ${jsAttr(billActId)})'>💳 Thêm bill</button>`
+                : `<button class="today-action-btn" ${DATA.trip?.isFinished ? 'disabled' : `onclick='openSubmitExpense(${jsAttr(billName)}, ${jsAttr(billActId)})'`}>🧾 Gửi bill</button>`}
               <button class="today-action-btn" onclick="openModal('qrModal')">💸 QR quỹ</button>
               <button class="today-action-btn" onclick="openFullScheduleFromToday()">📅 Lịch đầy đủ</button>
               <button class="today-action-btn" ${DATA.trip?.location ? `onclick="askAiSuggestions()"` : 'disabled'}>🤖 Gợi ý AI</button>
               <button class="today-action-btn" onclick="openVaultModal()">🔐 Trip Vault</button>
             </div>
+            <button class="today-action-btn sos-btn" onclick="openSos()">🆘 SOS · Báo khẩn cho cả nhóm</button>
           </div>
         </div>
       </div>
@@ -8951,6 +8956,7 @@ async function renderPushSettings() {
   (document.getElementById('pushPrefChanges') as HTMLInputElement).checked = prefs.changes;
   (document.getElementById('pushPrefReminders') as HTMLInputElement).checked = prefs.reminders;
   (document.getElementById('pushPrefLead') as HTMLSelectElement).value = String(prefs.leadMinutes);
+  (document.getElementById('pushPrefMorning') as HTMLInputElement).checked = prefs.morning;
   document.getElementById('pushPrefsArea').style.display = status === 'on' ? 'block' : 'none';
 
   const hasRoom = !!(DATA && DATA.trip && DATA.trip.code);
@@ -8993,6 +8999,7 @@ window.savePushPrefsUI = async () => {
       changes: (document.getElementById('pushPrefChanges') as HTMLInputElement).checked,
       reminders: (document.getElementById('pushPrefReminders') as HTMLInputElement).checked,
       leadMinutes: Number((document.getElementById('pushPrefLead') as HTMLSelectElement).value),
+      morning: (document.getElementById('pushPrefMorning') as HTMLInputElement).checked,
     }, DATA && DATA.trip ? DATA.trip.code : null);
     showToast("Đã lưu cài đặt thông báo", "success");
   } catch (e) { showToast("Lỗi lưu cài đặt: " + e.message, "error"); }
@@ -9297,6 +9304,207 @@ window.nudgeLateUI = async () => {
 
 // Cập nhật danh sách check-in mỗi 20 giây khi đang mở app
 setInterval(() => { if (!document.hidden && document.getElementById('checkinCard')) refreshCheckins(); }, 20000);
+
+// ===== KHOẢN CHI CHỜ DUYỆT + SOS (dữ liệu nhóm lưu ở server push) =====
+// (var: renderTodayView có thể chạy lúc khởi động, trước khi tới đoạn code này)
+var _group = { room: '', pending: [], sos: [], loadedAt: 0, loading: false };
+
+async function refreshGroupState(force = false) {
+  const room = DATA?.trip?.code;
+  if (!room || _group.loading) return;
+  if (!force && _group.room === room && Date.now() - _group.loadedAt < 25000) return;
+  _group.loading = true;
+  try {
+    const st = await getGroupState(room);
+    const changed = JSON.stringify([st.pending, st.sos]) !== JSON.stringify([_group.pending, _group.sos]);
+    _group = { room, pending: st.pending, sos: st.sos, loadedAt: Date.now(), loading: false };
+    if (changed && typeof window.renderTodayView === 'function') window.renderTodayView();
+  } catch (e) {
+    _group.loading = false;
+    _group.loadedAt = Date.now(); // lỗi mạng: đợi chu kỳ sau
+  }
+}
+
+function groupStateForRoom() {
+  return _group.room === DATA?.trip?.code ? _group : { pending: [], sos: [] };
+}
+
+function renderSosBannerHtml() {
+  setTimeout(() => refreshGroupState(), 0);
+  const me = getMyMemberName();
+  return groupStateForRoom().sos.map(a => {
+    const mins = Math.max(0, Math.round((Date.now() - a.at) / 60000));
+    const isMe = a.member === me;
+    return `
+      <div class="sos-banner">
+        <div class="sos-banner-title">🆘 ${isMe ? 'Bạn đang báo khẩn' : `${esc(a.member)} cần giúp!`}</div>
+        <div class="sos-banner-msg">${esc(a.message)}</div>
+        <div class="sos-banner-meta">${mins < 1 ? 'vừa xong' : `${mins} phút trước`}</div>
+        <div class="sos-banner-actions">
+          ${a.lat != null ? `<a class="today-action-btn" href="https://www.google.com/maps?q=${a.lat},${a.lng}" target="_blank" rel="noopener">📍 Xem vị trí</a>` : ''}
+          ${isMe ? `<button class="today-action-btn primary" onclick="imSafeUI()">✅ Mình ổn rồi</button>` : ''}
+        </div>
+      </div>`;
+  }).join('');
+}
+
+function renderPendingCardHtml() {
+  const pending = groupStateForRoom().pending;
+  if (!pending.length) return '';
+  const me = getMyMemberName();
+  const canDecide = isTripEditable();
+  const rows = pending.map(p => {
+    const cat = EXPENSE_CATEGORIES[p.category] || EXPENSE_CATEGORIES.other;
+    const actions = canDecide
+      ? `<button class="pending-btn ok" onclick="decidePendingUI('${p.id}', 'approve')">✓ Duyệt</button>
+         <button class="pending-btn no" onclick="decidePendingUI('${p.id}', 'reject')">✕</button>`
+      : p.member === me ? `<button class="pending-btn no" onclick="decidePendingUI('${p.id}', 'cancel')">Huỷ</button>` : '';
+    return `
+      <div class="pending-row">
+        <div class="pending-icon">${cat.icon}</div>
+        <div style="flex:1;min-width:0;">
+          <div class="pending-desc">${esc(p.desc)} · <b>${formatVND(p.amount)}</b></div>
+          <div class="pending-sub">${esc(p.member)} trả · chia ${p.participants.length} người</div>
+        </div>
+        <div class="pending-actions">${actions}</div>
+      </div>`;
+  }).join('');
+  return `
+    <div class="today-card">
+      <div class="today-section-title"><span>🧾 Khoản chi chờ duyệt</span><span>${pending.length}</span></div>
+      ${rows}
+      ${!canDecide ? '<div class="today-muted" style="padding-bottom:0">Editor duyệt xong sẽ vào sổ chi tiêu chung.</div>' : ''}
+    </div>`;
+}
+
+window.openSubmitExpense = (desc = '', actId = '') => {
+  if (!getMyMemberName()) { showToast("Chọn bạn là ai trong nhóm trước nhé", "info"); return window.openWhoAmI(); }
+  const me = getMyMemberName();
+  (document.getElementById('subExpDesc') as HTMLInputElement).value = desc || '';
+  (document.getElementById('subExpAmount') as HTMLInputElement).value = '';
+  (document.getElementById('subExpActId') as HTMLInputElement).value = actId || '';
+  document.getElementById('subExpPayer').textContent = me;
+  document.getElementById('subExpCategoryGrid').innerHTML = Object.entries(EXPENSE_CATEGORIES).map(([key, c]: any) => `
+    <div class="category-chip ${key === 'food' ? 'selected' : ''}" data-cat="${key}" onclick="this.parentElement.querySelectorAll('.category-chip').forEach(x=>x.classList.remove('selected')); this.classList.add('selected')">
+      <span class="category-chip-icon">${c.icon}</span><span>${c.label}</span>
+    </div>`).join('');
+  document.getElementById('subExpParticipants').innerHTML = (DATA.members || []).filter(Boolean).map(m => `
+    <label class="chip-checkbox"><input type="checkbox" value="${esc(m.name)}" checked><span class="chip-label accent">${esc(m.name)}</span></label>`).join('');
+  openModal('submitExpenseModal');
+};
+
+// "150k", "1.5tr", "200.000" -> số đồng
+function parseMoneyInput(raw) {
+  const s = String(raw || '').trim().toLowerCase().replace(/\s/g, '');
+  const m = s.match(/^(\d+(?:[.,]\d+)*)(k|nghìn|ngàn|tr|triệu|m)?$/);
+  if (!m) return 0;
+  const unit = m[2] || '';
+  // Có đơn vị: "1.5tr" là số thập phân. Không đơn vị: "200.000" là dấu phân cách hàng nghìn
+  const n = unit ? parseFloat(m[1].replace(',', '.')) : parseFloat(m[1].replace(/[.,]/g, ''));
+  const mul = unit === 'k' || unit === 'nghìn' || unit === 'ngàn' ? 1e3 : unit ? 1e6 : 1;
+  return Math.round(n * mul) || 0;
+}
+
+window.submitExpenseUI = async () => {
+  const me = getMyMemberName();
+  const desc = (document.getElementById('subExpDesc') as HTMLInputElement).value.trim();
+  const amount = parseMoneyInput((document.getElementById('subExpAmount') as HTMLInputElement).value);
+  if (!desc) return showToast("Nhập nội dung khoản chi", "error");
+  if (!amount) return showToast("Số tiền không hợp lệ (VD: 150k, 1.2tr, 200000)", "error");
+  const participants = [...document.querySelectorAll('#subExpParticipants input:checked')].map((i: any) => i.value);
+  if (!participants.length) return showToast("Chọn ít nhất 1 người chia tiền", "error");
+  const category = (document.querySelector('#subExpCategoryGrid .category-chip.selected') as HTMLElement)?.dataset.cat || 'other';
+  try {
+    await groupAction({
+      action: 'submit', room: DATA.trip.code, member: me, desc, amount, category, participants,
+      actId: (document.getElementById('subExpActId') as HTMLInputElement).value,
+    });
+    closeModal('submitExpenseModal');
+    showToast("Đã gửi, chờ Editor duyệt 🧾", "success");
+    refreshGroupState(true);
+  } catch (e) { showToast(e.message, "error"); }
+};
+
+window.decidePendingUI = async (id, action) => {
+  const item = groupStateForRoom().pending.find(p => p.id === id);
+  if (!item) return;
+  if (action === 'reject' && !(await window.niceConfirm("Từ chối khoản chi?", `${item.desc} · ${formatVND(item.amount)} của ${item.member}`, 'danger'))) return;
+  try {
+    const r = await groupAction({
+      action, room: DATA.trip.code, id, member: getMyMemberName() || '',
+      editorKey: localStorage.getItem('trip_secret_key') || '',
+    });
+    if (action === 'approve' && r.item) {
+      // Thêm vào sổ chi tiêu chung giống hệt khoản chi Editor tự nhập
+      if (!DATA.payments) DATA.payments = [];
+      DATA.payments.push({
+        desc: r.item.desc, amount: r.item.amount, category: r.item.category, payer: r.item.member,
+        isPaid: true, fromFund: false, participants: r.item.participants, linkedActId: r.item.actId || '',
+        isEstimate: false, receiptUrl: '', submittedBy: r.item.member,
+      });
+      save();
+      autoSync();
+      renderAll();
+    }
+    showToast(action === 'approve' ? "Đã duyệt, khoản chi đã vào sổ ✅" : action === 'reject' ? "Đã từ chối" : "Đã huỷ", "success");
+    refreshGroupState(true);
+  } catch (e) { showToast(e.message, "error"); refreshGroupState(true); }
+};
+
+// ----- SOS -----
+window.openSos = () => {
+  if (!getMyMemberName()) { showToast("Chọn bạn là ai trong nhóm trước nhé", "info"); return window.openWhoAmI(); }
+  (document.getElementById('sosMessage') as HTMLTextAreaElement).value = '';
+  document.querySelectorAll('#sosPresets .category-chip').forEach(x => x.classList.remove('selected'));
+  (document.getElementById('sosShareLocation') as HTMLInputElement).checked = true;
+  openModal('sosModal');
+};
+
+window.pickSosPreset = (el) => {
+  document.querySelectorAll('#sosPresets .category-chip').forEach(x => x.classList.remove('selected'));
+  el.classList.add('selected');
+  (document.getElementById('sosMessage') as HTMLTextAreaElement).value = el.dataset.msg;
+};
+
+window.sendSosUI = async () => {
+  const me = getMyMemberName();
+  if (!me || !DATA?.trip?.code) return;
+  const btn = document.getElementById('sosSendBtn') as HTMLButtonElement;
+  const message = (document.getElementById('sosMessage') as HTMLTextAreaElement).value.trim() || 'Mình cần giúp đỡ!';
+  btn.disabled = true;
+  try {
+    const body: any = { action: 'sos', room: DATA.trip.code, member: me, message };
+    if ((document.getElementById('sosShareLocation') as HTMLInputElement).checked) {
+      btn.textContent = 'Đang lấy vị trí…';
+      // Không lấy được vị trí vẫn gửi SOS, không để người dùng kẹt lại
+      try { Object.assign(body, await getMyPosition()); } catch (e) { showToast(e.message + " — vẫn gửi SOS không kèm vị trí", "warning"); }
+    }
+    btn.textContent = 'Đang gửi…';
+    const r = await groupAction(body);
+    closeModal('sosModal');
+    showToast(r.sent ? `Đã báo khẩn tới ${r.sent} thiết bị 🆘` : "Đã ghi nhận SOS, nhưng chưa ai bật thông báo", r.sent ? "success" : "warning");
+    refreshGroupState(true);
+  } catch (e) {
+    showToast(e.message, "error");
+  } finally {
+    btn.disabled = false;
+    btn.textContent = '🆘 Gửi báo khẩn';
+  }
+};
+
+window.imSafeUI = async () => {
+  const me = getMyMemberName();
+  if (!me) return;
+  try {
+    await groupAction({ action: 'safe', room: DATA.trip.code, member: me });
+    showToast("Đã báo cả nhóm là bạn ổn ✅", "success");
+    refreshGroupState(true);
+  } catch (e) { showToast(e.message, "error"); }
+};
+
+// Cập nhật khoản chờ duyệt + SOS mỗi 30 giây khi đang mở app
+setInterval(() => { if (!document.hidden && DATA?.trip?.code) refreshGroupState(); }, 30000);
+document.addEventListener('visibilitychange', () => { if (!document.hidden && DATA?.trip?.code) refreshGroupState(true); });
 
 // 1. Đăng ký Service Worker (Trợ lý chạy ngầm)
 if ('serviceWorker' in navigator) {

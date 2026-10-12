@@ -1,4 +1,4 @@
-const CACHE_NAME = 'trippy-v8'; // Đổi số này để ép máy cập nhật bản mới
+const CACHE_NAME = 'trippy-v9'; // Đổi số này để ép máy cập nhật bản mới
 // LƯU Ý: sau khi build bằng Vite, file JS/CSS chính sẽ có tên dạng
 // /assets/main-[hash].js (hash đổi mỗi lần build) nên không thể liệt kê cứng
 // ở đây. File này vẫn được cache tự động ở lần đầu người dùng mở app
@@ -64,6 +64,11 @@ self.addEventListener('push', (e) => {
 self.addEventListener('notificationclick', (e) => {
     e.notification.close();
     const url = new URL((e.notification.data && e.notification.data.url) || './', self.location.origin).href;
+    // Link ngoài app (VD: vị trí SOS trên Google Maps) -> mở thẳng link đó
+    if (!url.startsWith(self.location.origin)) {
+        e.waitUntil(self.clients.openWindow(url));
+        return;
+    }
     e.waitUntil(
         self.clients.matchAll({ type: 'window', includeUncontrolled: true }).then((list) => {
             const client = list.find((c) => c.url.startsWith(self.location.origin));

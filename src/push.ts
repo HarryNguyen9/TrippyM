@@ -9,7 +9,7 @@ const LS_ENABLED = "trippy_push_enabled";
 const LS_PREFS = "trippy_push_prefs";
 const LS_DEVICE = "trippy_device_id";
 
-export interface PushPrefs { changes: boolean; reminders: boolean; leadMinutes: number }
+export interface PushPrefs { changes: boolean; reminders: boolean; leadMinutes: number; morning: boolean }
 
 export type PushStatus = "unconfigured" | "unsupported" | "needs-install" | "denied" | "on" | "off";
 
@@ -29,8 +29,9 @@ export function getDeviceId() {
 }
 
 export function getPushPrefs(): PushPrefs {
-  try { return { changes: true, reminders: true, leadMinutes: 30, ...JSON.parse(ls.get(LS_PREFS) || "{}") }; }
-  catch { return { changes: true, reminders: true, leadMinutes: 30 }; }
+  const defaults: PushPrefs = { changes: true, reminders: true, leadMinutes: 30, morning: true };
+  try { return { ...defaults, ...JSON.parse(ls.get(LS_PREFS) || "{}") }; }
+  catch { return defaults; }
 }
 
 const isIOS = () => /iPad|iPhone|iPod/.test(navigator.userAgent) ||
@@ -70,6 +71,7 @@ export function setPushMember(name: string | null) { _memberName = name || ""; }
 async function register(sub: PushSubscription, roomCode: string) {
   await api("/api/push/subscription", "POST", {
     subscription: sub.toJSON(), roomCode, deviceId: getDeviceId(), prefs: getPushPrefs(), memberName: _memberName,
+    editorKey: ls.get("trip_secret_key") || "", // server kiểm tra -> đánh dấu máy Editor (nhận báo khoản chi chờ duyệt)
     tz: Intl.DateTimeFormat().resolvedOptions().timeZone,
   });
 }
@@ -196,4 +198,19 @@ export async function postCheckin(body: {
 
 export async function nudgeLateMembers(room: string, act: string, actName: string, member: string) {
   return api("/api/push/checkin", "POST", { action: "nudge", room, act, actName, member });
+}
+
+// ===== KHOẢN CHI CHỜ DUYỆT + SOS (api/push/group) =====
+export type PendingExpense = {
+  id: string; member: string; desc: string; amount: number; category: string; participants: string[]; actId: string; at: number;
+};
+export type SosAlert = { member: string; message: string; at: number; lat?: number; lng?: number };
+
+export async function getGroupState(room: string): Promise<{ pending: PendingExpense[]; sos: SosAlert[] }> {
+  const r = await api(`/api/push/group?room=${encodeURIComponent(room)}`, "GET");
+  return { pending: r.pending || [], sos: r.sos || [] };
+}
+
+export async function groupAction(body: Record<string, any>) {
+  return api("/api/push/group", "POST", { ...body, deviceId: getDeviceId() });
 }

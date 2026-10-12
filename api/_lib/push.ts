@@ -21,6 +21,8 @@ export const SUBS = "push_subscriptions";
 export const ROOM_META = "push_room_meta";
 export const REMINDERS_SENT = "push_reminders_sent";
 export const CHECKINS = "group_checkins";
+export const EXPENSES = "group_pending_expenses";
+export const SOS = "group_sos";
 
 function loadServiceAccount() {
   const raw = process.env.FIREBASE_PUSH_SERVICE_ACCOUNT;
@@ -53,8 +55,9 @@ export interface SubscriptionDoc {
   deviceId: string;
   roomCode: string;
   memberName?: string; // "Tôi là ai" trong nhóm (để gửi thông báo riêng: nhắc nợ, nhắc tới điểm hẹn)
+  isEditor?: boolean;   // máy đang giữ mã Editor đúng (để báo khi có khoản chi chờ duyệt)
   tz: string;
-  prefs: { changes: boolean; reminders: boolean; leadMinutes: number };
+  prefs: { changes: boolean; reminders: boolean; leadMinutes: number; morning?: boolean };
 }
 
 // ---- Đọc dữ liệu chuyến đi từ Realtime DB của project chính (REST, giống client) ----
@@ -149,4 +152,65 @@ export function readBody(req: any) {
     try { return JSON.parse(req.body); } catch { return {}; }
   }
   return req.body || {};
+}
+
+export const vnd = (n: number) => Math.round(n || 0).toLocaleString("vi-VN") + "đ";
+
+export const memberNames = (room: any) =>
+  (Array.isArray(room?.members) ? room.members : Object.values(room?.members || {}))
+    .map((m: any) => m?.name).filter(Boolean) as string[];
+
+// Số dư từng người - CÙNG công thức với client (getMemberFinance / tab Thành viên):
+// Đóng quỹ + Ứng hộ (không lấy từ quỹ) - Phần bị chia trong các khoản đã trả
+export function memberBalances(room: any) {
+  const list = (v: any) => (Array.isArray(v) ? v : Object.values(v || {})).filter(Boolean) as any[];
+  const st: Record<string, { contributed: number; consumed: number; advanced: number; balance: number }> = {};
+  for (const m of list(room?.members)) {
+    const contributed = list(m.payments).reduce((s: number, v: any) => s + (Number(v) || 0), 0) || m.paid || 0;
+    st[m.name] = { contributed, consumed: 0, advanced: 0, balance: 0 };
+  }
+  for (const p of list(room?.payments)) {
+    if (typeof p !== "object" || !p.isPaid || p.isEstimate) continue;
+    const parts = list(p.participants);
+    if (parts.length) {
+      const split = Math.round(p.amount / parts.length);
+      for (const n of parts) if (st[n]) st[n].consumed += split;
+    }
+    if (p.multiPayers) { for (const mp of list(p.multiPayers)) if (!mp.fromFund && st[mp.name]) st[mp.name].advanced += mp.amount; }
+    else if (!p.fromFund && st[p.payer]) st[p.payer].advanced += p.amount;
+  }
+  for (const v of Object.values(st)) v.balance = v.contributed + v.advanced - v.consumed;
+  return st;
+}
+
+// Ngày giờ hiện tại theo múi giờ của thiết bị
+export function localNow(tz: string) {
+  const p = Object.fromEntries(
+    new Intl.DateTimeFormat("en-US", {
+      timeZone: tz, hourCycle: "h23", year: "numeric", month: "2-digit", day: "2-digit", hour: "2-digit", minute: "2-digit",
+    }).formatToParts(new Date()).map((x) => [x.type, x.value])
+  );
+  return { y: +p.year, m: +p.month, d: +p.day, hh: +p.hour, mm: +p.minute };
+}
+
+// Dự báo thời tiết 1 ngày cho địa điểm chuyến đi (Open-Meteo, giống client)
+export async function weatherFor(room: any, ymd: string) {
+  try {
+    let lat = room?.trip?.lat, lon = room?.trip?.lon;
+    const city = room?.trip?.location;
+    if ((!lat || !lon) && city) {
+      const g = await (await fetch(`https://geocoding-api.open-meteo.com/v1/search?name=${encodeURIComponent(city)}&count=1&language=vi&format=json`)).json();
+      if (g.results?.length) { lat = g.results[0].latitude; lon = g.results[0].longitude; }
+    }
+    if (!lat || !lon) return null;
+    const w = await (await fetch(`https://api.open-meteo.com/v1/forecast?latitude=${lat}&longitude=${lon}&daily=temperature_2m_max,temperature_2m_min,precipitation_probability_max&timezone=auto&start_date=${ymd}&end_date=${ymd}`)).json();
+    if (!w.daily?.time?.length) return null;
+    return {
+      tMin: Math.round(w.daily.temperature_2m_min[0]),
+      tMax: Math.round(w.daily.temperature_2m_max[0]),
+      rain: w.daily.precipitation_probability_max[0] ?? 0,
+    };
+  } catch {
+    return null;
+  }
 }
