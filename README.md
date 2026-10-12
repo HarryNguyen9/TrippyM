@@ -100,3 +100,35 @@ trình duyệt thật** (môi trường của mình không có browser), nên b�
 `npm run dev` và test kỹ toàn bộ tính năng (đặc biệt các phần dùng Firebase
 realtime, upload ảnh Cloudinary, export Excel/ảnh) trước khi thay thế hẳn bản
 HTML cũ.
+
+## 🔔 Push notification (iOS / Android / Desktop)
+
+Dùng Web Push qua **Firebase Cloud Messaging** của 1 Firebase project **riêng** cho push
+(không phải `trip-app-8e382`). Gồm 3 loại thông báo:
+
+| Loại | Kích hoạt |
+|---|---|
+| ✏️ Chuyến đi được cập nhật | Editor sửa dữ liệu → sau 15s gửi cho các máy khác trong room (tối đa 1 lần / 5 phút / room) |
+| ⏰ Nhắc lịch trình | `/api/push/cron` chạy mỗi 5 phút, nhắc trước giờ hoạt động (10–120 phút, mỗi người tự chọn) |
+| 📣 Gửi thủ công | Editor nhập tin nhắn trong Cài đặt → gửi cho cả nhóm |
+
+**Lưu ý iOS:** cần iOS/iPadOS **16.4+**, người dùng phải mở Safari → Chia sẻ → **Thêm vào MH chính**,
+rồi mở Trippy từ icon đó và bấm "Bật thông báo" trong Cài đặt. Trong tab Safari thường sẽ không bật được.
+
+### Cài đặt 1 lần
+
+1. Tạo Firebase project mới (VD `trippy-push`) tại https://console.firebase.google.com
+2. Project settings → General → **Add app → Web** → copy `apiKey`, `projectId`,
+   `messagingSenderId`, `appId` vào các biến `VITE_PUSH_FIREBASE_*`
+3. Project settings → Cloud Messaging → **Web Push certificates → Generate key pair** → `VITE_PUSH_VAPID_KEY`
+4. Build → **Firestore Database → Create database** (production mode; chỉ server đọc/ghi qua Admin SDK)
+5. Project settings → Service accounts → **Generate new private key** → dán nguyên JSON vào
+   `FIREBASE_PUSH_SERVICE_ACCOUNT` (chỉ set trên Vercel, KHÔNG commit)
+6. Đặt `CRON_SECRET` là 1 chuỗi ngẫu nhiên
+7. Set toàn bộ biến trên Vercel → Redeploy
+8. Nhắc lịch trình: Vercel Hobby chỉ cho cron 1 lần/ngày, nên dùng https://cron-job.org (miễn phí):
+   URL `https://<domain>/api/push/cron`, mỗi 5 phút, header `Authorization: Bearer <CRON_SECRET>`
+   (Bản ghi chống nhắc trùng `push_reminders_sent` được cron tự dọn sau 7 ngày, không cần TTL policy / billing.)
+
+Code: `src/push.ts` (client), `public/sw.js` (nhận push), `api/push/*` (Vercel Functions).
+Local `npm run dev` không chạy được `/api` — dùng `vercel dev` để test đầy đủ.

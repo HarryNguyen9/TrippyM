@@ -17,6 +17,10 @@ import {
   runTransaction,
 } from "firebase/database";
 import { FIREBASE_CONFIG, CLOUDINARY_NAME, CLOUDINARY_PRESET } from "./config";
+import {
+  enablePush, disablePush, getPushStatus, getPushPrefs, savePushPrefs, syncPushRoom,
+  sendTestPush, sendManualPush, notifyTripChanged,
+} from "./push";
 
 // --- Khai báo các thư viện load qua CDN (xlsx, html2canvas, confetti) ---
 // Các thư viện này vẫn được load bằng thẻ <script> thường trong index.html
@@ -1517,6 +1521,9 @@ window.playCinematicIntro = playCinematicIntro = () => {
 window.exitRoom = exitRoom = async () => { // Thêm async
     const ok = await window.niceConfirm("Rời khỏi phòng?", "Bạn có chắc muốn rời phòng và xóa dữ liệu trên máy này?", "warning");
     if (!ok) return;
+
+    // Ngừng nhận thông báo của phòng này
+    await syncPushRoom(null).catch(() => {});
 
     // 1. NGẮT CẦU DAO: Dừng mọi tiến trình đồng bộ và nghe ngóng mạng
     try {
@@ -3765,7 +3772,7 @@ function _doConnect(apiKey, projectId, dbUrl, silent) {
 
     const config = { apiKey, authDomain:`${projectId}.firebaseapp.com`, databaseURL:dbUrl, projectId };
     const existingApps = sdk.getApps();
-    window._firebaseApp = _firebaseApp = existingApps.length > 0 ? sdk.getApp() : sdk.initializeApp(config);
+    window._firebaseApp = _firebaseApp = existingApps.some(a => a.name === '[DEFAULT]') ? sdk.getApp() : sdk.initializeApp(config);
     window._firebaseDb = _firebaseDb = sdk.getDatabase(window._firebaseApp);
     firebaseConnected = true;
 
@@ -3794,6 +3801,9 @@ function startRealtimeListener() {
 
   // Hiện badge LIVE
   document.getElementById('liveBadge').classList.add('visible');
+
+  // Gắn token push của máy này vào room hiện tại
+  syncPushRoom(DATA.trip.code);
 
   let isFirst = true;
 
@@ -3931,6 +3941,9 @@ function autoSync() {
 
       document.getElementById('fbDot').className = 'firebase-dot connected';
       document.getElementById('fbStatus').textContent = "Online";
+
+      // Báo cho các máy khác trong nhóm (gom nhiều lần sửa thành 1 thông báo)
+      notifyTripChanged(DATA.trip.code, localStorage.getItem('trip_secret_key') || "");
     } catch(e) {
       _ignoreNextSnapshot = false;
       document.getElementById('fbDot').className = 'firebase-dot connected';
@@ -8381,6 +8394,7 @@ window.openSettingsPage = openSettingsPage = () => {
   refreshOpenRouterKeyUI();
   refreshCurrencySettingsUI();
   refreshThemeSettingsUI();
+  if (window.renderPushSettings) window.renderPushSettings();
 };
 
 window.niceConfirm = niceConfirm = (title, text, type = 'danger') => {
@@ -8899,6 +8913,95 @@ setTimeout(initDraggableModals, 1000);
 // ============================================
 // PWA & TỰ ĐỘNG ĐỒNG BỘ KHI CÓ MẠNG LẠI
 // ============================================
+
+// ===== PUSH NOTIFICATION (trang Cài đặt) =====
+const PUSH_STATUS_TEXT = {
+  unconfigured: ["Chưa cấu hình", "var(--text3)", "Admin cần set các biến VITE_PUSH_* trên Vercel (xem .env.example)."],
+  unsupported: ["Không hỗ trợ", "var(--text3)", "Trình duyệt này không hỗ trợ thông báo đẩy. iPhone cần iOS 16.4 trở lên."],
+  "needs-install": ["Cần cài app", "var(--orange)", "Trên iPhone: mở bằng Safari → bấm nút Chia sẻ → \"Thêm vào MH chính\", rồi mở Trippy từ icon ngoài màn hình chính để bật thông báo."],
+  denied: ["Đã bị chặn", "var(--red)", "Bạn đã từ chối thông báo. Vào Cài đặt iPhone → Thông báo → Trippy để cho phép lại."],
+  on: ["Đang bật", "var(--green)", ""],
+  off: ["Đang tắt", "var(--text3)", ""],
+};
+
+async function renderPushSettings() {
+  const statusEl = document.getElementById('pushStatus');
+  if (!statusEl) return;
+  const status = await getPushStatus();
+  const [label, color, hint] = PUSH_STATUS_TEXT[status];
+  statusEl.textContent = label;
+  statusEl.style.color = color;
+
+  const hintEl = document.getElementById('pushHint');
+  hintEl.textContent = hint;
+  hintEl.style.display = hint ? 'block' : 'none';
+
+  const btn = document.getElementById('pushToggleBtn') as HTMLButtonElement;
+  btn.style.display = (status === 'on' || status === 'off') ? '' : 'none';
+  btn.textContent = status === 'on' ? '🔕 Tắt thông báo trên máy này' : '🔔 Bật thông báo';
+  btn.className = status === 'on' ? 'btn btn-secondary' : 'btn btn-primary';
+
+  const prefs = getPushPrefs();
+  (document.getElementById('pushPrefChanges') as HTMLInputElement).checked = prefs.changes;
+  (document.getElementById('pushPrefReminders') as HTMLInputElement).checked = prefs.reminders;
+  (document.getElementById('pushPrefLead') as HTMLSelectElement).value = String(prefs.leadMinutes);
+  document.getElementById('pushPrefsArea').style.display = status === 'on' ? 'block' : 'none';
+
+  const hasRoom = !!(DATA && DATA.trip && DATA.trip.code);
+  document.getElementById('pushBroadcastArea').style.display = (status !== 'unconfigured' && hasRoom) ? 'block' : 'none';
+}
+window.renderPushSettings = renderPushSettings;
+
+window.togglePush = async () => {
+  const btn = document.getElementById('pushToggleBtn') as HTMLButtonElement;
+  btn.disabled = true;
+  try {
+    if ((await getPushStatus()) === 'on') {
+      await disablePush();
+      showToast("Đã tắt thông báo trên máy này", "info");
+    } else {
+      if (!DATA || !DATA.trip || !DATA.trip.code) throw new Error("Vào 1 chuyến đi trước rồi bật thông báo nhé");
+      await enablePush(DATA.trip.code);
+      showToast("Đã bật thông báo! 🔔", "success");
+    }
+  } catch (e) {
+    showToast(e.message, "error");
+  } finally {
+    btn.disabled = false;
+    renderPushSettings();
+  }
+};
+
+window.savePushPrefsUI = async () => {
+  try {
+    await savePushPrefs({
+      changes: (document.getElementById('pushPrefChanges') as HTMLInputElement).checked,
+      reminders: (document.getElementById('pushPrefReminders') as HTMLInputElement).checked,
+      leadMinutes: Number((document.getElementById('pushPrefLead') as HTMLSelectElement).value),
+    }, DATA && DATA.trip ? DATA.trip.code : null);
+    showToast("Đã lưu cài đặt thông báo", "success");
+  } catch (e) { showToast("Lỗi lưu cài đặt: " + e.message, "error"); }
+};
+
+window.sendTestPushUI = async () => {
+  try { await sendTestPush(); showToast("Đã gửi, đợi vài giây nhé…", "info"); }
+  catch (e) { showToast(e.message, "error"); }
+};
+
+window.sendBroadcastPushUI = async () => {
+  const input = document.getElementById('pushBroadcastMsg') as HTMLTextAreaElement;
+  const msg = input.value.trim();
+  if (!msg) return showToast("Nhập nội dung thông báo", "error");
+  if (!DATA || !DATA.trip || !DATA.trip.code) return;
+  try {
+    const r = await sendManualPush(DATA.trip.code, localStorage.getItem('trip_secret_key') || "", msg);
+    input.value = '';
+    showToast(r.sent ? `Đã gửi tới ${r.sent} thiết bị 📣` : "Chưa có ai khác bật thông báo trong chuyến này", r.sent ? "success" : "info");
+  } catch (e) { showToast(e.message, "error"); }
+};
+
+document.addEventListener('visibilitychange', () => { if (!document.hidden) renderPushSettings(); });
+window.addEventListener('load', () => renderPushSettings());
 
 // 1. Đăng ký Service Worker (Trợ lý chạy ngầm)
 if ('serviceWorker' in navigator) {

@@ -296,6 +296,46 @@
     </div>
   </div>
 
+  <div class="section-header section-title">🔔 Thông báo</div>
+  <div class="trip-card" style="padding:16px;margin-bottom:12px;">
+    <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:10px;gap:10px">
+      <span style="font-size:.8rem">Trạng thái:</span>
+      <span id="pushStatus" style="font-weight:bold;font-size:.8rem;text-align:right">...</span>
+    </div>
+    <div id="pushHint" style="display:none;font-size:.72rem;color:var(--text3);line-height:1.5;margin-bottom:10px"></div>
+    <button class="btn btn-primary" id="pushToggleBtn" onclick="togglePush()">Bật thông báo</button>
+
+    <div id="pushPrefsArea" style="display:none;margin-top:12px">
+      <div class="option-group" style="display:flex;flex-direction:column;gap:8px;margin-bottom:10px">
+        <label class="chip-checkbox">
+          <input type="checkbox" id="pushPrefChanges" onchange="savePushPrefsUI()">
+          <span class="chip-label">✏️ Khi chuyến đi được cập nhật</span>
+        </label>
+        <label class="chip-checkbox">
+          <input type="checkbox" id="pushPrefReminders" onchange="savePushPrefsUI()">
+          <span class="chip-label">⏰ Nhắc trước giờ hoạt động</span>
+        </label>
+      </div>
+      <div class="form-group">
+        <label class="form-label">Nhắc trước</label>
+        <select class="form-input" id="pushPrefLead" onchange="savePushPrefsUI()">
+          <option value="10">10 phút</option>
+          <option value="15">15 phút</option>
+          <option value="30">30 phút</option>
+          <option value="60">1 tiếng</option>
+          <option value="120">2 tiếng</option>
+        </select>
+      </div>
+      <button class="btn btn-secondary" style="font-size:.75rem" onclick="sendTestPushUI()">🧪 Gửi thử thông báo</button>
+    </div>
+
+    <div class="editor-only" id="pushBroadcastArea" style="display:none;margin-top:14px;padding-top:12px;border-top:1px solid rgba(255,255,255,0.06)">
+      <label class="form-label">📣 Gửi thông báo cho cả nhóm</label>
+      <textarea class="form-input" id="pushBroadcastMsg" rows="2" maxlength="200" placeholder="VD: 7h tập trung ở sảnh khách sạn nhé!"></textarea>
+      <button class="btn btn-primary" style="margin-top:8px" onclick="sendBroadcastPushUI()">Gửi</button>
+    </div>
+  </div>
+
   <div class="section-header section-title">Quyền truy cập</div>
   <div class="trip-card" style="padding:16px;margin-bottom:12px;">
     <div style="display:flex;justify-content:space-between;margin-bottom:10px">
