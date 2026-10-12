@@ -3,7 +3,7 @@
 // Mỗi (thiết bị, hoạt động, giờ bắt đầu) chỉ nhắc 1 lần nhờ bản ghi trong push_reminders_sent.
 // Ngoài ra gửi "tóm tắt buổi sáng" lúc 7:00-7:29 (giờ của thiết bị) trong các ngày có lịch.
 import {
-  CHECKINS, db, EXPENSES, FieldValue, fetchRoom, hashId, listTimedActivities, localNow, memberBalances,
+  CHECKINS, CLAIMS, db, EXPENSES, FieldValue, fetchRoom, hashId, listTimedActivities, localNow, memberBalances,
   REMINDERS_SENT, sendToSubs, SOS, SUBS, SubscriptionDoc, vnd, weatherFor,
 } from "../_lib/push.js";
 
@@ -119,7 +119,7 @@ export default async function handler(req: any, res: any) {
     }
     // Dọn bản ghi đã hết hạn (thay cho TTL policy - TTL cần bật billing)
     let cleaned = 0;
-    for (const col of [REMINDERS_SENT, CHECKINS, EXPENSES, SOS]) {
+    for (const col of [REMINDERS_SENT, CHECKINS, EXPENSES, SOS, CLAIMS]) {
       const expired = await db().collection(col).where("expireAt", "<", new Date()).limit(300).get();
       if (expired.empty) continue;
       const batch = db().batch();

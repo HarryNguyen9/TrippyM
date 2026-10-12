@@ -9098,32 +9098,107 @@ function renderMeCardHtml() {
     </div>`;
 }
 
-window.openWhoAmI = () => {
+// Mỗi thành viên chỉ được 1 máy chọn (server giữ "claim"). Người đã có máy khác chọn sẽ bị khoá,
+// Editor có nút "Gỡ" cho trường hợp đổi máy / xoá dữ liệu.
+function renderWhoAmIList() {
   const list = document.getElementById('whoAmIList');
   if (!list || !DATA) return;
   const me = getMyMemberName();
   const members = (DATA.members || []).filter(Boolean);
-  list.innerHTML = members.length ? members.map((m, i) => `
-    <button class="whoami-item ${m.name === me ? 'selected' : ''}" onclick="setMyMember(${i})">
-      <img src="${avatarUrl(m)}" alt=""><span>${esc(m.name)}</span>${m.name === me ? '<span class="whoami-check">✓</span>' : ''}
-    </button>`).join('') : '<div class="today-muted">Chuyến đi chưa có thành viên.</div>';
+  const claims = groupStateForRoom().claims || [];
+  const takenByOther = new Set(claims.filter(c => !c.mine).map(c => c.member));
+  const canUnlock = isTripEditable();
+  list.innerHTML = members.length ? members.map((m, i) => {
+    const locked = takenByOther.has(m.name) && m.name !== me;
+    return `
+    <div class="whoami-cell">
+      <button class="whoami-item ${m.name === me ? 'selected' : ''} ${locked ? 'locked' : ''}" ${locked ? 'disabled' : `onclick="setMyMember(${i})"`}>
+        <img src="${avatarUrl(m)}" alt="">
+        <span>${esc(m.name)}${locked ? '<small>🔒 Đã có người chọn</small>' : ''}</span>
+        ${m.name === me ? '<span class="whoami-check">✓</span>' : ''}
+      </button>
+      ${locked && canUnlock ? `<button class="whoami-unlock" onclick="unlockMemberClaim(${i})">Gỡ</button>` : ''}
+    </div>`;
+  }).join('') : '<div class="today-muted">Chuyến đi chưa có thành viên.</div>';
   document.getElementById('whoAmIClearBtn').style.display = me ? '' : 'none';
+}
+
+window.openWhoAmI = async () => {
+  if (!DATA) return;
+  renderWhoAmIList();
   openModal('whoAmIModal');
+  await refreshGroupState(true); // lấy danh sách người đã được chọn mới nhất
+  renderWhoAmIList();
 };
 
-window.setMyMember = (index) => {
+function applyMyMember(code, name) {
+  if (name) localStorage.setItem(meStorageKey(code), name);
+  else localStorage.removeItem(meStorageKey(code));
+  setPushMember(name || null);
+  syncPushRoom(code);
+  if (typeof window.renderTodayView === 'function') window.renderTodayView();
+  renderPushSettings();
+}
+
+window.setMyMember = async (index) => {
   const code = DATA?.trip?.code;
   if (!code) return;
   const member = index === null ? null : (DATA.members || [])[index];
-  if (member) localStorage.setItem(meStorageKey(code), member.name);
-  else localStorage.removeItem(meStorageKey(code));
-  setPushMember(member ? member.name : null);
-  syncPushRoom(code);
+  const previous = getMyMemberName();
+  try {
+    if (member) await groupAction({ action: 'claim', room: code, member: member.name, previous: previous || '' });
+    else if (previous) await groupAction({ action: 'release', room: code, member: previous });
+  } catch (e) {
+    showToast(e.message, "error");
+    await refreshGroupState(true);
+    return renderWhoAmIList();
+  }
+  applyMyMember(code, member ? member.name : null);
   closeModal('whoAmIModal');
-  if (typeof window.renderTodayView === 'function') window.renderTodayView();
-  renderPushSettings();
   showToast(member ? `Xin chào ${member.name}! 👋` : "Đã bỏ chọn", "success");
+  refreshGroupState(true);
 };
+
+window.unlockMemberClaim = async (index) => {
+  const member = (DATA.members || [])[index];
+  if (!member || !DATA?.trip?.code) return;
+  const ok = await window.niceConfirm(`Gỡ chọn "${member.name}"?`, `Máy đang chọn ${member.name} sẽ bị bỏ chọn, để ${member.name} chọn lại trên máy mới.`, 'warning');
+  if (!ok) return;
+  try {
+    await groupAction({ action: 'release', room: DATA.trip.code, member: member.name, editorKey: localStorage.getItem('trip_secret_key') || '' });
+    showToast(`Đã gỡ, ${member.name} có thể chọn lại`, "success");
+  } catch (e) { showToast(e.message, "error"); }
+  await refreshGroupState(true);
+  renderWhoAmIList();
+};
+
+// Đối chiếu lựa chọn trên máy với server (máy đã chọn từ trước khi có khoá, hoặc bị Editor gỡ)
+var _claimSyncing = false;
+async function reconcileMyClaim() {
+  const code = DATA?.trip?.code;
+  const me = getMyMemberName();
+  if (!code || !me || _claimSyncing) return;
+  const claim = (groupStateForRoom().claims || []).find(c => c.member === me);
+  if (claim && claim.mine) return;
+  if (claim && !claim.mine) {
+    applyMyMember(code, null);
+    showToast(`${me} đã được máy khác chọn, hãy chọn lại "Tôi là ai"`, "warning");
+    return;
+  }
+  // Chưa có ai giữ -> giữ cho máy này
+  _claimSyncing = true;
+  try {
+    await groupAction({ action: 'claim', room: code, member: me });
+    _group.claims = [...(_group.claims || []), { member: me, mine: true }];
+  } catch (e) {
+    if (/máy khác/.test(e.message)) {
+      applyMyMember(code, null);
+      showToast(`${me} đã được máy khác chọn, hãy chọn lại "Tôi là ai"`, "warning");
+    }
+  } finally {
+    _claimSyncing = false;
+  }
+}
 
 // ===== NHẮC NỢ (EDITOR) =====
 window.sendDebtRemindersUI = async () => {
@@ -9310,18 +9385,19 @@ setInterval(() => { if (!document.hidden && document.getElementById('checkinCard
 
 // ===== KHOẢN CHI CHỜ DUYỆT + SOS (dữ liệu nhóm lưu ở server push) =====
 // (var: renderTodayView có thể chạy lúc khởi động, trước khi tới đoạn code này)
-var _group = { room: '', pending: [], sos: [], loadedAt: 0, loading: false };
+var _group = { room: '', pending: [], sos: [], claims: [], loadedAt: 0, loading: false };
 
 async function refreshGroupState(force = false) {
   const room = DATA?.trip?.code;
-  if (!room || _group.loading) return;
+  if (!room || (_group.loading && !force)) return;
   if (!force && _group.room === room && Date.now() - _group.loadedAt < 25000) return;
   _group.loading = true;
   try {
     const st = await getGroupState(room);
     const changed = JSON.stringify([st.pending, st.sos]) !== JSON.stringify([_group.pending, _group.sos]);
-    _group = { room, pending: st.pending, sos: st.sos, loadedAt: Date.now(), loading: false };
+    _group = { room, pending: st.pending, sos: st.sos, claims: st.claims, loadedAt: Date.now(), loading: false };
     if (changed && typeof window.renderTodayView === 'function') window.renderTodayView();
+    reconcileMyClaim();
   } catch (e) {
     _group.loading = false;
     _group.loadedAt = Date.now(); // lỗi mạng: đợi chu kỳ sau
@@ -9329,7 +9405,7 @@ async function refreshGroupState(force = false) {
 }
 
 function groupStateForRoom() {
-  return _group.room === DATA?.trip?.code ? _group : { pending: [], sos: [] };
+  return _group.room === DATA?.trip?.code ? _group : { pending: [], sos: [], claims: [] };
 }
 
 function renderSosBannerHtml() {

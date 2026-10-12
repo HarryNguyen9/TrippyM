@@ -23,6 +23,7 @@ export const REMINDERS_SENT = "push_reminders_sent";
 export const CHECKINS = "group_checkins";
 export const EXPENSES = "group_pending_expenses";
 export const SOS = "group_sos";
+export const CLAIMS = "group_member_claims"; // "Tôi là ai": mỗi thành viên chỉ 1 máy được chọn
 
 function loadServiceAccount() {
   const raw = process.env.FIREBASE_PUSH_SERVICE_ACCOUNT;

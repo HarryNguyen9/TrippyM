@@ -206,9 +206,11 @@ export type PendingExpense = {
 };
 export type SosAlert = { member: string; message: string; at: number; lat?: number; lng?: number };
 
-export async function getGroupState(room: string): Promise<{ pending: PendingExpense[]; sos: SosAlert[] }> {
-  const r = await api(`/api/push/group?room=${encodeURIComponent(room)}`, "GET");
-  return { pending: r.pending || [], sos: r.sos || [] };
+export type MemberClaim = { member: string; mine: boolean };
+
+export async function getGroupState(room: string): Promise<{ pending: PendingExpense[]; sos: SosAlert[]; claims: MemberClaim[] }> {
+  const r = await api(`/api/push/group?room=${encodeURIComponent(room)}&deviceId=${encodeURIComponent(getDeviceId())}`, "GET");
+  return { pending: r.pending || [], sos: r.sos || [], claims: r.claims || [] };
 }
 
 export async function groupAction(body: Record<string, any>) {

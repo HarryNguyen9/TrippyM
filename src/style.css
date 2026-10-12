@@ -1364,3 +1364,11 @@ body.modal-open #fabContainer { display: none !important; }
 .pending-btn.ok { background: var(--green-bg); color: var(--green); border-color: rgba(74,222,128,.3); }
 .pending-btn.no { color: var(--red); }
 
+
+/* "Tôi là ai": thành viên đã có máy khác chọn */
+.whoami-cell { display: flex; gap: 6px; align-items: stretch; }
+.whoami-cell .whoami-item { flex: 1; min-width: 0; }
+.whoami-item span:first-of-type small { display: block; font-size: .6rem; font-weight: 600; color: var(--text3); margin-top: 2px; }
+.whoami-item.locked { opacity: .55; cursor: not-allowed; }
+.whoami-item.locked img { filter: grayscale(100%); }
+.whoami-unlock { padding: 0 10px; border-radius: 12px; border: 1px solid rgba(248,113,113,.3); background: var(--red-bg); color: var(--red); font-size: .7rem; font-weight: 800; cursor: pointer; }

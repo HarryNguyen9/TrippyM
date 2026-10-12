@@ -1,16 +1,19 @@
 // Khoản chi chờ duyệt + SOS của nhóm (lưu ở Firestore project push, viewer cũng dùng được).
-// GET  /api/push/group?room=CODE  -> { pending: [...], sos: [...] }
+// GET  /api/push/group?room=CODE&deviceId=ID  -> { pending: [...], sos: [...], claims: [{ member, mine }] }
 // POST /api/push/group { action, room, ... }
 //   submit  { member, desc, amount, category?, participants?, actId? }  viewer gửi khoản chi chờ duyệt
 //   approve { id, editorKey }  /  reject { id, editorKey }               editor duyệt / từ chối
 //   cancel  { id, member }                                               người gửi tự huỷ
 //   sos     { member, message, lat?, lng?, deviceId }                    báo khẩn cho cả nhóm
 //   safe    { member, deviceId }                                         "Mình ổn rồi" - tắt SOS
+//   claim   { member, previous?, deviceId }                              chọn "Tôi là ai" (1 người - 1 máy)
+//   release { member, deviceId, editorKey? }                             bỏ chọn; Editor gỡ được cho máy khác
 import {
-  db, EXPENSES, fetchRoom, hashId, isEditorKeyValid, memberNames, readBody, sendToSubs, SOS, subsForRoom, vnd,
+  CLAIMS, db, EXPENSES, fetchRoom, hashId, isEditorKeyValid, memberNames, readBody, sendToSubs, SOS, subsForRoom, vnd,
 } from "../_lib/push.js";
 
 const SOS_ACTIVE_MS = 3 * 60 * 60 * 1000;
+const CLAIM_KEEP_MS = 60 * 864e5;
 const SOS_THROTTLE_MS = 30 * 1000;
 const CATEGORIES = ["food", "transport", "hotel", "fun", "other"];
 
@@ -22,17 +25,21 @@ export default async function handler(req: any, res: any) {
     if (!room) return res.status(400).json({ error: "Thiếu room" });
 
     if (req.method === "GET") {
-      const [pendingSnap, sosSnap] = await Promise.all([
+      const [pendingSnap, sosSnap, claimSnap] = await Promise.all([
         db().collection(EXPENSES).where("room", "==", room).get(),
         db().collection(SOS).where("room", "==", room).get(),
+        db().collection(CLAIMS).where("room", "==", room).get(),
       ]);
+      // Không trả deviceId của máy khác ra ngoài, chỉ báo claim nào là của máy đang hỏi
+      const myDevice = String(q.deviceId || "");
+      const claims = claimSnap.docs.map((d) => ({ member: d.get("member"), mine: !!myDevice && d.get("deviceId") === myDevice }));
       const pending = pendingSnap.docs.map((d) => ({ id: d.id, ...d.data() }))
         .sort((a: any, b: any) => a.at - b.at)
         .map(({ expireAt, room: _r, ...rest }: any) => rest);
       const sos = sosSnap.docs.map((d) => d.data())
         .filter((s: any) => Date.now() - s.at < SOS_ACTIVE_MS)
         .map(({ expireAt, room: _r, ...rest }: any) => rest);
-      return res.status(200).json({ pending, sos });
+      return res.status(200).json({ pending, sos, claims });
     }
     if (req.method !== "POST") return res.status(405).json({ error: "Method not allowed" });
 
@@ -94,6 +101,43 @@ export default async function handler(req: any, res: any) {
 
       const { expireAt, room: _r, ...rest } = item;
       return res.status(200).json({ ok: true, item: { id: snap.id, ...rest } });
+    }
+
+    // ---------- "Tôi là ai": mỗi thành viên chỉ 1 máy ----------
+    if (action === "claim" || action === "release") {
+      const deviceId = String(q.deviceId || "");
+      if (!deviceId) return res.status(400).json({ error: "Thiếu deviceId" });
+      const claimRef = (name: string) => db().collection(CLAIMS).doc(hashId(`${room}|${name}`));
+
+      if (action === "release") {
+        const ref = claimRef(member);
+        const snap = await ref.get();
+        if (!snap.exists) return res.status(200).json({ ok: true });
+        if (snap.get("deviceId") !== deviceId && !isEditorKeyValid(roomData, q.editorKey)) {
+          return res.status(403).json({ error: "Chỉ máy đã chọn hoặc Editor mới bỏ chọn được" });
+        }
+        await ref.delete();
+        return res.status(200).json({ ok: true });
+      }
+
+      if (!names.includes(member)) return res.status(400).json({ error: "Không có thành viên này trong chuyến đi" });
+      const ref = claimRef(member);
+      const ok = await db().runTransaction(async (tx) => {
+        const snap = await tx.get(ref);
+        if (snap.exists && snap.get("deviceId") !== deviceId) return false;
+        tx.set(ref, { room, member, deviceId, at: Date.now(), expireAt: new Date(Date.now() + CLAIM_KEEP_MS) });
+        return true;
+      });
+      if (!ok) return res.status(409).json({ error: `${member} đã được máy khác chọn. Nếu đó là bạn (đổi máy), nhờ Editor bấm "Gỡ" nhé.` });
+
+      // Đổi sang người khác -> nhả người cũ của máy này
+      const previous = String(q.previous || "");
+      if (previous && previous !== member) {
+        const prevRef = claimRef(previous);
+        const prev = await prevRef.get();
+        if (prev.exists && prev.get("deviceId") === deviceId) await prevRef.delete();
+      }
+      return res.status(200).json({ ok: true });
     }
 
     // ---------- SOS ----------
