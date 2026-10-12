@@ -9007,7 +9007,11 @@ window.addEventListener('load', () => renderPushSettings());
 if ('serviceWorker' in navigator) {
     window.addEventListener('load', () => {
         navigator.serviceWorker.register('sw.js')
-            .then(reg => console.log('PWA: Đã đăng ký thành công!'))
+            .then(reg => {
+                console.log('PWA: Đã đăng ký thành công!');
+                // iOS PWA hay giữ service worker cũ rất lâu -> chủ động kiểm tra bản mới mỗi lần mở app
+                reg.update().catch(() => {});
+            })
             .catch(err => console.log('PWA: Lỗi đăng ký', err));
     });
 }

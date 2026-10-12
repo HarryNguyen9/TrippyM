@@ -95,12 +95,22 @@ export async function enablePush(roomCode: string) {
 
   const m = await messaging();
   if (!m) throw new Error("Thiết bị không hỗ trợ thông báo đẩy");
-  const token = await getToken(m, { vapidKey: VAPID_KEY, serviceWorkerRegistration: await navigator.serviceWorker.ready });
+  let token: string;
+  try {
+    token = await getToken(m, { vapidKey: VAPID_KEY, serviceWorkerRegistration: await navigator.serviceWorker.ready });
+  } catch (e: any) {
+    throw new Error(`[FCM] ${e?.code || ""} ${e?.message || e}`.trim());
+  }
   if (!token) throw new Error("Không lấy được token thông báo");
 
   ls.set(LS_TOKEN, token);
+  try {
+    await register(roomCode);
+  } catch (e: any) {
+    ls.del(LS_TOKEN);
+    throw new Error(`[Lưu đăng ký] ${e?.message || e}`);
+  }
   ls.set(LS_ENABLED, "1");
-  await register(roomCode);
 }
 
 export async function disablePush() {
