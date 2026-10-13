@@ -2551,7 +2551,13 @@ window.renderPayments = renderPayments = (flash = false) => {
                 ? p.multiPayers.every(mp => mp.fromFund)
                 : !!p.fromFund;
             const payerLabel = (p.multiPayers && p.multiPayers.length) ? getPaymentPayerText(p) : p.payer;
-            subParts.push(isFullyFromFund ? 'Trả từ quỹ' : `${esc(payerLabel || 'Chưa rõ')} trả`);
+            if (p.multiPayers && p.multiPayers.length) {
+                // Nhiều người góp: "An, Bình (quỹ) cùng trả" - chi tiết số tiền từng người xem trong Sửa
+                const names = p.multiPayers.map(mp => esc(mp.name || 'Chưa rõ') + (mp.fromFund && !isFullyFromFund ? ' (quỹ)' : '')).join(', ');
+                subParts.push(`${names} cùng trả${isFullyFromFund ? ' từ quỹ' : ''}`);
+            } else {
+                subParts.push(`${esc(payerLabel || 'Chưa rõ')} trả${isFullyFromFund ? ' từ quỹ' : ''}`);
+            }
         }
         if (dayDate) subParts.push(dayDate);
         if (!p.isEstimate && p.participants && p.participants.length > 0) {
