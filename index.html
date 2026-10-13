@@ -151,62 +151,37 @@
 <div class="page" id="page-itinerary">
   
   <div class="tab-bar">
-    <button class="tab active" onclick="switchItineraryTab('timeline')">📅 Lịch trình</button>
-    <button class="tab" onclick="switchItineraryTab('packing')">🎒 Hành trang</button>
+    <button class="tab active" onclick="switchItineraryTab('timeline')">Lịch trình</button>
+    <button class="tab" onclick="switchItineraryTab('packing')">Hành trang</button>
   </div>
 
   <div class="sub-tab-content active" id="subtab-timeline">
 
-    <div class="trip-card overview-card" id="tripOverviewCard">
-      <div class="overview-top">
-        <div>
-          <div class="overview-title" id="overviewTripName">Trippy</div>
-          <div class="overview-meta">
-            <span id="overviewDays">0 ngày</span>
-            <span>·</span>
-            <span id="overviewMembers">0 người</span>
-            <span>·</span>
-            <span id="overviewCurrentDay">Chưa bắt đầu</span>
-          </div>
-        </div>
-        <div class="overview-vibe" id="overviewVibeIcon">🏖</div>
-      </div>
-      <div class="overview-grid">
-        <div class="overview-metric">
-          <div class="overview-label">Quỹ còn</div>
-          <div class="overview-value green" id="overviewFundRemain">0đ</div>
-        </div>
-        <div class="overview-metric">
-          <div class="overview-label">Đã chi</div>
-          <div class="overview-value gold" id="overviewSpent">0đ</div>
-        </div>
-        <div class="overview-metric wide">
-          <div class="overview-label">Hoạt động tiếp theo</div>
-          <div class="overview-value" id="overviewNextActivity">Chưa có hoạt động</div>
+    <div class="page-head itin-head" id="tripOverviewCard">
+      <div style="min-width:0;">
+        <h2 class="page-title" id="overviewTripName">Trippy</h2>
+        <div class="itin-meta">
+          <span id="overviewDays">0 ngày</span> · <span id="overviewMembers">0 người</span> · <span id="overviewCurrentDay">Chưa bắt đầu</span>
         </div>
       </div>
+      <details class="more-menu">
+        <summary aria-label="Thêm">⋯</summary>
+        <div class="more-menu-list">
+          <button onclick="this.closest('details').open=false; askAiSuggestions()">AI gợi ý món ngon, địa điểm</button>
+          <button id="btnCheckItineraryReality" onclick="this.closest('details').open=false; checkItineraryReality()">Rà soát lịch trình</button>
+          <button onclick="this.closest('details').open=false; exportItineraryToImage()">Chụp ảnh lịch trình</button>
+        </div>
+      </details>
     </div>
 
-    <div class="trip-card cinematic-cover" id="countdown-card" style="text-align: center; padding: 20px;">
-      <div class="stat-label" id="countdown-label" style="letter-spacing: 2px;">⏳ THỜI GIAN CHỜ ĐỢI</div>
+    <div class="trip-card" id="countdown-card" style="text-align: center; padding: 16px; margin-bottom: 12px;">
+      <div class="stat-label" id="countdown-label">Còn lại tới ngày đi</div>
       <div id="trip-countdown" style="display: flex; justify-content: center; gap: 15px; margin: 15px 0;">
         <div class="loading-box" style="padding: 10px; border: none;">Đang tính toán ngày lành tháng tốt...</div>
       </div>
       <div id="countdown-status" style="font-size: 0.7rem; color: var(--accent); font-weight: 700; text-transform: uppercase;"></div>
     </div>
 
-    <div class="stats">
-      <div class="metric-card stat-card"><div class="stat-label">Tổng ngày</div><div class="stat-value gold" id="totalDays">0</div></div>
-      <div class="metric-card stat-card"><div class="stat-label">Dự trù</div><div class="stat-value gold" id="totalBudget">0đ</div></div>
-    </div>
-    <div style="display:flex; justify-content:space-between; align-items:center; margin-top:20px; margin-bottom:10px; gap:8px; flex-wrap:wrap;">
-        <div class="section-header section-title" style="margin:0;">Lịch trình</div>
-        <div style="display:flex; gap:8px; flex-wrap:wrap;">
-            <button class="btn" style="width:auto; padding:6px 12px; font-size:.7rem; background:var(--surface2); color:var(--accent); border: 1px dashed var(--accent);" onclick="askAiSuggestions()">🤖 AI gợi ý</button>
-            <button class="btn" id="btnCheckItineraryReality" style="width:auto; padding:6px 12px; font-size:.7rem; background:var(--surface2); color:var(--orange); border: 1px dashed var(--orange);" onclick="checkItineraryReality()">🚨 Rà soát lịch trình</button>
-            <button class="btn" style="width:auto; padding:6px 12px; font-size:.7rem; background:var(--surface2); color:var(--accent); border: 1px dashed var(--accent);" onclick="exportItineraryToImage()">📸 Chụp lịch trình</button>
-        </div>
-    </div>
     <div id="itineraryList"></div>
   </div>
 
@@ -214,7 +189,7 @@
     <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:12px; gap:8px; flex-wrap:wrap;">
       <div class="section-header section-title" style="margin:0;">Đồ dùng chung</div>
       <div style="display:flex; gap:8px;">
-        <button class="btn editor-only" id="btnAiPackingSuggest" style="width:auto; padding:6px 12px; font-size:.7rem; background:var(--surface2); color:var(--accent); border:1px dashed var(--accent);" onclick="generatePackingChecklist()">🎒 AI gợi ý đồ</button>
+        <button class="btn btn-secondary editor-only" id="btnAiPackingSuggest" style="width:auto; padding:6px 12px; font-size:.7rem;" onclick="generatePackingChecklist()">AI gợi ý đồ</button>
         <button class="btn btn-primary editor-only" style="width:auto; padding:6px 12px; font-size:.7rem;" onclick="openPackingModal()">+ Thêm đồ</button>
       </div>
     </div>
@@ -231,43 +206,44 @@
 <!-- COLLECTION PAGE -->
 <div class="page" id="page-collection">
     <div class="tab-bar">
-      <button class="tab active" onclick="switchSubTab('fund')">💰 Quỹ</button>
-      <button class="tab" onclick="switchSubTab('members')">👥 Thành viên</button>
+      <button class="tab active" onclick="switchSubTab('fund')">Quỹ</button>
+      <button class="tab" onclick="switchSubTab('members')">Thành viên</button>
     </div>
     
     <div class="sub-tab-content active" id="subtab-fund">
-      <div class="stats">
-        <div class="metric-card stat-card"><div class="stat-label">Đã đóng</div><div class="stat-value green" id="fundPaid">0đ</div></div>
-        <div class="metric-card stat-card"><div class="stat-label">Đã dùng</div><div class="stat-value red" id="fundUsed">0đ</div></div>
-        <div class="metric-card stat-card wide highlight"><div class="stat-label">Quỹ còn</div><div class="stat-value gold" id="fundRemain">0đ</div></div>
+      <div class="trip-card fund-summary">
+        <div class="stat-label">Quỹ còn</div>
+        <div class="fund-summary-value" id="fundRemain">0đ</div>
+        <div class="fund-summary-sub">Đã đóng <b id="fundPaid">0đ</b> · Đã dùng <b id="fundUsed">0đ</b></div>
       </div>
       
       <div class="trip-card hide-on-finish" id="fundLinkCard" style="margin-top: 10px; padding: 16px; margin-bottom: 12px;">
   
-        <div class="section-header section-title" style="margin-top: 0;">🔗 Link & 💸 QR Quỹ</div>
+        <div class="section-header section-title" style="margin-top: 0;">Link & QR quỹ</div>
         
         <div class="form-group">
           <label class="form-label">Link quỹ (Editor có thể sửa)</label>
           <div style="display: flex; gap: 8px;">
             <input class="form-input" id="fundLinkInput" placeholder="Dán link quỹ..." style="flex: 1;">
-            <button class="btn btn-secondary editor-only" id="fundLinkActionBtn" onclick="saveFundLink()" style="width: auto; padding: 0 15px;">💾Lưu</button>
+            <button class="btn btn-secondary editor-only" id="fundLinkActionBtn" onclick="saveFundLink()" style="width: auto; padding: 0 15px;">Lưu</button>
             <button class="btn btn-primary" onclick="openFundLink()" style="width: auto; padding: 0 15px;">Mở</button>
           </div>
         </div>
         
-        <button class="btn" style="background: var(--surface2); color: var(--accent); border: 1px dashed var(--accent);" onclick="openModal('qrModal')">
-          💸 Xem mã QR quỹ
-        </button>
+        <button class="btn btn-secondary" onclick="openModal('qrModal')">Xem mã QR quỹ</button>
         
       </div>
 
       <div style="display:flex; justify-content:space-between; align-items:center; gap:10px; margin-top: 10px; margin-bottom: 12px; flex-wrap: wrap;">
         <div class="section-header section-title" style="margin:0;">Tổng quan thành viên</div>
-        <div style="display:flex; gap:8px; flex-wrap: wrap;">
-          <button class="btn" id="btnMemberAiSummary" style="width:auto; padding:6px 12px; font-size:.7rem; background:var(--surface2); color:var(--accent); border:1px dashed var(--accent); border-radius:20px;" onclick="generateMemberFinanceSummary()">🤖 AI tóm tắt</button>
-          <button class="btn" style="width:auto; padding:6px 12px; font-size:.7rem; background:var(--surface2); color:var(--blue); border:1px dashed var(--blue); border-radius:20px;" onclick="openAdvanceOverviewModal()">💳 Khoản chi</button>
-          <button class="btn" style="width:auto; padding:6px 12px; font-size:.7rem; background:var(--surface2); color:var(--green); border:1px dashed var(--green); border-radius:20px;" onclick="exportMemberExpensesToExcel()">📊 Export Excel</button>
-        </div>
+        <details class="more-menu">
+          <summary aria-label="Thêm">⋯</summary>
+          <div class="more-menu-list">
+            <button id="btnMemberAiSummary" onclick="this.closest('details').open=false; generateMemberFinanceSummary()">AI tóm tắt</button>
+            <button onclick="this.closest('details').open=false; openAdvanceOverviewModal()">Khoản chi từng người</button>
+            <button onclick="this.closest('details').open=false; exportMemberExpensesToExcel()">Xuất Excel</button>
+          </div>
+        </details>
       </div>
       <div class="member-grid" id="memberGrid"></div>
     </div>
@@ -291,15 +267,21 @@
 
 <!-- SETTINGS PAGE -->
 <div class="page" id="page-settings">
-  <div class="section-header section-title">🌗 Giao diện</div>
+  <div class="section-header section-title">Giao diện</div>
   <div class="trip-card" style="padding:16px;margin-bottom:12px;">
     <div class="category-grid">
       <div class="category-chip selected" id="themeChipDark" data-theme-choice="dark" onclick="setTheme('dark')"><span class="category-chip-icon">🌙</span><span>Tối</span></div>
       <div class="category-chip" id="themeChipLight" data-theme-choice="light" onclick="setTheme('light')"><span class="category-chip-icon">☀️</span><span>Sáng</span></div>
     </div>
+    <div class="option-group" style="margin:12px 0 0">
+      <label class="chip-checkbox">
+        <input type="checkbox" id="funModeToggle" onchange="setFunMode(this.checked)">
+        <span class="chip-label accent">Chế độ vui: thanh máu, danh hiệu, câu đùa</span>
+      </label>
+    </div>
   </div>
 
-  <div class="section-header section-title">🔔 Thông báo</div>
+  <div class="section-header section-title">Thông báo</div>
   <div class="trip-card" style="padding:16px;margin-bottom:12px;">
     <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:10px;gap:10px">
       <span style="font-size:.8rem">Trạng thái:</span>
@@ -402,7 +384,7 @@
     </div>
   </div>
 
-  <div class="section-header section-title">🤖 AI Trợ lý (Gemini + OpenRouter)</div>
+  <div class="section-header section-title">AI trợ lý (Gemini + OpenRouter)</div>
   <div class="trip-card" style="padding:16px;margin-bottom:12px;">
     <div id="geminiKeyStatus" style="font-size: 0.68rem; color: var(--accent); margin-bottom: 10px; line-height: 1.5;"></div>
 
@@ -577,8 +559,8 @@
 <div class="page" id="page-gallery">
   
   <div class="tab-bar" style="margin-bottom: 15px;">
-    <button class="tab active" onclick="switchGalleryTab('image')">🖼️ Kho Ảnh</button>
-    <button class="tab" onclick="switchGalleryTab('file')">📁 Kho File</button>
+    <button class="tab active" onclick="switchGalleryTab('image')">Ảnh</button>
+    <button class="tab" onclick="switchGalleryTab('file')">Tệp</button>
   </div>
 
   <div class="sub-tab-content active" id="gallery-tab-image">
@@ -632,10 +614,11 @@
 
 <div class="fab-container editor-only" id="fabContainer">
     <div class="fab-menu" id="fabMenu">
-    <button class="fab-item" onclick="event.stopPropagation(); toggleFab(); openAddMemberModal()" data-tooltip="Thêm Người">👤</button>
-    <button class="fab-item" onclick="event.stopPropagation(); toggleFab(); openAddPaymentModal()" data-tooltip="Thêm Chi tiêu">💳</button>
-    <button class="fab-item" onclick="event.stopPropagation(); toggleFab(); openAddActivityChoose()" data-tooltip="Thêm Hoạt động">📜</button>
-    <button class="fab-item" onclick="event.stopPropagation(); toggleFab(); resetDayForm(); openModal('dayModal')" data-tooltip="Thêm Ngày">📅</button>
+    <button class="fab-item" onclick="event.stopPropagation(); toggleFab(); openChatModal()"><span>💬</span>Hỏi AI</button>
+    <button class="fab-item" onclick="event.stopPropagation(); toggleFab(); openAddMemberModal()"><span>👤</span>Thêm người</button>
+    <button class="fab-item" onclick="event.stopPropagation(); toggleFab(); resetDayForm(); openModal('dayModal')"><span>📅</span>Thêm ngày</button>
+    <button class="fab-item" onclick="event.stopPropagation(); toggleFab(); openAddActivityChoose()"><span>📍</span>Thêm hoạt động</button>
+    <button class="fab-item" onclick="event.stopPropagation(); toggleFab(); openAddPaymentModal()"><span>💳</span>Thêm chi tiêu</button>
 </div>
     <button class="fab" id="fabMain" onclick="toggleFab()">
         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
@@ -674,7 +657,7 @@
 
 <div class="modal-overlay" id="packingModal">
   <div class="modal bottom-sheet">
-    <div class="modal-title">🎒 Thêm Hành Trang</div>
+    <div class="modal-title">Thêm Hành Trang</div>
     <input type="hidden" id="packingIdx">
     <div class="form-group">
       <label class="form-label">Tên món đồ</label>
@@ -761,7 +744,7 @@
           <div class="option-group" style="margin-top: -5px; margin-bottom: 15px;">
             <label class="chip-checkbox">
               <input type="checkbox" id="pmIsEstimate" onchange="toggleEstimateMode('pm')">
-              <span class="chip-label" id="pmEstimateLabel" style="transition: all 0.2s;">⬜ Đánh dấu là khoản dự trù</span>
+              <span class="chip-label accent" id="pmEstimateLabel">Khoản dự trù (chưa chi)</span>
             </label>
           </div>
 
@@ -770,7 +753,7 @@
                   <img id="pmReceiptPreview" style="width: 100%; max-height: 150px; object-fit: contain; border-radius: 8px; border: 1px solid var(--surface3);">
               </div>
               <button type="button" class="btn" style="background: var(--surface3); color: var(--text); border: 1px solid rgba(255,255,255,0.1); font-size: 0.75rem;" onclick="document.getElementById('pmFileInput').click()">
-                  📸 Chụp / Đính kèm Bill
+                  Đính kèm ảnh bill
               </button>
               <input type="file" id="pmFileInput" accept="image/*" hidden onchange="uploadReceipt(this, 'pmReceiptPreview', 'pmPreviewContainer', 'pmReceiptUrl')">
               <input type="hidden" id="pmReceiptUrl">
@@ -792,7 +775,7 @@
                 <div class="option-group" style="margin-top: 10px;">
                     <label class="chip-checkbox">
                         <input type="checkbox" id="pmFromFund">
-                        <span class="chip-label fund">💰 Rút từ quỹ</span>
+                        <span class="chip-label fund">Rút từ quỹ</span>
                     </label>
                 </div>
             </div>
@@ -805,7 +788,7 @@
             <div class="option-group">
               <label class="chip-checkbox">
                   <input type="checkbox" id="pmIsPaid" checked>
-                  <span class="chip-label paid">✓ Đã thanh toán</span>
+                  <span class="chip-label paid">Đã thanh toán</span>
               </label>
             </div>
           </div>
@@ -909,7 +892,7 @@
           <div class="option-group" style="margin-top: -5px; margin-bottom: 15px;">
             <label class="chip-checkbox">
               <input type="checkbox" id="editPmIsEstimate" onchange="toggleEstimateMode('editPm')">
-              <span class="chip-label" id="editPmEstimateLabel" style="transition: all 0.2s;">⬜ Đánh dấu là khoản dự trù</span>
+              <span class="chip-label accent" id="editPmEstimateLabel">Khoản dự trù (chưa chi)</span>
             </label>
           </div>
 
@@ -947,7 +930,7 @@
                 <div class="option-group" style="margin-top: 10px;">
                     <label class="chip-checkbox">
                         <input type="checkbox" id="editPmFromFund">
-                        <span class="chip-label fund">💰 Rút từ quỹ</span>
+                        <span class="chip-label fund">Rút từ quỹ</span>
                     </label>
                 </div>
             </div>
@@ -960,7 +943,7 @@
             <div class="option-group">
               <label class="chip-checkbox">
                 <input type="checkbox" id="editPmIsPaid">
-                <span class="chip-label paid">✓ Đã thanh toán</span>
+                <span class="chip-label paid">Đã thanh toán</span>
               </label>
             </div>
           </div>
@@ -1085,7 +1068,7 @@
 
 <div class="modal-overlay" id="linkToActModal">
   <div class="modal bottom-sheet">
-    <div class="modal-title">🔗 Gắn vào lịch trình</div>
+    <div class="modal-title">Gắn vào lịch trình</div>
     <input type="hidden" id="linkPmIdx">
     <div style="font-size: 0.75rem; color: var(--text3); margin-bottom: 15px;">
         Chọn một hoạt động trong lịch trình để gắn khoản chi tiêu "<span id="linkPmDescDisplay" style="color:var(--accent); font-weight:bold"></span>" vào:
@@ -1100,7 +1083,7 @@
 
 <div class="modal-overlay" id="vaultModal">
   <div class="modal bottom-sheet">
-    <div class="modal-title">🔐 Két Sắt Chuyến Đi</div>
+    <div class="modal-title">Két Sắt Chuyến Đi</div>
     <div id="vaultCardsContainer"></div>
     <button class="btn editor-only" style="background: var(--surface2); color: var(--accent); border: 1px dashed var(--accent); margin-top: 6px;" onclick="openAddVaultCardModal()">+ Thêm Ô Mới</button>
     <button class="btn btn-secondary" onclick="closeModal('vaultModal')" style="margin-top:8px">Đóng</button>
@@ -1109,7 +1092,7 @@
 
 <div class="modal-overlay" id="vaultCardFormModal">
   <div class="modal bottom-sheet">
-    <div class="modal-title">🔐 Ô Thông Tin</div>
+    <div class="modal-title">Ô Thông Tin</div>
     <input type="hidden" id="vaultCardEditId">
     <input type="hidden" id="vaultCardTypeInput" value="text">
 
@@ -1177,11 +1160,11 @@
 
 <div class="modal-overlay" id="memberModal">
   <div class="modal bottom-sheet">
-    <div class="modal-title">👤 Thêm thành viên</div>
+    <div class="modal-title">Thêm thành viên</div>
 
     <div class="tab-bar" style="margin-bottom: 16px;">
-        <button class="tab active" id="memAddTabBtn_single" onclick="switchMemberAddMode('single')">👤 Một người</button>
-        <button class="tab" id="memAddTabBtn_bulk" onclick="switchMemberAddMode('bulk')">👥 Nhiều người</button>
+        <button class="tab active" id="memAddTabBtn_single" onclick="switchMemberAddMode('single')">Một người</button>
+        <button class="tab" id="memAddTabBtn_bulk" onclick="switchMemberAddMode('bulk')">Nhiều người</button>
     </div>
 
     <div id="memAddContent_single">
@@ -1217,7 +1200,7 @@
 
 <div class="modal-overlay" id="avatarModal">
   <div class="modal bottom-sheet" style="text-align: center;">
-    <div class="modal-title">🧑‍🎤 Chọn Avatar</div>
+    <div class="modal-title">Chọn Avatar</div>
     <input type="hidden" id="editAvatarMemIdx">
     <input type="hidden" id="currentAvatarSeed">
 
@@ -1247,7 +1230,7 @@
 
 <div class="modal-overlay" id="editDayModal">
   <div class="modal bottom-sheet">
-    <div class="modal-title">✏️ Sửa thông tin ngày</div>
+    <div class="modal-title">Sửa thông tin ngày</div>
     <input type="hidden" id="editDayIdx">
     <div class="form-group">
       <label class="form-label">Tiêu đề ngày</label>
@@ -1265,7 +1248,7 @@
 
 <div class="modal-overlay" id="totalExpenseModal">
   <div class="modal bottom-sheet">
-    <div class="modal-title">💰 Lịch sử đã thanh toán</div>
+    <div class="modal-title">Lịch sử đã thanh toán</div>
     
     <div id="totalExpenseList" style="margin-bottom:16px; max-height:50vh; overflow-y:auto; padding-right: 5px;"></div>
     
@@ -1279,7 +1262,7 @@
 
 <div class="modal-overlay" id="submitExpenseModal">
   <div class="modal bottom-sheet">
-    <div class="modal-title">🧾 Gửi khoản chi</div>
+    <div class="modal-title">Gửi khoản chi</div>
     <div style="font-size:.75rem;color:var(--text3);margin-bottom:14px;line-height:1.5">
       Khoản chi do <b id="subExpPayer" style="color:var(--text)"></b> trả. Editor duyệt xong sẽ vào sổ chi tiêu chung.
     </div>
@@ -1316,7 +1299,7 @@
 
 <div class="modal-overlay" id="whoAmIModal">
   <div class="modal bottom-sheet">
-    <div class="modal-title">👤 Bạn là ai trong nhóm?</div>
+    <div class="modal-title">Bạn là ai trong nhóm?</div>
     <div style="font-size:.75rem;color:var(--text3);margin-bottom:14px;line-height:1.5">
       Dùng để xem số dư của bạn, check-in điểm hẹn và nhận thông báo riêng (nhắc nợ, nhắc tới điểm hẹn).
       Mỗi người chỉ được chọn trên 1 máy. Đổi máy thì nhờ Editor bấm "Gỡ".
@@ -1329,7 +1312,7 @@
 
 <div class="modal-overlay" id="dayModal">
   <div class="modal bottom-sheet">
-    <div class="modal-title">📅 Thêm ngày</div>
+    <div class="modal-title">Thêm ngày</div>
     <div class="form-group"><label class="form-label">Tiêu đề ngày</label><input class="form-input" id="dayTitle" placeholder="VD: Khám phá phố cổ"></div>
     <div class="form-group"><label class="form-label">Ngày (DD/MM/YYYY)</label><input class="form-input custom-date-input" 
          type="date" 
@@ -1343,14 +1326,14 @@
 
 <div class="modal-overlay" id="actModal">
   <div class="modal bottom-sheet">
-    <div class="modal-title">📜 Thêm hoạt động</div>
+    <div class="modal-title">Thêm hoạt động</div>
     <div class="form-group">
       <label class="form-label">Chọn ngày</label>
       <select class="form-input" id="actDayIdx" style="font-weight: 600; color: var(--accent);"></select>
     </div>
     <div class="form-group">
       <label class="form-label">Giờ (24h)</label>
-      <div class="time-picker-container" style="display: flex; gap: 10px; background: var(--surface2); padding: 10px; border-radius: 12px; justify-content: center; align-items: center;">
+      <div class="time-picker-container" style="display: flex; gap: 10px; justify-content: flex-start; align-items: center;">
         <select id="actHour" class="form-input" style="text-align: center; width: 80px; font-size: 1.2rem;"></select>
         <span style="font-weight: bold; font-size: 1.2rem;">:</span>
         <select id="actMinute" class="form-input" style="text-align: center; width: 80px; font-size: 1.2rem;"></select>
@@ -1373,7 +1356,7 @@
   <div class="modal bottom-sheet" style="height: 75vh; display: flex; flex-direction: column; padding: 15px; max-width: 600px;">
     
     <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 12px;">
-        <div class="modal-title" style="margin: 0; font-size: 1rem;">🗺️ <span id="mapModalTitle" style="color:var(--accent);"></span></div>
+        <div class="modal-title" style="margin: 0; font-size: 1rem;"><span id="mapModalTitle" style="color:var(--accent);"></span></div>
         <button onclick="closeModal('mapModal')" style="width: 32px; height: 32px; border-radius: 8px; background: var(--surface3); color: var(--text2); border: none; display: flex; align-items: center; justify-content: center; cursor: pointer;">✕</button>
     </div>
     
@@ -1389,13 +1372,13 @@
 
 <div class="modal-overlay" id="editActModal">
   <div class="modal bottom-sheet">
-    <div class="modal-title">✏️ Sửa hoạt động</div>
+    <div class="modal-title">Sửa hoạt động</div>
     <input type="hidden" id="editActDayIdx">
     <input type="hidden" id="editActIdx">
     
     <div class="form-group">
       <label class="form-label">Giờ (24h)</label>
-      <div class="time-picker-container" style="display: flex; gap: 10px; background: var(--surface2); padding: 10px; border-radius: 12px; justify-content: center; align-items: center;">
+      <div class="time-picker-container" style="display: flex; gap: 10px; justify-content: flex-start; align-items: center;">
         <select id="editActHour" class="form-input" style="text-align: center; width: 80px; font-size: 1.2rem;"></select>
         <span style="font-weight: bold; font-size: 1.2rem;">:</span>
         <select id="editActMinute" class="form-input" style="text-align: center; width: 80px; font-size: 1.2rem;"></select>
@@ -1415,14 +1398,14 @@
 
     <div style="display:flex; gap:10px; margin-top:20px">
       <button class="btn btn-secondary" onclick="closeModal('editActModal')">Hủy</button>
-      <button class="btn btn-primary" onclick="saveEditActivity()">💾Lưu</button>
+      <button class="btn btn-primary" onclick="saveEditActivity()">Lưu</button>
     </div>
   </div>
 </div>
 
 <div class="modal-overlay" id="editMemberModal">
   <div class="modal bottom-sheet">
-    <div class="modal-title">💳 Quản lý & Đóng quỹ</div>
+    <div class="modal-title">Quản lý & Đóng quỹ</div>
     <input type="hidden" id="editMemIndex">
     
     <div class="form-group">
@@ -1452,7 +1435,7 @@
 
 <div class="modal-overlay" id="historyModal">
   <div class="modal bottom-sheet">
-    <div class="modal-title">🧾 Sao kê của: <span id="historyMemName" style="color:var(--accent)"></span></div>
+    <div class="modal-title">Sao kê của: <span id="historyMemName" style="color:var(--accent)"></span></div>
     <div id="historyList" style="margin-bottom:16px;max-height:50vh;overflow-y:auto"></div>
     <button class="btn btn-secondary" onclick="closeModal('historyModal')">Đóng</button>
   </div>
@@ -1460,7 +1443,7 @@
 
 <div class="modal-overlay" id="advanceOverviewModal">
   <div class="modal bottom-sheet">
-    <div class="modal-title">💳 Khoản chi từng thành viên</div>
+    <div class="modal-title">Khoản chi từng thành viên</div>
     <div id="advanceOverviewList" style="margin-bottom:16px;max-height:60vh;overflow-y:auto"></div>
     <button class="btn btn-secondary" onclick="closeModal('advanceOverviewModal')">Đóng</button>
   </div>
@@ -1480,7 +1463,7 @@
 
 <div class="modal-overlay" id="addChoiceModal">
   <div class="modal bottom-sheet">
-    <div class="modal-title">➕ Thêm gì?</div>
+    <div class="modal-title">Thêm gì?</div>
     <button class="btn btn-secondary" onclick="closeModal('addChoiceModal'); resetDayForm(); openModal('dayModal')" style="margin-bottom:8px">📅 Thêm ngày mới</button>
     <button class="btn btn-secondary" onclick="closeModal('addChoiceModal');openAddActivityChoose()" style="margin-bottom:8px" id="addActBtn">📜 Thêm hoạt động vào ngày</button>
     <button class="btn btn-secondary" onclick="closeModal('addChoiceModal');openAddPaymentModal()" style="margin-bottom:8px">💳 Thêm chi tiêu</button>
@@ -1492,7 +1475,7 @@
 
 <div class="modal-overlay" id="randomModal">
   <div class="modal bottom-sheet">
-    <div class="modal-title" style="text-align:center; font-size: 1.2rem;">🎡 Vòng quay nhân phẩm</div>
+    <div class="modal-title" style="text-align:center; font-size: 1.2rem;">Vòng quay nhân phẩm</div>
 
     <div class="tab-bar" style="margin-bottom: 15px;">
       <button class="tab active" onclick="switchRandomMode('members')" id="tabRandMembers">👥 Chọn người</button>

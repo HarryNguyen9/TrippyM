@@ -1372,3 +1372,160 @@ body.modal-open #fabContainer { display: none !important; }
 .whoami-item.locked { opacity: .55; cursor: not-allowed; }
 .whoami-item.locked img { filter: grayscale(100%); }
 .whoami-unlock { padding: 0 10px; border-radius: 12px; border: 1px solid rgba(248,113,113,.3); background: var(--red-bg); color: var(--red); font-size: .7rem; font-weight: 800; cursor: pointer; }
+
+/* =====================================================================
+   TỐI GIẢN UI
+   - 1 màu nhấn (--accent theo chủ đề chuyến đi); xanh lá / đỏ chỉ dùng cho tiền
+   - Không lồng khung, không viền đứt, không glow
+   - 2 kiểu nút: chính (đặc, màu nhấn) và phụ (nền xám nhạt)
+   ===================================================================== */
+
+/* Nút có viền đứt còn sót lại trong các hộp thoại -> viền liền mảnh */
+.btn[style*="dashed"] { border-style: solid !important; border-color: var(--line-2) !important; }
+
+/* ---- Hôm nay: thẻ đầu trang ---- */
+.today-hero { box-shadow: none; }
+.today-hero::after { display: none; }
+.today-day-badge { box-shadow: none; min-width: 52px; height: 52px; border-radius: 16px; }
+.today-metrics { grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 16px; margin-top: 16px; }
+.today-metric { padding: 0; background: none; border: none; }
+.today-metric-value { font-size: 1rem; }
+.today-next-card { background: var(--line-1); border: none; }
+
+/* ---- Hôm nay: thanh thao tác cuộn ngang ---- */
+.quick-row { display: flex; gap: 6px; overflow-x: auto; padding: 2px 2px 4px; margin: 0 -2px; scrollbar-width: none; -webkit-overflow-scrolling: touch; }
+.quick-row::-webkit-scrollbar { display: none; }
+.quick-item { flex: 0 0 64px; display: flex; flex-direction: column; align-items: center; gap: 6px; background: none; border: none; padding: 4px 0; color: var(--text2); font-size: .64rem; font-weight: 700; cursor: pointer; }
+.quick-icon { width: 46px; height: 46px; border-radius: 15px; background: var(--surface); border: 1px solid var(--line-2); display: flex; align-items: center; justify-content: center; font-size: 1.2rem; }
+.quick-item:disabled { opacity: .4; cursor: default; }
+.quick-item.sos { color: var(--red); }
+.quick-item.sos .quick-icon { background: var(--red-bg); border-color: rgba(248,113,113,.3); }
+
+/* ---- Nút viên thuốc gọn (dùng trong thẻ) ---- */
+.pill-row { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 12px; }
+.pill-btn { height: 34px; padding: 0 14px; border-radius: 999px; border: none; background: var(--surface2); color: var(--text); font-size: .72rem; font-weight: 700; cursor: pointer; white-space: nowrap; }
+.pill-btn.primary { background: var(--accent); color: #080808; }
+
+/* ---- Thẻ "Bạn là" ---- */
+.me-avatar { width: 38px; height: 38px; cursor: pointer; }
+.me-avatar-empty { border-style: solid; font-weight: 800; color: var(--text3); font-size: .9rem; }
+.me-name { font-size: .85rem; }
+.me-sub b { font-weight: 800; }
+
+/* ---- Thẻ Điểm hẹn ---- */
+.checkin-head { font-size: .92rem; font-weight: 800; color: var(--text); }
+.checkin-sub { font-size: .7rem; color: var(--text3); margin-top: 2px; }
+.checkin-avatars { display: flex; align-items: center; width: 100%; margin-top: 12px; padding: 0; background: none; border: none; cursor: pointer; }
+.checkin-dot-avatar { position: relative; width: 30px; height: 30px; margin-right: -6px; border-radius: 50%; border: 2px solid var(--surface); background: var(--surface2); }
+.checkin-dot-avatar img { width: 100%; height: 100%; border-radius: 50%; opacity: .45; }
+.checkin-dot-avatar.ok img, .checkin-dot-avatar.otw img { opacity: 1; }
+.checkin-dot-avatar::after { content: ""; position: absolute; right: -1px; bottom: -1px; width: 9px; height: 9px; border-radius: 50%; border: 2px solid var(--surface); background: var(--text3); }
+.checkin-dot-avatar.ok::after { background: var(--green); }
+.checkin-dot-avatar.otw::after { background: var(--blue); }
+.checkin-more { margin-left: auto; font-size: .68rem; font-weight: 700; color: var(--text3); }
+.checkin-detail { margin-top: 8px; }
+
+/* ---- Menu ⋯ ---- */
+.more-menu { position: relative; flex-shrink: 0; }
+.more-menu > summary { list-style: none; width: 34px; height: 34px; border-radius: 50%; display: flex; align-items: center; justify-content: center; background: var(--surface2); color: var(--text2); font-size: 1.1rem; font-weight: 900; cursor: pointer; user-select: none; }
+.more-menu > summary::-webkit-details-marker { display: none; }
+.more-menu-list { position: absolute; right: 0; top: 40px; z-index: 200; min-width: 190px; padding: 6px; border-radius: 14px; background: var(--surface); border: 1px solid var(--line-2); box-shadow: 0 12px 30px var(--shadow-2); }
+.more-menu-list button { display: block; width: 100%; text-align: left; padding: 10px 12px; border: none; border-radius: 10px; background: none; color: var(--text); font-size: .78rem; font-weight: 600; cursor: pointer; }
+.more-menu-list button:hover, .more-menu-list button:active { background: var(--surface2); }
+
+/* ---- Tiêu đề trang gọn ---- */
+.page-head { display: flex; align-items: center; justify-content: space-between; gap: 10px; margin: 18px 0 14px; }
+.page-title { font-family: var(--display); font-size: 1.4rem; color: var(--text); margin: 0; }
+
+/* ---- Dashboard chi tiêu (chế độ thường) ---- */
+.plain-bar { height: 8px; border-radius: 999px; background: var(--surface3); overflow: hidden; }
+.plain-bar-fill { height: 100%; border-radius: 999px; }
+.plain-bar-label { font-size: .68rem; color: var(--text3); margin-top: 6px; text-align: center; }
+.plain-rows { margin-top: 14px; }
+.plain-row { display: flex; justify-content: space-between; align-items: baseline; gap: 10px; padding: 10px 0; border-top: 1px solid var(--line-1); font-size: .78rem; color: var(--text2); }
+.plain-row b { color: var(--text); font-size: .88rem; white-space: nowrap; }
+.plain-row small { display: block; font-size: .62rem; color: var(--text3); margin-top: 2px; }
+
+/* ---- Trang Nhóm: quỹ + danh sách thành viên (chế độ thường) ---- */
+.fund-summary { padding: 18px; margin-bottom: 12px; }
+.fund-summary-value { font-size: 1.8rem; font-weight: 900; margin-top: 4px; }
+.fund-summary-sub { font-size: .72rem; color: var(--text3); margin-top: 6px; }
+.fund-summary-sub b { color: var(--text2); }
+.member-grid.plain-member-list { display: block; }
+.plain-member { display: flex; align-items: center; gap: 12px; padding: 12px 14px; border-radius: 16px; background: var(--surface); border: 1px solid var(--line-2); margin-bottom: 8px; cursor: pointer; }
+.plain-member img { width: 38px; height: 38px; border-radius: 50%; background: var(--surface2); flex-shrink: 0; }
+.plain-member-name { font-size: .85rem; font-weight: 800; color: var(--text); }
+.plain-member-sub { font-size: .65rem; color: var(--text3); margin-top: 2px; }
+.plain-member-balance { text-align: right; font-size: .85rem; font-weight: 800; white-space: nowrap; }
+.plain-member-balance small { display: block; font-size: .6rem; font-weight: 600; color: var(--text3); }
+.plain-member-edit { height: 30px; padding: 0 10px; border-radius: 10px; border: none; background: var(--surface2); color: var(--text2); font-size: .68rem; font-weight: 700; cursor: pointer; }
+
+/* ---- Nút chat AI nổi: nhỏ hơn, ẩn ở trang Hôm nay (đã có trong thanh thao tác) ---- */
+.fab-left { width: 44px; height: 44px; border-radius: 14px; font-size: 1.15rem; }
+body:has(#page-today.active) #fabChatBtn { display: none; }
+
+/* ---- Nút + : menu dọc có chữ (thay menu xoè), có luôn "Hỏi AI" -> Editor không cần nút 💬 riêng ---- */
+.fab { box-shadow: 0 4px 14px var(--shadow-2); }
+.fab-menu { bottom: 62px; right: 0; width: auto; height: auto; flex-direction: column; align-items: flex-end; gap: 8px; }
+.fab-item { position: static; width: auto; height: 40px; padding: 0 14px 0 10px; border-radius: 999px; gap: 8px; font-size: .78rem; font-weight: 700; white-space: nowrap; transform: translateY(10px) scale(.96); transition: opacity .18s ease, transform .18s ease; }
+.fab-item span { font-size: 1rem; }
+.fab-item::before { display: none; }
+.fab-container.active .fab-menu .fab-item:nth-child(n) { transform: none; transition-delay: 0s; }
+body.is-editor:not(.trip-finished) #fabChatBtn { display: none; }
+#app-container { padding-bottom: 180px; }
+
+/* ---- Dòng chi tiêu gọn (2 dòng, icon loại bên trái) ---- */
+.pay-row { flex-direction: row; align-items: center; gap: 12px; padding: 12px 14px; margin-bottom: 0; width: 100%; box-sizing: border-box; }
+.pay-icon { width: 36px; height: 36px; border-radius: 12px; background: var(--surface2); display: flex; align-items: center; justify-content: center; font-size: 1.05rem; flex-shrink: 0; }
+.pay-main { flex: 1; min-width: 0; }
+.pay-title { font-size: .85rem; font-weight: 700; color: var(--text); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.pay-bill { margin-left: 6px; cursor: pointer; font-size: .9rem; }
+.pay-sub { font-size: .66rem; color: var(--text3); margin-top: 3px; line-height: 1.4; }
+.pay-unpaid { color: var(--orange); font-weight: 700; }
+.pay-unpaid[onclick] { cursor: pointer; text-decoration: underline dotted; }
+.pay-amount { text-align: right; font-size: .9rem; font-weight: 800; color: var(--text); white-space: nowrap; }
+.pay-amount small { display: block; font-size: .6rem; font-weight: 600; color: var(--text3); margin-top: 2px; }
+/* Chỉ làm mờ nội dung, nền dòng vẫn đặc (để không lộ các nút vuốt Sửa/Xoá nằm phía sau) */
+.pay-row.is-estimate > * { opacity: .55; }
+.pay-row.is-estimate .pay-amount { font-style: italic; font-weight: 700; }
+.pay-estimate { font-style: italic; }
+
+/* ---- Trang Lịch: 1 dòng tiêu đề thay cho thẻ tóm tắt ---- */
+.itin-head { margin-top: 14px; align-items: flex-start; }
+.itin-meta { font-size: .72rem; color: var(--text3); margin-top: 4px; }
+#countdown-card .countdown-value { text-shadow: none; }
+/* Hoạt động "Tiếp theo" trong thẻ ngày: chỉ giữ chấm + nhãn, bỏ nền ánh màu và viền */
+.timeline .timeline-activity-wrapper.next-activity .swipe-content.timeline-item { background: var(--surface) !important; }
+.timeline .timeline-activity-wrapper.next-activity .swipe-container,
+.timeline .swipe-container:has(.next-activity) { border-color: transparent !important; }
+.timeline .timeline-activity-wrapper.next-activity::before { box-shadow: none !important; }
+
+/* ---- Hộp thoại (áp cho tất cả): bỏ khung con tô màu, bỏ viền đứt, tiêu đề gọn ---- */
+.modal-title { font-size: 1.05rem; margin-bottom: 16px; }
+.modal-title .title-icon { display: none; }
+.modal [style*="dashed"] { border-style: solid !important; border-color: var(--line-2) !important; }
+.modal .form-accordion { gap: 0 !important; }
+.modal .form-section, .modal .form-section[open] { background: none; border: none; border-radius: 0; border-top: 1px solid var(--line-1); }
+.modal .form-section:first-child { border-top: none; }
+.modal .form-section-header { padding: 12px 0; min-height: 0; }
+.modal .form-section-header::after { color: var(--text3); }
+.modal .form-section-kicker { background: var(--surface2); color: var(--text2); }
+.modal .form-section-body { padding: 0 0 12px; }
+.modal .receipt-card { border: none !important; background: none !important; padding: 0 !important; }
+.modal .receipt-card .btn { background: var(--surface2) !important; border: none !important; color: var(--text2) !important; }
+.modal .time-picker-container .form-input { width: 84px !important; font-size: 1.05rem !important; }
+/* "Góp tiền chung": link chữ thay vì nút */
+#btnToggleMulti, #btnEditToggleMulti { background: none !important; padding: 0 !important; height: auto !important; font-size: .7rem !important; color: var(--accent) !important; border: none !important; }
+
+/* ---- Thanh đầu trang: 1 chấm trạng thái thay cho nhãn LIVE + chấm Firebase ---- */
+#liveBadge { display: none !important; }
+.firebase-dot.connected { box-shadow: none; }
+.firebase-dot.syncing { animation: syncFade 1.2s ease-in-out infinite; }
+@keyframes syncFade { 50% { opacity: .35; } }
+.live-dot { animation: none; }
+
+/* ---- Bỏ hiệu ứng "nảy" mỗi lần vẽ lại danh sách (giữ rung "CON NỢ" của chế độ vui) ---- */
+.payment-item, .day-section, .member-card:not(.critical) { animation: none; }
+/* Ô trạng thái góc phải: theo màu theme (trước đây nền đen cứng, lệch ở giao diện Sáng) */
+.header-badges-right .firebase-status { background: var(--glass-1) !important; border: 1px solid var(--line-2); }
+.timeline .timeline-activity-wrapper.next-activity .swipe-container { background: var(--surface) !important; }

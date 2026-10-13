@@ -1256,6 +1256,8 @@ window.toggleTheme = toggleTheme = () => {
 };
 
 function refreshThemeSettingsUI() {
+    const funToggle = document.getElementById('funModeToggle') as HTMLInputElement;
+    if (funToggle) funToggle.checked = isFunMode();
     const theme = getTheme();
     const darkChip = document.getElementById('themeChipDark');
     const lightChip = document.getElementById('themeChipLight');
@@ -1844,6 +1846,7 @@ window.renderTodayView = renderTodayView = () => {
   const billName = nextActivity?.name || '';
   const billActId = nextActivity?.id || '';
   const jsAttr = value => JSON.stringify(value || '').replace(/'/g, '&#39;');
+  const checkinTarget = (DATA.members || []).length ? getCheckinActivity(now) : null;
 
   const heroMeta = current
     ? `${rangeLabel} · ${current.day.date || ''}`
@@ -1897,21 +1900,28 @@ window.renderTodayView = renderTodayView = () => {
           <div class="today-day-badge"><div><span>Day</span><strong>${dayIndex || '-'}</strong></div></div>
         </div>
         <div class="today-metrics">
-          <div class="today-metric">
-            <div class="today-metric-label">Trạng thái</div>
-            <div class="today-metric-value">${esc(tripState)}</div>
-          </div>
-          
           <div class="today-metric" onclick="openTotalExpenseModal()">
             <div class="today-metric-label">Đã chi</div>
-            <div class="today-metric-value" style="color: var(--accent);">${formatVND(totalTripSpent)}</div>
+            <div class="today-metric-value">${formatVND(totalTripSpent)}</div>
           </div>
-          
           <div class="today-metric">
             <div class="today-metric-label">Quỹ còn</div>
-            <div class="today-metric-value" style="color:${fundRemain < 0 ? 'var(--red)' : 'var(--green)'}">${formatVND(Math.max(0, fundRemain))}</div>
+            <div class="today-metric-value" style="${fundRemain < 0 ? 'color:var(--red)' : ''}">${formatVND(Math.max(0, fundRemain))}</div>
           </div>
         </div>
+      </div>
+
+      <div class="quick-row">
+        <button class="quick-item" ${nextLocation ? `onclick='openMapModal(${jsAttr(nextLocation)})'` : 'disabled'}><span class="quick-icon">📍</span><span>Bản đồ</span></button>
+        ${canAddBill
+          ? `<button class="quick-item" onclick='openAddPaymentModal(${jsAttr(billName)}, ${jsAttr(billActId)})'><span class="quick-icon">💳</span><span>Thêm bill</span></button>`
+          : `<button class="quick-item" ${DATA.trip?.isFinished ? 'disabled' : `onclick='openSubmitExpense(${jsAttr(billName)}, ${jsAttr(billActId)})'`}><span class="quick-icon">🧾</span><span>Gửi bill</span></button>`}
+        <button class="quick-item" onclick="openModal('qrModal')"><span class="quick-icon">💸</span><span>QR quỹ</span></button>
+        <button class="quick-item" onclick="openFullScheduleFromToday()"><span class="quick-icon">📅</span><span>Lịch</span></button>
+        <button class="quick-item" onclick="openChatModal()"><span class="quick-icon">💬</span><span>Hỏi AI</span></button>
+        <button class="quick-item" ${DATA.trip?.location ? `onclick="askAiSuggestions()"` : 'disabled'}><span class="quick-icon">✨</span><span>Gợi ý</span></button>
+        <button class="quick-item" onclick="openVaultModal()"><span class="quick-icon">🔐</span><span>Giấy tờ</span></button>
+        <button class="quick-item sos" onclick="openSos()"><span class="quick-icon">🆘</span><span>SOS</span></button>
       </div>
 
       <div class="today-grid">
@@ -1919,10 +1929,11 @@ window.renderTodayView = renderTodayView = () => {
           ${renderMeCardHtml()}
           ${renderPendingCardHtml()}
           ${renderCheckinCardHtml(now)}
+          ${checkinTarget && nextActivity && checkinTarget.act.name === nextActivity.name && checkinTarget.act.time === nextActivity.time ? '' : `
           <div class="today-card">
             <div class="today-section-title"><span>Hoạt động tiếp theo</span></div>
             ${nextBlock}
-          </div>
+          </div>`}
           <div class="today-card">
             <div class="today-section-title"><span>Lịch trình hôm nay</span><span>${activities.length} mục</span></div>
             <div class="today-timeline">${timelineBlock}</div>
@@ -1933,20 +1944,6 @@ window.renderTodayView = renderTodayView = () => {
           <div class="today-card">
             <div class="today-section-title"><span>Chi tiêu hôm nay</span><span>${formatVND(todaySpent)}</span></div>
             ${paymentBlock}
-          </div>
-          <div class="today-card">
-            <div class="today-section-title"><span>Thao tác nhanh</span></div>
-            <div class="today-actions">
-              <button class="today-action-btn" ${nextLocation ? `onclick='openMapModal(${jsAttr(nextLocation)})'` : 'disabled'}>📍 Map</button>
-              ${canAddBill
-                ? `<button class="today-action-btn" onclick='openAddPaymentModal(${jsAttr(billName)}, ${jsAttr(billActId)})'>💳 Thêm bill</button>`
-                : `<button class="today-action-btn" ${DATA.trip?.isFinished ? 'disabled' : `onclick='openSubmitExpense(${jsAttr(billName)}, ${jsAttr(billActId)})'`}>🧾 Gửi bill</button>`}
-              <button class="today-action-btn" onclick="openModal('qrModal')">💸 QR quỹ</button>
-              <button class="today-action-btn" onclick="openFullScheduleFromToday()">📅 Lịch đầy đủ</button>
-              <button class="today-action-btn" ${DATA.trip?.location ? `onclick="askAiSuggestions()"` : 'disabled'}>🤖 Gợi ý AI</button>
-              <button class="today-action-btn" onclick="openVaultModal()">🔐 Trip Vault</button>
-            </div>
-            <button class="today-action-btn sos-btn" onclick="openSos()">🆘 SOS · Báo khẩn cho cả nhóm</button>
           </div>
         </div>
       </div>
@@ -2034,9 +2031,11 @@ function renderItinerary(flash = false) {
     ? (nextActivity.id || `${nextActivity.day?.date || ""}::${nextActivity.time || ""}::${nextActivity.name || ""}`)
     : "";
   
-  document.getElementById('totalDays').textContent = days.length;
+  const totalDaysEl = document.getElementById('totalDays');
+  if (totalDaysEl) totalDaysEl.textContent = days.length;
   const budget = DATA.payments ? DATA.payments.reduce((s,p) => s + (p.amount||0), 0) : 0;
-  document.getElementById('totalBudget').textContent = formatVND(budget);
+  const totalBudgetEl = document.getElementById('totalBudget');
+  if (totalBudgetEl) totalBudgetEl.textContent = formatVND(budget);
 
   if (!days.length) {
     list.innerHTML = guidedEmptyState({
@@ -2149,12 +2148,10 @@ function renderItinerary(flash = false) {
                             ${esc(a.name||'')} ${expenseBadge}
                         </div>
                         ${a.location ? `
-                          <div style="font-size:.72rem; color:var(--blue); margin-top:4px; display: flex; align-items: flex-start; gap: 4px; cursor: pointer;" 
+                          <div style="font-size:.72rem; color:var(--text3); margin-top:4px; display: flex; align-items: flex-start; gap: 4px; cursor: pointer;" 
                                onclick="openMapModal('${esc(a.location.replace(/'/g, "\\'"))}')">
                             <span style="flex-shrink:0">📍</span>
-                            <span style="color:var(--blue); text-decoration:underline;">
-                                ${a.location.startsWith('http') ? 'Mở link bản đồ ngoài' : 'Xem bản đồ: ' + esc(a.location)}
-                            </span>
+                            <span style="color:var(--text3);">${a.location.startsWith('http') ? 'Mở bản đồ' : esc(a.location)}</span>
                           </div>
                         ` : ''}
                         ${a.note ? `<div style="font-size:.72rem;color:var(--text3);margin-top:2px;">${esc(a.note)}</div>` : ''}
@@ -2287,6 +2284,8 @@ window.renderPayments = renderPayments = (flash = false) => {
         return `${EXPENSE_CATEGORIES[key].color} ${start}% ${catCumulative}%`;
     }).join(', ');
 
+    const funMode = isFunMode();
+
     // --- QUẢ CẦU NĂNG LƯỢNG CHI TIÊU (theo ngày) ---
     let bubblesData = [];
     bubblesData.push({ id: '✨ PS', title: 'Phát sinh', amt: 0, isManual: true });
@@ -2314,7 +2313,8 @@ window.renderPayments = renderPayments = (flash = false) => {
         const ratio = b.amt / maxSpend;
         const heightPct = b.amt > 0 ? Math.max(8, Math.round(ratio * 100)) : 4;
         let barColorGrad = 'var(--surface3)';
-        if (b.amt > 0) {
+        if (b.amt > 0 && !funMode) barColorGrad = 'var(--accent)';
+        else if (b.amt > 0) {
             if (ratio < 0.4) barColorGrad = 'linear-gradient(180deg, #4ade80, #16a34a)';
             else if (ratio < 0.7) barColorGrad = 'linear-gradient(180deg, #facc15, #ca8a04)';
             else barColorGrad = 'linear-gradient(180deg, #f87171, #dc2626)';
@@ -2326,7 +2326,7 @@ window.renderPayments = renderPayments = (flash = false) => {
         return `
         <div class="tl-col" title="${esc(b.title)}">
             <div class="tl-val">${displayAmt}</div>
-            <div class="tl-track"><div class="tl-fill ${ratio === 1 && b.amt > 0 ? 'hot' : ''}" style="height: ${heightPct}%; background: ${barColorGrad};"></div></div>
+            <div class="tl-track"><div class="tl-fill ${funMode && ratio === 1 && b.amt > 0 ? 'hot' : ''}" style="height: ${heightPct}%; background: ${barColorGrad};"></div></div>
             <div class="tl-day" style="${b.isManual ? 'color: var(--accent);' : ''}">${b.id}</div>
         </div>`;
     }).join('');
@@ -2365,21 +2365,22 @@ window.renderPayments = renderPayments = (flash = false) => {
 
     // 2. GIAO DIỆN DASHBOARD ĐÃ GỘP DÒNG THEO Ý BÁC
     const statsUI = styleTag + `
-        <div class="section-header section-title" style="margin-top: 10px; border: none;">Dashboard Đau Ví</div>
+        ${funMode ? `<div class="section-header section-title" style="margin-top: 10px; border: none;">Dashboard Đau Ví</div>` : ''}
 
-        <div class="metric-card stat-card wide highlight ${animationClass}" style="padding: 22px; border-color: ${barColor}40; transition: 0.3s; margin-bottom: 25px; border-radius: 20px;">
+        <div class="metric-card stat-card wide ${funMode ? `highlight ${animationClass}` : ''}" style="padding: 20px; ${funMode ? `border-color: ${barColor}40;` : ''} transition: 0.3s; margin-bottom: 20px; border-radius: 20px;">
 
             <div class="tab-bar" style="margin-bottom: 15px;">
-                <button class="tab ${window.currentDashboardTab !== 'category' ? 'active' : ''}" id="dbTabBtn_overview" onclick="switchDashboardTab('overview')">💰 Tổng quan</button>
-                <button class="tab ${window.currentDashboardTab === 'category' ? 'active' : ''}" id="dbTabBtn_category" onclick="switchDashboardTab('category')">🍕 Danh mục</button>
+                <button class="tab ${window.currentDashboardTab !== 'category' ? 'active' : ''}" id="dbTabBtn_overview" onclick="switchDashboardTab('overview')">Tổng quan</button>
+                <button class="tab ${window.currentDashboardTab === 'category' ? 'active' : ''}" id="dbTabBtn_category" onclick="switchDashboardTab('category')">Danh mục</button>
             </div>
 
             <div id="dbTabContent_overview" style="display: ${window.currentDashboardTab === 'category' ? 'none' : 'block'};">
                 <div style="text-align: center; margin-bottom: 15px; cursor: pointer;" onclick="openTotalExpenseModal()">
                     <div style="font-size: 0.65rem; color: var(--text3); text-transform: uppercase; letter-spacing: 2px; margin-bottom: 5px;">Thực chi</div>
-                    <div class="stat-value gold" style="font-size: 2.3rem; text-shadow: 0 0 25px ${barColor}30;">${formatVND(actualTotal)}</div>
+                    <div class="stat-value gold" style="font-size: 2.3rem; ${funMode ? `text-shadow: 0 0 25px ${barColor}30;` : ''}">${formatVND(actualTotal)}</div>
                     <div style="font-size: 0.62rem; color: var(--text3); margin-top: 4px;">Tổng toàn bộ chi tiêu của cả chuyến đi</div>
                 </div>
+                ${funMode ? `
                 <div class="db-container">
                     <div class="db-chart" style="background: conic-gradient(${barColor} ${displayPercent}%, var(--surface3) 0); box-shadow: 0 0 20px ${barColor}30;">
                         <div style="width: 70px; height: 70px; border-radius: 50%; background: var(--bg); display: flex; flex-direction: column; align-items: center; justify-content: center; line-height: 1;">
@@ -2426,16 +2427,26 @@ window.renderPayments = renderPayments = (flash = false) => {
                         ` : ''}
                     </div>
                 </div>
+                ` : `
+                ${estimateTotal > 0 ? `
+                <div class="plain-bar"><div class="plain-bar-fill" style="width:${displayPercent}%; background:${actualTotal > estimateTotal ? 'var(--red)' : 'var(--accent)'};"></div></div>
+                <div class="plain-bar-label">Đã chi ${Math.round(percent)}% dự trù ${formatVND(estimateTotal)}</div>` : ''}
+                <div class="plain-rows">
+                    ${estimateTotal > 0 ? `<div class="plain-row"><span>Ngân sách ${budgetRemain < 0 ? 'vượt' : 'còn lại'}</span><b style="${budgetRemain < 0 ? 'color:var(--red)' : ''}">${formatVND(Math.abs(budgetRemain))}</b></div>` : ''}
+                    <div class="plain-row"><span>Quỹ chung còn lại <small>đã đóng ${formatVND(totalFund)}</small></span><b style="${cashInHand < 0 ? 'color:var(--red)' : ''}">${formatVND(Math.max(0, cashInHand))}</b></div>
+                    ${personalAdvance > 0 ? `<div class="plain-row"><span>Ứng cá nhân <small>ngoài quỹ, chưa hoàn lại</small></span><b>${formatVND(personalAdvance)}</b></div>` : ''}
+                </div>
+                `}
 
                 ${cashInHand < 0 ? `
-                    <div style="margin-top: 15px; background: var(--red-bg); color: var(--red); font-size: 0.75rem; padding: 12px; border-radius: 12px; text-align: center; font-weight: 800; border: 1px dashed var(--red); animation: pulse-fast 1s infinite;">
-                        🚨 QUỸ CHUNG ĐÃ CẠN! Cần góp thêm vào quỹ: ${formatVND(Math.abs(cashInHand))}!
+                    <div style="margin-top: 15px; background: var(--red-bg); color: var(--red); font-size: 0.75rem; padding: 12px; border-radius: 12px; text-align: center; font-weight: 700; ${funMode ? 'border: 1px dashed var(--red); animation: pulse-fast 1s infinite;' : ''}">
+                        ${funMode ? '🚨 QUỸ CHUNG ĐÃ CẠN!' : 'Quỹ chung đã hết.'} Cần góp thêm ${formatVND(Math.abs(cashInHand))}
                     </div>
                 ` : ''}
             </div>
 
             <div id="dbTabContent_category" style="display: ${window.currentDashboardTab === 'category' ? 'block' : 'none'};">
-                <div class="section-header section-title" style="margin: 0 0 5px 0; font-size: 0.7rem;">🔮 Cầu năng lượng chi tiêu</div>
+                <div class="section-header section-title" style="margin: 0 0 5px 0; font-size: 0.7rem;">${funMode ? '🔮 Cầu năng lượng chi tiêu' : 'Chi tiêu theo ngày'}</div>
                 <div class="heatmap-container">${heatmapHtml}</div>
 
                 ${catEntries.length ? `
@@ -2517,59 +2528,57 @@ window.renderPayments = renderPayments = (flash = false) => {
         return a.timestamp - b.timestamp;
     });
 
+    // Mỗi khoản chi 2 dòng: icon loại + tên/số tiền, dòng phụ "ai trả · ngày · chia".
+    // Khoản không gắn lịch trình mặc định là phát sinh (không cần nhãn); "Gắn vào lịch trình" nằm trong thao tác vuốt.
     const listItemsHtml = filteredPayments.map((p) => {
         const i = p.originalIndex;
-        let dateDisplay = "";
+        let dayDate = "";
         if (p.linkedActId) {
             DATA.days.forEach(day => {
                 if (day && day.activities && day.activities.some(a => a && a.id === p.linkedActId)) {
-                    dateDisplay = `<span style="color:var(--text3); font-weight:normal; font-size:0.75rem"> (${day.date})</span>`;
+                    dayDate = String(day.date || '').split('/').slice(0, 2).join('/');
                 }
             });
         }
+        const cat = EXPENSE_CATEGORIES[p.category] || EXPENSE_CATEGORIES.other;
+        const billIcon = p.receiptUrl ? `<span class="pay-bill" onclick="event.stopPropagation(); window.openLightbox('${p.receiptUrl}')" title="Xem ảnh bill">🧾</span>` : "";
 
-        // Đổi window.open thành window.openLightbox
-        const billIcon = p.receiptUrl ? `<span style="cursor:pointer; margin-left:8px; font-size:1.1rem; vertical-align: middle;" onclick="event.stopPropagation(); window.openLightbox('${p.receiptUrl}')" title="Xem ảnh Bill">🧾</span>` : "";
-        const manualBadge = !p.linkedActId ? `<span style="margin-left:6px; font-size:0.55rem; padding:1px 5px; border-radius:4px; background:var(--accent-glow); color:var(--accent); border:1px dashed var(--accent);">✨ PHÁT SINH</span>` : "";
-        const linkBtnHtml = (!p.linkedActId && canEditTrip) ? `<button style="background:var(--blue-bg); color:var(--blue); border:1px solid rgba(96,165,250,0.2); padding:4px 8px; border-radius:6px; font-size:.65rem; margin-top: 5px; display: flex; align-items: center; gap: 4px;" onclick="openLinkToActModal(${i})">🔗 Gắn vào lịch trình</button>` : '';
-
-        let participantsHtml = "";
-        let statusToggleHtml = "";
-        let payerHtml = "";
-        let isFullyFromFund = false;
-
+        const subParts = [];
         if (p.isEstimate) {
-            payerHtml = `<span style="padding:2px 6px; background:var(--surface2); color:var(--accent); border: 1px dashed var(--accent); border-radius:4px; font-size:0.55rem; font-weight:800;">📝 DỰ TRÙ</span>`;
+            subParts.push('<span class="pay-estimate">Dự trù</span>');
         } else {
-            isFullyFromFund = (p.multiPayers && p.multiPayers.length)
+            const isFullyFromFund = (p.multiPayers && p.multiPayers.length)
                 ? p.multiPayers.every(mp => mp.fromFund)
                 : !!p.fromFund;
             const payerLabel = (p.multiPayers && p.multiPayers.length) ? getPaymentPayerText(p) : p.payer;
-            payerHtml = `<span style="color:var(--text3)">${esc(payerLabel)}</span>${isFullyFromFund ? '<span style="padding:2px 6px; background:var(--orange-bg); color:var(--orange); border-radius:4px; font-size:0.6rem; font-weight:800;">QUỸ</span>' : ''}`;
-            statusToggleHtml = `<div ${canEditTrip ? `onclick="togglePaymentPaid(${i})"` : ""} style="cursor: ${canEditTrip ? 'pointer' : 'default'}; display: inline-flex; align-items: center; gap: 3px; padding: 2px 6px; border-radius: 4px; font-size: 0.58rem; font-weight: 600; border: 1px solid ${p.isPaid ? 'rgba(74,222,128,0.3)' : 'rgba(248,113,113,0.3)'}; background: ${p.isPaid ? 'var(--green-bg)' : 'var(--red-bg)'}; color: ${p.isPaid ? 'var(--green)' : 'var(--red)'}; transform: none !important;"><span style="font-size: 0.5rem; margin-top: -1px;">${p.isPaid ? '●' : '○'}</span> ${p.isPaid ? 'Đã trả' : 'Cần trả'} </div>`;
-            if (p.participants && p.participants.length > 0) {
-                const splitAmount = Math.round((p.amount || 0) / p.participants.length);
-                participantsHtml = `<div style="font-size:0.65rem; color:var(--text3); margin-top:6px;"><div>👥 Cùng chia: <span style="color:var(--text2)">${p.participants.map(n => esc(n)).join(', ')}</span></div><div style="color:var(--orange); font-weight:600; margin-top:3px; padding-left:18px;">↳ Mỗi người: ${formatVND(splitAmount)}</div></div>`;
-            }
+            subParts.push(isFullyFromFund ? 'Trả từ quỹ' : `${esc(payerLabel || 'Chưa rõ')} trả`);
         }
+        if (dayDate) subParts.push(dayDate);
+        if (!p.isEstimate && p.participants && p.participants.length > 0) {
+            const splitAmount = Math.round((p.amount || 0) / p.participants.length);
+            subParts.push(`chia ${p.participants.length} (${formatVND(splitAmount)}/người)`);
+        }
+        // Chỉ báo khi CHƯA trả (đã trả là mặc định). Editor bấm để đánh dấu đã trả.
+        const unpaidHtml = !p.isEstimate && !p.isPaid
+            ? `<span class="pay-unpaid" ${canEditTrip ? `onclick="event.stopPropagation(); togglePaymentPaid(${i})" title="Bấm để đánh dấu đã trả"` : ''}>Chưa trả</span>`
+            : '';
 
         return `
         <div class="swipe-container" style="margin-bottom: 8px;">
             <div class="swipe-actions editor-only">
+                ${!p.linkedActId && canEditTrip ? `<button class="action-btn action-edit" onclick="openLinkToActModal(${i})" title="Gắn vào lịch trình">🔗</button>` : ''}
                 <button class="action-btn action-edit" onclick="openEditPayment(${i})">✎</button>
                 <button class="action-btn action-delete" onclick="deletePayment(${i})">🗑️</button>
             </div>
-            <div class="swipe-content payment-item action-card" style="border-left: 4px solid ${isFullyFromFund && !p.isEstimate ? 'var(--orange)' : (p.isEstimate ? 'var(--accent)' : 'var(--surface3)')}; flex-direction: row; justify-content: space-between; align-items: stretch; padding: 12px 14px; margin-bottom: 0; width: 100%; box-sizing: border-box;">
-              
-              <div style="flex:1; min-width: 0; padding-right: 10px; opacity: ${p.isEstimate ? '0.75' : '1'};">
-                <div style="font-size:.85rem; font-weight:600; word-break: break-word;">${esc(p.desc || 'Chi tiêu')} ${dateDisplay} ${manualBadge} ${billIcon}</div>
-                <div style="font-size:.7rem; display:flex; align-items:center; gap:8px; margin-top:6px; flex-wrap: wrap;">${payerHtml}${statusToggleHtml}</div>
-                ${participantsHtml}${linkBtnHtml}
+            <div class="swipe-content payment-item action-card pay-row ${p.isEstimate ? 'is-estimate' : ''}">
+              <div class="pay-icon">${cat.icon}</div>
+              <div class="pay-main">
+                <div class="pay-title">${esc(p.desc || 'Chi tiêu')}${billIcon}</div>
+                <div class="pay-sub">${subParts.join(' · ')}${unpaidHtml ? ` · ${unpaidHtml}` : ''}</div>
               </div>
-              
-              <div style="display:flex; flex-direction:column; justify-content:space-between; align-items:flex-end; opacity: ${p.isEstimate ? '0.75' : '1'};">
-                <div style="font-size:.95rem; font-weight:700; color:var(--accent)">${formatVND(p.amount)}</div>
-                ${p.foreignAmount && p.foreignCurrency ? `<div style="font-size:.6rem; color:var(--text3); margin-top:2px; white-space:nowrap;">🌏 ${Number(p.foreignAmount).toLocaleString('vi-VN')} ${esc(p.foreignCurrency)}</div>` : ''}
+              <div class="pay-amount">
+                <div>${formatVND(p.amount)}</div>
+                ${p.foreignAmount && p.foreignCurrency ? `<small>${Number(p.foreignAmount).toLocaleString('vi-VN')} ${esc(p.foreignCurrency)}</small>` : ''}
               </div>
             </div>
         </div>`;
@@ -2577,13 +2586,12 @@ window.renderPayments = renderPayments = (flash = false) => {
 
     // --- 5. TẠO TIÊU ĐỀ CHÍNH SANG CHẢNH ---
     const mainTitleHtml = `
-        <div style="margin: 25px 0 25px 0; text-align: center;">
-            <h2 style="font-family: var(--display); font-size: 1.8rem; color: var(--accent); margin: 0; letter-spacing: 0.5px; text-shadow: 0 2px 15px rgba(232,197,71,0.2);">Danh Sách Chi Tiêu</h2>
-            <div style="font-size: 0.65rem; color: var(--text3); text-transform: uppercase; letter-spacing: 3px; margin-top: 8px; margin-bottom: 15px;">Theo dõi dòng tiền của chuyến đi</div>
-            <div style="display:flex; justify-content:center; gap:8px; flex-wrap:wrap;">
-              <button id="btnCapturePayment" class="btn" style="width:auto; padding:6px 15px; font-size:.7rem; background:var(--surface2); color:var(--accent); border: 1px dashed var(--accent); border-radius: 20px;" onclick="exportPaymentToImage()">📸 Chụp Báo Cáo</button>
-              <button class="btn" style="width:auto; padding:6px 15px; font-size:.7rem; background:var(--surface2); color:var(--green); border: 1px dashed var(--green); border-radius: 20px;" onclick="exportPaymentsToExcel()">📊 Export Excel</button>
-            </div>
+        <div class="page-head">
+            <h2 class="page-title">Chi tiêu</h2>
+            ${moreMenuHtml('btnCapturePayment', [
+              { label: 'Chụp ảnh báo cáo', onclick: 'exportPaymentToImage()' },
+              { label: 'Xuất Excel', onclick: 'exportPaymentsToExcel()' },
+            ])}
         </div>
     `;
 
@@ -2715,8 +2723,27 @@ window.renderCollection = renderCollection = (flash = false) => {
       }
   });
 
-  // 5. VẼ ĐẤU TRƯỜNG SINH TỒN (GRID)
-  grid.innerHTML = members.map((m, i) => {
+  // 5. VẼ ĐẤU TRƯỜNG SINH TỒN (GRID) - chỉ khi bật chế độ vui; chế độ thường là danh sách gọn
+  grid.classList.toggle('plain-member-list', !isFunMode());
+  if (!isFunMode()) {
+    grid.innerHTML = members.map((m, i) => {
+      const contributed = (m.payments || []).reduce((s, v) => s + v, 0) || m.paid || 0;
+      const { consumed, advanced } = memberStats[m.name];
+      const balance = contributed + advanced - consumed;
+      return `
+        <div class="plain-member" onclick="openHistoryModal(${i})">
+          <img src="${avatarUrl(m)}" alt="" onclick="var e=arguments[0]||window.event; e.stopPropagation(); openAvatarModal(${i});">
+          <div style="flex:1;min-width:0;">
+            <div class="plain-member-name">${esc(m.name)}</div>
+            <div class="plain-member-sub">Đóng ${formatVND(contributed)} · Tiêu ${formatVND(consumed)}${advanced ? ` · Ứng ${formatVND(advanced)}` : ''}</div>
+          </div>
+          <div class="plain-member-balance" style="color:${balance < 0 ? 'var(--red)' : balance > 0 ? 'var(--green)' : 'var(--text3)'}">
+            <small>${balance < 0 ? 'Nợ' : balance > 0 ? 'Còn dư' : 'Cân bằng'}</small>${formatVND(Math.abs(balance))}
+          </div>
+          <button class="plain-member-edit editor-only" onclick="var e=arguments[0]||window.event; e.stopPropagation(); openEditMember(${i})" title="Nạp quỹ / Sửa">Sửa</button>
+        </div>`;
+    }).join('');
+  } else grid.innerHTML = members.map((m, i) => {
     const totalContributed = (m.payments || []).reduce((s, v) => s + v, 0) || m.paid || 0;
     const totalConsumed = memberStats[m.name].consumed;
     const totalAdvanced = memberStats[m.name].advanced;
@@ -4640,21 +4667,9 @@ window.toggleEstimateMode = toggleEstimateMode = (prefix) => {
     const dynamicFields = document.getElementById(`${prefix}DynamicFields`);
     const labelEl = document.getElementById(`${prefix}EstimateLabel`);
 
-    if (isEstimate) {
-        // NẾU ĐƯỢC CHỌN (DỰ TRÙ) -> Ẩn input, nút sáng lên màu vàng
-        dynamicFields.style.display = 'none'; 
-        labelEl.style.background = 'var(--accent-glow)';
-        labelEl.style.borderColor = 'var(--accent)';
-        labelEl.style.color = 'var(--accent)';
-        labelEl.innerHTML = '✅ Đang là khoản dự trù';
-    } else {
-        // NẾU BỎ CHỌN -> Hiện input, nút chìm xuống màu xám
-        dynamicFields.style.display = 'block'; 
-        labelEl.style.background = 'var(--surface2)';
-        labelEl.style.borderColor = 'var(--line-2)';
-        labelEl.style.color = 'var(--text3)';
-        labelEl.innerHTML = '⬜ Đánh dấu là khoản dự trù';
-    }
+    // Dự trù -> ẩn phần "Ai trả / Ai tham gia". Màu của nhãn do CSS (.chip-label.accent) xử lý theo trạng thái tick.
+    dynamicFields.style.display = isEstimate ? 'none' : 'block';
+    if (labelEl) labelEl.removeAttribute('style');
 };
 
 // ============================================
@@ -5222,7 +5237,7 @@ window.openTotalExpenseModal = openTotalExpenseModal = () => {
         }
 
         html += `
-            <div style="display:flex; justify-content:space-between; align-items:center; padding:12px; background:var(--surface2); border-radius:var(--radius-sm); margin-bottom:8px; border-left: 3px solid ${p.fromFund ? 'var(--orange)' : 'var(--surface3)'}">
+            <div style="display:flex; justify-content:space-between; align-items:center; padding:12px; background:var(--surface2); border-radius:var(--radius-sm); margin-bottom:8px; ">
                 <div style="flex: 1; padding-right: 10px;">
                     <div style="font-size:.8rem; font-weight:bold; color:var(--text); word-break: break-word;">${esc(p.desc)}${dateDisplay}</div>
                     <div style="font-size:.65rem; color:var(--text3); margin-top:4px;">👤 ${esc(p.payer)} ${isFund}</div>
@@ -5913,7 +5928,7 @@ window.openHistoryModal = openHistoryModal = (i) => {
         }
         
         return `
-        <div style="display:flex;justify-content:space-between;align-items:center;padding:12px;background:var(--surface2);border-radius:var(--radius-sm);margin-bottom:8px; border-left: 2px solid ${color};">
+        <div style="display:flex;justify-content:space-between;align-items:center;padding:12px;background:var(--surface2);border-radius:var(--radius-sm);margin-bottom:8px;">
           <div style="font-size:.8rem;color:var(--text2)">${label}</div>
           <div style="display:flex;align-items:center;gap:8px">
             <div style="font-size:.85rem;font-weight:bold;color:${color}">${sign} ${formatVND(Math.abs(p))}</div>
@@ -5926,7 +5941,7 @@ window.openHistoryModal = openHistoryModal = (i) => {
     }).join('');
 
     fundHtml = `
-      <div style="background: var(--surface3); border-radius: var(--radius-sm); padding: 15px; margin-bottom: 15px; border-left: 4px solid var(--green); display: flex; justify-content: space-between; align-items: center; box-shadow: var(--shadow);">
+      <div style="background: var(--surface3); border-radius: var(--radius-sm); padding: 15px; margin-bottom: 15px; display: flex; justify-content: space-between; align-items: center; box-shadow: var(--shadow);">
         <div>
           <div style="font-size: 0.6rem; color: var(--text3); text-transform: uppercase; letter-spacing: 1px; margin-bottom: 4px;">Tổng tiền có trong quỹ</div>
           <div style="font-size: 1.2rem; font-weight: 800; color: var(--green);">${formatVND(totalContributed)}</div>
@@ -5980,11 +5995,11 @@ window.openHistoryModal = openHistoryModal = (i) => {
   } else {
       expHtml = `
       <div style="display:grid; grid-template-columns: 1fr 1fr; gap:10px; margin-bottom:12px;">
-        <div style="background: var(--surface3); border-radius: var(--radius-sm); padding: 13px; border-left: 4px solid var(--blue); box-shadow: var(--shadow);">
+        <div style="background: var(--surface3); border-radius: var(--radius-sm); padding: 13px; box-shadow: var(--shadow);">
           <div style="font-size: 0.58rem; color: var(--text3); text-transform: uppercase; letter-spacing: .5px; margin-bottom: 4px;">💳 Đã ứng hộ</div>
           <div style="font-size: 1.05rem; font-weight: 800; color: var(--blue); word-break: break-word;">+${formatVND(totalAdvanced)}</div>
         </div>
-        <div style="background: var(--surface3); border-radius: var(--radius-sm); padding: 13px; border-left: 4px solid var(--red); box-shadow: var(--shadow);">
+        <div style="background: var(--surface3); border-radius: var(--radius-sm); padding: 13px; box-shadow: var(--shadow);">
           <div style="font-size: 0.58rem; color: var(--text3); text-transform: uppercase; letter-spacing: .5px; margin-bottom: 4px;">💸 Đã tiêu</div>
           <div style="font-size: 1.05rem; font-weight: 800; color: var(--red); word-break: break-word;">-${formatVND(Math.abs(totalConsumed))}</div>
         </div>
@@ -6091,11 +6106,11 @@ function renderAdvanceOverview() {
 
     const summaryHtml = `
       <div style="display:flex; gap:10px; margin-bottom:15px;">
-        <div style="flex:1; background: var(--surface3); border-radius: var(--radius-sm); padding: 12px; border-left: 4px solid var(--blue);">
+        <div style="flex:1; background: var(--surface3); border-radius: var(--radius-sm); padding: 12px; ">
           <div style="font-size:0.55rem; color: var(--text3); text-transform:uppercase; letter-spacing:1px; margin-bottom:4px;">💳 Ứng cá nhân (chưa rút quỹ)</div>
           <div style="font-size:1rem; font-weight:800; color: var(--blue);">${formatVND(grandPersonal)}</div>
         </div>
-        <div style="flex:1; background: var(--surface3); border-radius: var(--radius-sm); padding: 12px; border-left: 4px solid var(--orange);">
+        <div style="flex:1; background: var(--surface3); border-radius: var(--radius-sm); padding: 12px; ">
           <div style="font-size:0.55rem; color: var(--text3); text-transform:uppercase; letter-spacing:1px; margin-bottom:4px;">🏦 Đã rút quỹ để trả</div>
           <div style="font-size:1rem; font-weight:800; color: var(--orange);">${formatVND(grandFund)}</div>
         </div>
@@ -6130,7 +6145,7 @@ function renderAdvanceOverview() {
             const color = isFund ? 'var(--orange)' : 'var(--blue)';
             const badge = isFund ? '🏦 Rút quỹ' : '💳 Ứng cá nhân';
             return `
-              <div style="display:flex; justify-content:space-between; align-items:flex-start; padding:10px 12px; background:var(--surface2); border-radius:var(--radius-sm); margin-bottom:6px; border-left: 2px solid ${color};">
+              <div style="display:flex; justify-content:space-between; align-items:flex-start; padding:10px 12px; background:var(--surface2); border-radius:var(--radius-sm); margin-bottom:6px;">
                 <div style="flex:1; padding-right:10px;">
                   <div style="font-size:0.8rem; font-weight:600; color:var(--text);">${esc(it.desc || it.activity || 'Khoản chi')}</div>
                   <div style="font-size:0.6rem; color:var(--text3); margin-top:3px;">${esc(it.activity || '')}${it.date ? ' • ' + esc(it.date) : ''}</div>
@@ -6716,7 +6731,7 @@ Chỉ trả về DUY NHẤT 1 JSON array (không markdown, không giải thích 
 // 🚨 AI RÀ SOÁT LỊCH TRÌNH (Itinerary Reality Check)
 // ============================================
 let _isCheckingItinerary = false;
-const ITN_CHECK_BTN_DEFAULT_HTML = '🚨 Rà soát lịch trình';
+const ITN_CHECK_BTN_DEFAULT_HTML = 'Rà soát lịch trình';
 
 window.checkItineraryReality = checkItineraryReality = async () => {
     if (!DATA.days || !DATA.days.length) {
@@ -6802,7 +6817,7 @@ function renderItineraryCheckResults(warnings) {
     }
 
     listEl.innerHTML = warnings.map(w => `
-        <div style="background: var(--surface2); border-left: 3px solid var(--orange); border-radius: 10px; padding: 12px 14px; margin-bottom: 10px;">
+        <div style="background: var(--surface2); border-radius: 10px; padding: 12px 14px; margin-bottom: 10px;">
             <div style="font-size: 0.65rem; font-weight: 800; color: var(--orange); text-transform: uppercase; letter-spacing: 0.5px; margin-bottom: 6px;">⚠️ ${esc(w.day || 'Cảnh báo')}</div>
             <div style="font-size: 0.78rem; color: var(--text); line-height: 1.5; margin-bottom: 6px;">${esc(w.issue || '')}</div>
             ${w.suggestion ? `<div style="font-size: 0.72rem; color: var(--text2); line-height: 1.5;">💡 ${esc(w.suggestion)}</div>` : ''}
@@ -6930,7 +6945,7 @@ window.renderPackingList = renderPackingList = (flash = false) => {
                 <button class="action-btn action-edit" onclick="openPackingModal(${i})">✎</button>
                 <button class="action-btn action-delete" onclick="deletePackingItem(${i})">🗑️</button>
             </div>
-            <div class="swipe-content payment-item" style="border-left: 4px solid ${item.isPacked ? 'var(--green)' : 'var(--accent)'}; padding: 0 !important; margin-bottom: 0; cursor: default; width: 100%; box-sizing: border-box;">
+            <div class="swipe-content payment-item" style="padding: 0 !important; margin-bottom: 0; cursor: default; width: 100%; box-sizing: border-box;">
 
                 <div style="display:flex; align-items:center; gap:12px; flex:1; cursor:pointer; padding: 12px 14px; opacity: ${item.isPacked ? '0.5' : '1'};" onclick="togglePackingItem(${i})">
                     <div style="width:24px; height:24px; border-radius:6px; border: 2px solid ${item.isPacked ? 'var(--green)' : 'var(--surface3)'}; background: ${item.isPacked ? 'var(--green)' : 'transparent'}; display:flex; align-items:center; justify-content:center; flex-shrink:0; transition: background 0.2s, border-color 0.2s;">
@@ -7561,8 +7576,9 @@ function updateTripCountdown() {
   const statusEl = document.getElementById('countdown-status');
   const labelEl = document.getElementById('countdown-label');
 
+  const card = document.getElementById('countdown-card');
   if (!DATA || !DATA.days || DATA.days.length === 0) {
-    container.innerHTML = `<div style="font-size:0.75rem; color:var(--text3)">Chưa có lịch trình để đếm ngược</div>`;
+    if (card) card.style.display = 'none';
     return;
   }
 
@@ -7635,6 +7651,8 @@ function updateTripCountdown() {
     // Set mốc kết thúc chính xác tới từng phút của hoạt động cuối cùng (cộng thêm 59 giây cho trọn vẹn phút đó)
     const tripEnd = new Date(lYyyy, lMm, lDd, endHour, endMinute, 59);
     
+    // Chuyến đi đã bắt đầu: chế độ thường ẩn ô đếm ngược, chế độ vui vẫn hiện trạng thái
+    if (card) card.style.display = isFunMode() ? '' : 'none';
     if (now <= tripEnd) {
       container.innerHTML = `<div style="font-size:1.5rem; font-weight:800; color:var(--green)">🔥 ĐANG QUẨY !!!</div>`;
       statusEl.textContent = "Tận hưởng chuyến đi ngay thôi!";
@@ -7662,10 +7680,12 @@ function updateTripCountdown() {
     <div class="countdown-unit"><div class="countdown-value ${days === 0 ? 'trip-starting-soon' : ''}">${secs}</div><div class="countdown-sub">Giây</div></div>
   `;
 
-  labelEl.textContent = "⏳ THỜI GIAN CHỜ ĐỢI";
-  if (days > 7) statusEl.textContent = "Sắp xếp hành lý dần là vừa rồi đấy!";
-  else if (days > 0) statusEl.textContent = "Sát nút rồi! Kiểm tra lại đồ đạc đi!";
-  else statusEl.textContent = "🚨 CHUẨN BỊ XUẤT PHÁT TRONG VÀI GIỜ TỚI!";
+  if (card) card.style.display = '';
+  const fun = isFunMode();
+  labelEl.textContent = fun ? "⏳ THỜI GIAN CHỜ ĐỢI" : "Còn lại tới ngày đi";
+  if (days > 7) statusEl.textContent = fun ? "Sắp xếp hành lý dần là vừa rồi đấy!" : "";
+  else if (days > 0) statusEl.textContent = fun ? "Sát nút rồi! Kiểm tra lại đồ đạc đi!" : "Nhớ kiểm tra lại hành trang";
+  else statusEl.textContent = fun ? "🚨 CHUẨN BỊ XUẤT PHÁT TRONG VÀI GIỜ TỚI!" : "Sắp xuất phát";
 }
 
 // Chạy mỗi giây một lần
@@ -9025,6 +9045,31 @@ window.sendBroadcastPushUI = async () => {
 document.addEventListener('visibilitychange', () => { if (!document.hidden) renderPushSettings(); });
 window.addEventListener('load', () => renderPushSettings());
 
+// ===== CHẾ ĐỘ VUI (thanh máu, danh hiệu, câu đùa) - bật/tắt trong Cài đặt, lưu theo máy =====
+function isFunMode() {
+  try { return localStorage.getItem('trippy_fun_mode') === '1'; } catch { return false; }
+}
+window.setFunMode = (on) => {
+  try { localStorage.setItem('trippy_fun_mode', on ? '1' : '0'); } catch {}
+  renderAll();
+  showToast(on ? "Đã bật chế độ vui 🎮" : "Đã tắt chế độ vui", "success");
+};
+
+// Menu "⋯" gọn cho các thao tác phụ (xuất Excel, chụp báo cáo...). Dùng <details> nên không cần JS mở/đóng.
+function moreMenuHtml(id, items) {
+  return `
+    <details class="more-menu" ${id ? `id="${id}"` : ''}>
+      <summary aria-label="Thêm">⋯</summary>
+      <div class="more-menu-list">
+        ${items.map(it => `<button ${it.id ? `id="${it.id}"` : ''} onclick="this.closest('details').open=false; ${it.onclick}">${it.label}</button>`).join('')}
+      </div>
+    </details>`;
+}
+// Bấm ra ngoài thì đóng menu đang mở
+document.addEventListener('click', (e) => {
+  document.querySelectorAll('details.more-menu[open]').forEach((d: any) => { if (!d.contains(e.target)) d.open = false; });
+});
+
 // ===== "TÔI LÀ AI" - THÀNH VIÊN CỦA MÁY NÀY TRONG CHUYẾN ĐI =====
 // Lưu theo từng room trên máy. Dùng cho: số dư cá nhân, nhắc nợ riêng, check-in điểm hẹn.
 function meStorageKey(code) { return `trippy_me_${code}`; }
@@ -9069,12 +9114,12 @@ function renderMeCardHtml() {
     return `
       <div class="today-card me-card">
         <div class="me-card-row">
-          <div class="me-avatar me-avatar-empty">👤</div>
+          <div class="me-avatar me-avatar-empty">?</div>
           <div style="flex:1;min-width:0;">
             <div class="me-name">Bạn là ai trong nhóm?</div>
-            <div class="me-sub">Chọn để xem số dư của bạn, check-in điểm hẹn và nhận thông báo riêng.</div>
+            <div class="me-sub">Chọn để xem số dư và nhận thông báo riêng</div>
           </div>
-          <button class="today-action-btn primary" style="padding:0 14px;" onclick="openWhoAmI()">Chọn</button>
+          <button class="pill-btn primary" onclick="openWhoAmI()">Chọn</button>
         </div>
       </div>`;
   }
@@ -9084,17 +9129,13 @@ function renderMeCardHtml() {
   return `
     <div class="today-card me-card">
       <div class="me-card-row">
-        <img class="me-avatar" src="${avatarUrl(member)}" alt="">
-        <div style="flex:1;min-width:0;">
-          <div class="me-name">${esc(me)} <span class="me-change" onclick="openWhoAmI()">Đổi</span></div>
-          <div class="me-sub">Đã tiêu ${formatVND(st.consumed)} · Đóng quỹ ${formatVND(st.contributed)}${st.advanced ? ` · Ứng ${formatVND(st.advanced)}` : ''}</div>
+        <img class="me-avatar" src="${avatarUrl(member)}" alt="" onclick="openWhoAmI()">
+        <div style="flex:1;min-width:0;" onclick="openWhoAmI()">
+          <div class="me-name">${esc(me)}</div>
+          <div class="me-sub">${owe ? 'Nợ nhóm' : st.balance > 0 ? 'Còn dư' : 'Đã cân bằng'} <b style="color:${owe ? 'var(--red)' : st.balance > 0 ? 'var(--green)' : 'var(--text2)'}">${formatVND(Math.abs(st.balance))}</b></div>
         </div>
-        <div style="text-align:right;">
-          <div class="me-sub">${owe ? 'Nợ nhóm' : 'Còn lại'}</div>
-          <div class="me-balance" style="color:${owe ? 'var(--red)' : st.balance > 0 ? 'var(--green)' : 'var(--text3)'}">${formatVND(Math.abs(st.balance))}</div>
-        </div>
+        ${owe ? `<button class="pill-btn primary" onclick="openModal('qrModal')">Trả</button>` : ''}
       </div>
-      ${owe ? `<button class="today-action-btn" style="width:100%;margin-top:10px;" onclick="openModal('qrModal')">💸 Chuyển trả quỹ</button>` : ''}
     </div>`;
 }
 
@@ -9240,6 +9281,8 @@ function showReminderResult(namedCount, genericSent, noDevice, icon) {
 // (dùng var vì renderTodayView có thể chạy lúc khởi động, trước khi tới đoạn code này)
 var CHECKIN_AFTER_MS = 2 * 60 * 60 * 1000;
 var _checkin = { key: '', members: {}, loadedAt: 0, loading: false };
+var _checkinExpanded = false;
+window.toggleCheckinDetail = () => { _checkinExpanded = !_checkinExpanded; updateCheckinCard(); };
 
 function getCheckinActivity(now = new Date()) {
   let ongoing = null, upcoming = null;
@@ -9268,9 +9311,9 @@ function checkinRowsHtml(target) {
   return members.map(m => {
     const c = data[m.name];
     const mapLink = c && c.lat != null ? ` · <a href="https://www.google.com/maps?q=${c.lat},${c.lng}" target="_blank" rel="noopener">Xem vị trí</a>` : '';
-    const status = !c ? '<span class="checkin-status wait">⏳ Chưa tới</span>'
-      : c.status === 'arrived' ? `<span class="checkin-status ok">✅ Đã tới ${new Date(c.at).toLocaleTimeString('vi-VN', { hour: '2-digit', minute: '2-digit' })}</span>`
-      : `<span class="checkin-status otw">🚶 Đang tới · ${ago(c.at)}</span>`;
+    const status = !c ? '<span class="checkin-status wait">Chưa tới</span>'
+      : c.status === 'arrived' ? `<span class="checkin-status ok">Đã tới ${new Date(c.at).toLocaleTimeString('vi-VN', { hour: '2-digit', minute: '2-digit' })}</span>`
+      : `<span class="checkin-status otw">Đang tới · ${ago(c.at)}</span>`;
     return `
       <div class="checkin-row">
         <img src="${avatarUrl(m)}" alt="">
@@ -9294,26 +9337,27 @@ function renderCheckinCardHtml(now = new Date()) {
   const dur = (mins) => mins >= 60 ? `${Math.floor(mins / 60)} giờ${mins % 60 ? ` ${mins % 60} phút` : ''}` : `${mins} phút`;
   const when = startsIn > 0 ? `bắt đầu sau ${dur(startsIn)}` : startsIn === 0 ? 'bắt đầu bây giờ' : `đã bắt đầu ${dur(-startsIn)}`;
 
-  const nudgeBtn = arrived < members.length ? `<button class="today-action-btn" onclick="nudgeLateUI()">🔔 Nhắc người chưa tới</button>` : '';
+  const nudgeBtn = arrived < members.length ? `<button class="pill-btn" onclick="nudgeLateUI()">Nhắc người chưa tới</button>` : '';
   const actions = !me
-    ? `<button class="today-action-btn primary" onclick="openWhoAmI()">👤 Chọn bạn là ai để check-in</button>${nudgeBtn}`
+    ? `<button class="pill-btn primary" onclick="openWhoAmI()">Chọn bạn là ai</button>${nudgeBtn}`
     : `
-      ${myStatus !== 'arrived' ? `<button class="today-action-btn primary" onclick="checkinUI('arrived')">✅ Tôi tới rồi</button>` : ''}
-      <button class="today-action-btn" onclick="checkinUI('location')">📍 Gửi vị trí</button>
+      ${myStatus !== 'arrived' ? `<button class="pill-btn primary" onclick="checkinUI('arrived')">Tôi tới rồi</button>` : ''}
+      <button class="pill-btn" onclick="checkinUI('location')">Gửi vị trí</button>
       ${nudgeBtn}`;
+
+  const dots = members.map(m => {
+    const st = _checkin.members[m.name]?.status;
+    return `<span class="checkin-dot-avatar ${st === 'arrived' ? 'ok' : st === 'otw' ? 'otw' : ''}" title="${esc(m.name)}"><img src="${avatarUrl(m)}" alt=""></span>`;
+  }).join('');
 
   return `
     <div class="today-card checkin-card" id="checkinCard">
-      <div class="today-section-title"><span>📍 Điểm hẹn</span><span>${arrived}/${members.length} đã tới</span></div>
-      <div class="today-next-card" style="margin-bottom:10px;">
-        <div class="today-next-time">${esc(target.act.time)}</div>
-        <div style="min-width:0;">
-          <div class="today-next-name">${esc(target.act.name)}</div>
-          <div class="today-next-sub">${target.act.location ? `📍 ${esc(target.act.location)} · ` : ''}${when}</div>
-        </div>
-      </div>
-      <div>${checkinRowsHtml(target)}</div>
-      <div class="today-actions" style="margin-top:10px;">${actions}</div>
+      <div class="today-section-title"><span>Điểm hẹn</span><span>${arrived}/${members.length} đã tới</span></div>
+      <div class="checkin-head">${esc(target.act.time)} · ${esc(target.act.name)}</div>
+      <div class="checkin-sub">${target.act.location ? `${esc(target.act.location)} · ` : ''}${when}</div>
+      <button class="checkin-avatars" onclick="toggleCheckinDetail()">${dots}<span class="checkin-more">${_checkinExpanded ? 'Thu gọn' : 'Chi tiết'}</span></button>
+      ${_checkinExpanded ? `<div class="checkin-detail">${checkinRowsHtml(target)}</div>` : ''}
+      <div class="pill-row">${actions}</div>
     </div>`;
 }
 
@@ -9450,7 +9494,7 @@ function renderPendingCardHtml() {
   }).join('');
   return `
     <div class="today-card">
-      <div class="today-section-title"><span>🧾 Khoản chi chờ duyệt</span><span>${pending.length}</span></div>
+      <div class="today-section-title"><span>Khoản chi chờ duyệt</span><span>${pending.length}</span></div>
       ${rows}
       ${!canDecide ? '<div class="today-muted" style="padding-bottom:0">Editor duyệt xong sẽ vào sổ chi tiêu chung.</div>' : ''}
     </div>`;
