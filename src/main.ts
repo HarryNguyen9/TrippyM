@@ -4569,7 +4569,7 @@ window.openEditActivity = openEditActivity = (di, ai) => {
                         <div style="display: flex; justify-content: space-between; align-items: center; gap: 8px; margin-bottom: 8px; padding-bottom: 8px; border-bottom: 1px dashed var(--line-2);">
                             <div style="flex: 1; min-width: 0;">
                                 <div style="font-size: 0.72rem; font-weight: 600; color: var(--text); white-space: nowrap; overflow: hidden; text-overflow: ellipsis;">${esc(p.desc)}</div>
-                                <div style="color: var(--orange); font-weight: 700; font-size: 0.75rem;">💰 ${formatVND(p.amount)}</div>
+                                <div style="color: var(--text2); font-weight: 700; font-size: 0.75rem;">${formatVND(p.amount)}</div>
                             </div>
                             <div style="display: flex; gap: 4px;">
                                 <button class="btn" style="width:30px; height:30px; padding:0; background:var(--surface3); color:var(--text2); display:flex; align-items:center; justify-content:center; border-radius:6px;" 
@@ -4582,21 +4582,21 @@ window.openEditActivity = openEditActivity = (di, ai) => {
                 });
 
                 expContainer.innerHTML = `
-                    <div style="background: rgba(251,146,60,0.05); border: 1px dashed rgba(251,146,60,0.3); padding: 12px; border-radius: 10px; margin-bottom: 15px;">
+                    <div style="background: rgba(251,146,60,0.05); border: 1px solid rgba(251,146,60,0.25); padding: 12px; border-radius: 12px; margin-bottom: 15px;">
                         <div style="font-size: 0.65rem; color: var(--text3); margin-bottom: 10px; display: flex; justify-content: space-between; font-weight: bold; text-transform: uppercase;">
                             <span>${pIndices.length} khoản chi liên kết:</span>
                             <span style="color: var(--orange);">Tổng: ${formatVND(totalAmt)}</span>
                         </div>
                         ${pItemsHtml}
                         <button type="button" class="btn" style="background: var(--surface); color: var(--text2); border: 1px dashed var(--line-2); font-size: 0.75rem; width: 100%; margin-top: 10px; display: flex; align-items: center; justify-content: flex-start; padding-left: 15px; gap: 8px;" onclick="saveEditActivity(true)">
-                            <span style="font-size: 1rem;">➕</span> Thêm khoản chi mới
+                            + Thêm khoản chi mới
                         </button>
                     </div>`;
             } else {
                 // UI khi chưa có chi tiêu nào
                 expContainer.innerHTML = `
                     <button type="button" class="btn" style="background: var(--surface2); color: var(--text2); border: 1px dashed var(--line-2); font-size: 0.75rem; width: 100%; margin-top: 10px; display: flex; align-items: center; justify-content: flex-start; padding-left: 15px; gap: 8px;" onclick="saveEditActivity(true)">
-                        <span style="font-size: 1.1rem;">💰</span> Thêm khoản chi tiêu cho HĐ này
+                        + Thêm khoản chi cho hoạt động này
                     </button>`;
             }
         }

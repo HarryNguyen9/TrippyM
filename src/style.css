@@ -1381,7 +1381,9 @@ body.modal-open #fabContainer { display: none !important; }
    ===================================================================== */
 
 /* Nút có viền đứt còn sót lại trong các hộp thoại -> viền liền mảnh */
-.btn[style*="dashed"] { border-style: solid !important; border-color: var(--line-2) !important; }
+/* Chỉ đổi đúng cạnh đang có viền đứt. Đặt border-style cho cả 4 cạnh sẽ làm các cạnh không viền
+   nhận độ dày mặc định -> đường kẻ 1 cạnh biến thành cả khung. */
+.btn[style*="border: 1px dashed"], .btn[style*="border:1px dashed"] { border: 1px solid var(--line-2) !important; }
 
 /* ---- Hôm nay: thẻ đầu trang ---- */
 .today-hero { box-shadow: none; }
@@ -1503,10 +1505,18 @@ body.is-editor:not(.trip-finished) #fabChatBtn { display: none; }
 /* ---- Hộp thoại (áp cho tất cả): bỏ khung con tô màu, bỏ viền đứt, tiêu đề gọn ---- */
 .modal-title { font-size: 1.05rem; margin-bottom: 16px; }
 .modal-title .title-icon { display: none; }
-.modal [style*="dashed"] { border-style: solid !important; border-color: var(--line-2) !important; }
+.modal [style*="border: 1px dashed"], .modal [style*="border:1px dashed"] { border: 1px solid var(--line-2) !important; }
+.modal [style*="border: 2px dashed"], .modal [style*="border:2px dashed"] { border: 2px solid var(--line-2) !important; }
+.modal [style*="border-bottom: 1px dashed"], .modal [style*="border-bottom:1px dashed"] { border-bottom: 1px solid var(--line-2) !important; }
+.modal [style*="border-top: 1px dashed"], .modal [style*="border-top:1px dashed"] { border-top: 1px solid var(--line-2) !important; }
 .modal .form-accordion { gap: 0 !important; }
 .modal .form-section, .modal .form-section[open] { background: none; border: none; border-radius: 0; border-top: 1px solid var(--line-1); }
-.modal .form-section:first-child { border-top: none; }
+/* Chỉ bỏ gạch ở mục đầu tiên của cả form. Mục 2 và 3 nằm trong khối con (#pmDynamicFields),
+   nếu dùng :first-child chung thì mục 2 cũng bị mất gạch. */
+.modal .form-accordion > .form-section:first-child { border-top: none; }
+#paymentModal #pmDynamicFields, #editPaymentModal #editPmDynamicFields { gap: 0; }
+#paymentModal #pmDynamicFields > .form-section + .form-section,
+#editPaymentModal #editPmDynamicFields > .form-section + .form-section { margin-top: 0; }
 .modal .form-section-header { padding: 12px 0; min-height: 0; }
 .modal .form-section-header::after { color: var(--text3); }
 .modal .form-section-kicker { background: var(--surface2); color: var(--text2); }
@@ -1529,3 +1539,5 @@ body.is-editor:not(.trip-finished) #fabChatBtn { display: none; }
 /* Ô trạng thái góc phải: theo màu theme (trước đây nền đen cứng, lệch ở giao diện Sáng) */
 .header-badges-right .firebase-status { background: var(--glass-1) !important; border: 1px solid var(--line-2); }
 .timeline .timeline-activity-wrapper.next-activity .swipe-container { background: var(--surface) !important; }
+/* Tiêu đề mục thẳng hàng với các ô nhập (rule cũ theo id có padding 14px hai bên) */
+#paymentModal .form-section-header, #editPaymentModal .form-section-header { padding: 12px 0; min-height: 0; }
