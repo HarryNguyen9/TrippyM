@@ -170,6 +170,7 @@
           <button onclick="this.closest('details').open=false; askAiSuggestions()">AI gợi ý món ngon, địa điểm</button>
           <button id="btnCheckItineraryReality" onclick="this.closest('details').open=false; checkItineraryReality()">Rà soát lịch trình</button>
           <button onclick="this.closest('details').open=false; exportItineraryToImage()">Chụp ảnh lịch trình</button>
+          <button class="editor-only" onclick="this.closest('details').open=false; openShareItinerary()">Chia sẻ lịch trình (không kèm chi phí)</button>
         </div>
       </details>
     </div>
@@ -1294,6 +1295,21 @@
     </div>
     <button class="btn btn-danger" id="sosSendBtn" onclick="sendSosUI()">🆘 Gửi báo khẩn</button>
     <button class="btn btn-secondary" style="margin-top:8px" onclick="closeModal('sosModal')">Huỷ</button>
+  </div>
+</div>
+
+<div class="modal-overlay" id="shareItinModal">
+  <div class="modal bottom-sheet">
+    <div class="modal-title">Chia sẻ lịch trình</div>
+    <div style="font-size:.75rem;color:var(--text3);margin-bottom:12px;line-height:1.5">
+      Người nhận chỉ xem được lịch trình (ngày, giờ, địa điểm, ghi chú), không thấy chi tiêu, quỹ hay thành viên, và không vào được phòng. Link luôn hiện bản mới nhất.
+    </div>
+    <div id="shareItinLink" class="share-link-box">Đang tạo link…</div>
+    <div id="shareItinActions">
+      <button class="btn btn-primary" style="margin-top:12px" onclick="copyShareItinerary()">Gửi / Copy link</button>
+      <button class="btn btn-secondary" style="margin-top:8px;color:var(--red)" onclick="revokeShareItinerary()">Tắt link chia sẻ</button>
+    </div>
+    <button class="btn btn-secondary" style="margin-top:8px" onclick="closeModal('shareItinModal')">Đóng</button>
   </div>
 </div>
 

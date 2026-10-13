@@ -21,7 +21,9 @@ import {
   enablePush, disablePush, getPushStatus, getPushPrefs, savePushPrefs, syncPushRoom,
   sendTestPush, sendManualPush, notifyTripChanged, setChangeBaseline, setPushMember,
   sendDebtReminders, getCheckins, postCheckin, nudgeLateMembers, getGroupState, groupAction,
+  manageItineraryShare, getSharedItinerary,
 } from "./push";
+import { mergeTrip, deepEqual, ensureItemIds, restoreDeleted } from "./syncMerge";
 
 // --- Khai báo các thư viện load qua CDN (xlsx, html2canvas, confetti) ---
 // Các thư viện này vẫn được load bằng thẻ <script> thường trong index.html
@@ -1346,6 +1348,10 @@ function autoJoinTripFromUrl(code, attemptsLeft = 25) {
 // ===== INIT =====
 function init() {
   refreshThemeSettingsUI(); // Đồng bộ icon 🌙/☀️ ở header ngay khi mở app, theo theme đã lưu trước đó
+
+  // Link chia sẻ lịch trình (?itin=...): chỉ hiện trang xem lịch trình, không vào app
+  const itinShareId = new URLSearchParams(window.location.search).get('itin');
+  if (itinShareId) { renderSharedItinerary(itinShareId); return; }
   const urlTripCode = getUrlTripCode();
   const hasResetParam = new URLSearchParams(window.location.search).has('reset');
 
@@ -3843,6 +3849,9 @@ function startRealtimeListener() {
   // Hiện badge LIVE
   document.getElementById('liveBadge').classList.add('visible');
 
+  // Bản gốc để gộp (nếu máy có sửa lúc offline rồi tải lại trang)
+  loadSyncBase(DATA.trip.code);
+
   // Gắn subscription push của máy này (kèm "Tôi là ai") vào room hiện tại
   setPushMember(getMyMemberName());
   setChangeBaseline(DATA);
@@ -3866,20 +3875,22 @@ function startRealtimeListener() {
     const remoteData = snapshot.val();
     isFirst = false;
 
-    // So sánh sơ lược để không re-render nếu data không đổi
-    const remoteStr = JSON.stringify(remoteData);
-    const localStr = JSON.stringify(DATA);
-    if (remoteStr === localStr) return;
+    // Máy đang có thay đổi chưa lưu -> gộp với bản mới (không thay toàn bộ, tránh mất phần đang sửa)
+    const pending = hasPendingLocalChanges();
+    const next = pending ? mergeTrip(_syncBase, DATA, remoteData) : remoteData;
+    setSyncBase(remoteData);
+    setChangeBaseline(remoteData);
+    if (deepEqual(next, DATA)) return;
 
     // Kiểm tra xem có modal nào đang mở không
     const openModal = document.querySelector('.modal-overlay.open');
     const activeInputs = document.querySelectorAll('.form-input:focus, input:focus, textarea:focus');
 
     // Cập nhật DATA (không làm mất trạng thái UI)
-    DATA = remoteData;
+    DATA = next;
     save();
     verifyRole();
-    setChangeBaseline(DATA);
+    if (pending) autoSync(); // đẩy bản đã gộp lên server
 
     if (openModal || activeInputs.length > 0) {
       // Đang có modal mở hoặc đang nhập → render âm thầm, không flash, không toast gây xao nhãng
@@ -3972,15 +3983,13 @@ function autoSync() {
       
       document.getElementById('fbDot').className = 'firebase-dot syncing';
       document.getElementById('fbStatus').textContent = "Đang lưu...";
-      
-      _ignoreNextSnapshot = true;
 
-      // 1. Luôn cập nhật trong phòng riêng
-      await sdk.set(sdk.ref(window._firebaseDb, roomPath), DATA);
+      // 1. Lưu vào phòng: gộp với bản mới nhất trên server, không ghi đè thay đổi của người khác
+      const committed = await pushTrip();
 
       // 2. CẬP NHẬT REAL-TIME RA NGOÀI TRANG CHỦ (Nếu đang chia sẻ)
-      if (DATA.trip && DATA.trip.isShared) {
-          await sdk.set(sdk.ref(window._firebaseDb, publicPath), DATA);
+      if (committed && committed.trip && committed.trip.isShared) {
+          await sdk.set(sdk.ref(window._firebaseDb, publicPath), committed);
       }
 
       document.getElementById('fbDot').className = 'firebase-dot connected';
@@ -3995,6 +4004,60 @@ function autoSync() {
       showToast("Lỗi lưu: " + e.message, "error");
     }
   }, 300);
+}
+
+// ===== ĐỒNG BỘ KHÔNG GHI ĐÈ (gộp 3 phía) =====
+// _syncBase = bản lần cuối khớp với server. Lưu cả vào máy để sửa lúc offline rồi tải lại trang vẫn gộp được.
+var _syncBase = null;
+const SYNC_BASE_KEY = 'tripSyncBase';
+
+function setSyncBase(data) {
+  _syncBase = data ? JSON.parse(JSON.stringify(data)) : null;
+  try {
+    if (data) localStorage.setItem(SYNC_BASE_KEY, JSON.stringify({ code: data?.trip?.code || '', data }));
+    else localStorage.removeItem(SYNC_BASE_KEY);
+  } catch (e) {}
+}
+
+function loadSyncBase(code) {
+  try {
+    const saved = JSON.parse(localStorage.getItem(SYNC_BASE_KEY) || 'null');
+    _syncBase = saved && saved.code === code ? saved.data : null;
+  } catch (e) { _syncBase = null; }
+}
+
+// Máy đang có thay đổi chưa lên server?
+function hasPendingLocalChanges() {
+  return !!_syncBase && !deepEqual(DATA, _syncBase);
+}
+
+// Ghi chuyến đi lên server bằng transaction: áp phần MÌNH đã đổi (so với _syncBase) lên bản mới nhất
+// trên server. 2 máy lưu cùng lúc thì Firebase chạy lại transaction với bản mới -> không ai bị ghi đè.
+async function pushTrip() {
+  const sdk = window._fbSDK;
+  if (!sdk || !window._firebaseDb || !DATA?.trip?.code) return null;
+  ensureItemIds(DATA);
+  const sent = JSON.parse(JSON.stringify(DATA));
+  const base = _syncBase;
+  const roomRef = sdk.ref(window._firebaseDb, `rooms/${sent.trip.code}`);
+
+  const res = await sdk.runTransaction(roomRef, (current) => {
+    if (current === null || !base) return sent; // phòng mới / chưa có bản gốc -> như cũ
+    // JSON hoá lại để bỏ các giá trị undefined (Firebase từ chối ghi undefined)
+    return JSON.parse(JSON.stringify(mergeTrip(base, sent, current)));
+  }, { applyLocally: false });
+  if (!res.committed) return null;
+
+  const committed = res.snapshot.val();
+  setSyncBase(committed);
+  // Trong lúc chờ server, người dùng có thể đã sửa tiếp -> giữ phần sửa thêm đó trên bản vừa lưu
+  const next = mergeTrip(sent, DATA, committed);
+  if (!deepEqual(next, DATA)) {
+    DATA = next;
+    save();
+    renderAll(false);
+  }
+  return committed;
 }
 
 window.refreshCurrentTrip = refreshCurrentTrip = async () => {
@@ -4015,10 +4078,14 @@ window.refreshCurrentTrip = refreshCurrentTrip = async () => {
     const snapshot = await sdk.get(roomRef);
 
     if (snapshot.exists()) {
-      DATA = snapshot.val();
+      const remoteData = snapshot.val();
+      const pending = hasPendingLocalChanges();
+      DATA = pending ? mergeTrip(_syncBase, DATA, remoteData) : remoteData;
+      setSyncBase(remoteData);
       save();
       verifyRole();
       renderAll(true);
+      if (pending) autoSync();
       showToast("Đã tải dữ liệu mới nhất", "success");
     } else {
       renderAll(true);
@@ -4037,8 +4104,7 @@ window.syncToFirebase = syncToFirebase = async () => {
   try {
     document.getElementById('fbDot').className = 'firebase-dot syncing';
     document.getElementById('fbStatus').textContent = "Đang lưu...";
-    _ignoreNextSnapshot = true;
-    await window._fbSDK.set(window._fbSDK.ref(window._firebaseDb, `rooms/${DATA.trip.code}`), DATA);
+    await pushTrip();
     document.getElementById('fbDot').className = 'firebase-dot connected';
     document.getElementById('fbStatus').textContent = "Online";
   } catch(e) {
@@ -7528,7 +7594,7 @@ window.saveAvatar = saveAvatar = () => {
     // ÉP ĐỒNG BỘ LÊN FIREBASE (Bỏ qua rào cản Viewer của hàm autoSync)
     if (firebaseConnected && window._firebaseDb && DATA.trip && DATA.trip.code) {
         document.getElementById('fbDot').className = 'firebase-dot syncing';
-        window._fbSDK.set(window._fbSDK.ref(window._firebaseDb, `rooms/${DATA.trip.code}`), DATA)
+        pushTrip()
             .then(() => {
                 document.getElementById('fbDot').className = 'firebase-dot connected';
             })
@@ -9630,6 +9696,144 @@ window.imSafeUI = async () => {
     refreshGroupState(true);
   } catch (e) { showToast(e.message, "error"); }
 };
+
+// ===== CHIA SẺ LỊCH TRÌNH CHO NGƯỜI NGOÀI NHÓM =====
+// Editor tạo link ?itin=<mã ngẫu nhiên>. Người mở link chỉ thấy lịch trình (không tiền, không thành viên),
+// luôn là bản mới nhất vì server đọc trực tiếp từ chuyến đi mỗi lần mở.
+function itineraryShareUrl(id) {
+  return `${location.origin}${location.pathname}?itin=${encodeURIComponent(id)}`;
+}
+
+window.openShareItinerary = async () => {
+  if (!DATA?.trip?.code) return;
+  const box = document.getElementById('shareItinLink');
+  box.textContent = 'Đang tạo link…';
+  document.getElementById('shareItinActions').style.display = 'none';
+  openModal('shareItinModal');
+  try {
+    const r = await manageItineraryShare('create', DATA.trip.code, localStorage.getItem('trip_secret_key') || '');
+    box.textContent = itineraryShareUrl(r.id);
+    document.getElementById('shareItinActions').style.display = '';
+  } catch (e) {
+    box.textContent = e.message;
+  }
+};
+
+window.copyShareItinerary = async () => {
+  const url = document.getElementById('shareItinLink').textContent;
+  try {
+    if (navigator.share) await navigator.share({ title: DATA?.trip?.name || 'Lịch trình', text: `Lịch trình ${DATA?.trip?.name || ''}`, url });
+    else { await navigator.clipboard.writeText(url); showToast("Đã copy link", "success"); }
+  } catch (e) { /* người dùng đóng bảng chia sẻ */ }
+};
+
+window.revokeShareItinerary = async () => {
+  if (!(await window.niceConfirm("Tắt link chia sẻ?", "Ai đang giữ link sẽ không xem được nữa. Có thể tạo link mới sau.", 'warning'))) return;
+  try {
+    await manageItineraryShare('revoke', DATA.trip.code, localStorage.getItem('trip_secret_key') || '');
+    closeModal('shareItinModal');
+    showToast("Đã tắt link chia sẻ", "success");
+  } catch (e) { showToast(e.message, "error"); }
+};
+
+// Trang xem lịch trình (người ngoài mở link): ẩn toàn bộ app, chỉ hiện lịch trình
+window.renderSharedItinerary = renderSharedItinerary;
+async function renderSharedItinerary(id) {
+  document.body.classList.add('shared-itin-mode');
+  const view = document.createElement('div');
+  view.id = 'sharedItinView';
+  view.innerHTML = '<div class="shared-itin-msg">Đang tải lịch trình…</div>';
+  document.body.appendChild(view);
+  try {
+    const it = await getSharedItinerary(id);
+    if (!it || !it.trip) throw new Error('Không tải được lịch trình. Kiểm tra lại link hoặc thử lại sau.');
+    const mapUrl = (loc) => /^https?:\/\//.test(loc) ? loc : `https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(loc)}`;
+    const days = it.days || [];
+    const range = days.length ? `${days[0].date}${days.length > 1 ? ` – ${days[days.length - 1].date}` : ''}` : '';
+    document.title = `${it.trip.name} · Lịch trình`;
+    view.innerHTML = `
+      <div class="shared-itin">
+        <div class="shared-itin-kicker">Lịch trình</div>
+        <h1 class="page-title">${esc(it.trip.name)}</h1>
+        <div class="itin-meta">${[it.trip.location, range, `${days.length} ngày`].filter(Boolean).map(esc).join(' · ')}</div>
+        ${days.length ? days.map((d, i) => `
+          <div class="shared-day">
+            <div class="shared-day-head"><span class="shared-day-num">Ngày ${i + 1}</span> ${esc(d.date)}${d.title ? ` · ${esc(d.title)}` : ''}</div>
+            ${d.activities.length ? d.activities.map(a => `
+              <div class="shared-act">
+                <div class="shared-act-time">${esc(a.time || '--:--')}</div>
+                <div style="min-width:0;">
+                  <div class="shared-act-name">${esc(a.name)}</div>
+                  ${a.location ? `<a class="shared-act-loc" href="${esc(mapUrl(a.location))}" target="_blank" rel="noopener">📍 ${/^https?:\/\//.test(a.location) ? 'Mở bản đồ' : esc(a.location)}</a>` : ''}
+                  ${a.note ? `<div class="shared-act-note">${esc(a.note)}</div>` : ''}
+                </div>
+              </div>`).join('') : '<div class="today-muted">Chưa có hoạt động</div>'}
+          </div>`).join('') : '<div class="today-muted" style="margin-top:20px">Chuyến đi chưa có lịch trình.</div>'}
+        <div class="shared-itin-foot">Chia sẻ từ Trippy · luôn là bản mới nhất</div>
+      </div>`;
+  } catch (e) {
+    view.innerHTML = `<div class="shared-itin-msg">${esc(e.message || 'Không tải được lịch trình')}</div>`;
+  }
+}
+
+// ===== HOÀN TÁC KHI XOÁ =====
+// Bọc các hàm xoá: chụp dữ liệu trước khi xoá, nếu thật sự có món bị xoá thì hiện thanh "Hoàn tác" 6 giây.
+// Hoàn tác chỉ THÊM LẠI món đã xoá (đúng vị trí cũ), không đụng các thay đổi khác xảy ra trong lúc đó.
+const UNDO_MS = 6000;
+var _undoTimer = null;
+
+function showUndoBar(label, before) {
+  let bar = document.getElementById('undoBar');
+  if (!bar) {
+    bar = document.createElement('div');
+    bar.id = 'undoBar';
+    bar.className = 'undo-bar';
+    bar.innerHTML = '<span class="undo-label"></span><button type="button">Hoàn tác</button>';
+    document.body.appendChild(bar);
+  }
+  bar.querySelector('.undo-label').textContent = label;
+  // Ẩn toast "Đã xoá..." của hàm xoá để không chồng lên thanh hoàn tác
+  clearTimeout(window.toastTimer);
+  document.getElementById('toast')?.classList.remove('show');
+  bar.querySelector('button').onclick = () => {
+    hideUndoBar();
+    DATA = restoreDeleted(before, DATA);
+    save();
+    autoSync();
+    renderAll();
+    ['renderPackingList', 'renderGallery', 'renderVaultCards'].forEach(fn => { try { if (typeof window[fn] === 'function') window[fn](); } catch (e) {} });
+    showToast("Đã hoàn tác", "success");
+  };
+  bar.classList.add('show');
+  clearTimeout(_undoTimer);
+  _undoTimer = setTimeout(hideUndoBar, UNDO_MS);
+}
+
+function hideUndoBar() {
+  clearTimeout(_undoTimer);
+  document.getElementById('undoBar')?.classList.remove('show');
+}
+
+[
+  ['deletePayment', 'Đã xoá khoản chi'],
+  ['deleteActivity', 'Đã xoá hoạt động'],
+  ['deleteDay', 'Đã xoá ngày'],
+  ['deleteMember', 'Đã xoá thành viên'],
+  ['deleteHistoryCashIn', 'Đã xoá lần nạp quỹ'],
+  ['deletePackingItem', 'Đã xoá món đồ'],
+  ['deleteVaultCard', 'Đã xoá ô thông tin'],
+  ['deleteGalleryItem', 'Đã xoá file'],
+].forEach(([name, label]) => {
+  const original = window[name];
+  if (typeof original !== 'function') return;
+  window[name] = async (...args) => {
+    const before = JSON.parse(JSON.stringify(DATA));
+    const result = await original(...args);
+    // Có món bị xoá thật (không bấm Huỷ ở hộp xác nhận)?
+    if (!deepEqual(restoreDeleted(before, DATA), DATA)) showUndoBar(label, before);
+    return result;
+  };
+});
 
 // Cập nhật khoản chờ duyệt + SOS mỗi 30 giây khi đang mở app
 setInterval(() => { if (!document.hidden && DATA?.trip?.code) refreshGroupState(); }, 30000);

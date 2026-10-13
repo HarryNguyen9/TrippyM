@@ -138,4 +138,14 @@ URL `https://<domain>/api/push/cron`, mỗi 5 phút, header `Authorization: Bear
 Bản ghi chống nhắc trùng (`push_reminders_sent`) được cron tự dọn sau 7 ngày.
 
 Code: `src/push.ts` (client), `public/sw.js` (nhận push), `api/push/*` (Vercel Functions).
+
+## Đồng bộ không ghi đè, Hoàn tác, Chia sẻ lịch trình
+
+- **Đồng bộ** (`src/syncMerge.ts`): mỗi lần lưu, app áp phần mình đã đổi lên bản mới nhất trên server bằng
+  transaction (gộp 3 phía: bản gốc / bản trên máy / bản server), nên 2 Editor sửa cùng lúc không ghi đè nhau.
+  Danh sách được ghép theo từng món (id / ngày / tên). Bản gốc lưu trong `localStorage.tripSyncBase`.
+- **Hoàn tác**: sau khi xoá (khoản chi, hoạt động, ngày, thành viên, lần nạp quỹ, đồ mang, Trip Vault, file)
+  có thanh "Hoàn tác" 6 giây; chỉ thêm lại món đã xoá, không đụng thay đổi khác.
+- **Chia sẻ lịch trình** (`api/push/share.ts`): Editor tạo link `?itin=<mã ngẫu nhiên>` trong Lịch → ⋯.
+  Người nhận chỉ xem ngày/giờ/địa điểm/ghi chú, không thấy tiền/thành viên, không vào được phòng. Tắt link là hết hiệu lực.
 Local `npm run dev` không chạy được `/api` — dùng `vercel dev` để test đầy đủ.

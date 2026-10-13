@@ -1541,3 +1541,30 @@ body.is-editor:not(.trip-finished) #fabChatBtn { display: none; }
 .timeline .timeline-activity-wrapper.next-activity .swipe-container { background: var(--surface) !important; }
 /* Tiêu đề mục thẳng hàng với các ô nhập (rule cũ theo id có padding 14px hai bên) */
 #paymentModal .form-section-header, #editPaymentModal .form-section-header { padding: 12px 0; min-height: 0; }
+
+/* ---- Thanh "Hoàn tác" sau khi xoá ---- */
+.undo-bar { width: max-content; position: fixed; left: 50%; bottom: calc(86px + env(safe-area-inset-bottom)); z-index: 10001; transform: translate(-50%, 20px); opacity: 0; pointer-events: none;
+  display: flex; align-items: center; gap: 14px; padding: 10px 10px 10px 16px; border-radius: 14px; background: var(--text); color: var(--bg);
+  font-size: .78rem; font-weight: 600; box-shadow: 0 10px 30px var(--shadow-2); transition: opacity .2s ease, transform .2s ease; max-width: calc(100vw - 32px); }
+.undo-bar .undo-label { white-space: nowrap; }
+.undo-bar.show { opacity: 1; transform: translate(-50%, 0); pointer-events: auto; }
+.undo-bar button { border: none; background: none; color: var(--accent); font-weight: 800; font-size: .78rem; padding: 6px 8px; cursor: pointer; white-space: nowrap; }
+
+/* ---- Chia sẻ lịch trình ---- */
+.share-link-box { padding: 12px 14px; border-radius: 12px; background: var(--surface2); font-size: .75rem; color: var(--text); word-break: break-all; user-select: all; }
+body.shared-itin-mode > *:not(#sharedItinView) { display: none !important; }
+#sharedItinView { min-height: 100vh; background: var(--bg); }
+.shared-itin { max-width: 560px; margin: 0 auto; padding: 32px 16px 48px; }
+.shared-itin-kicker { font-size: .62rem; font-weight: 800; letter-spacing: .12em; text-transform: uppercase; color: var(--text3); }
+.shared-itin .page-title { font-size: 1.6rem; margin-top: 4px; }
+.shared-itin-msg { padding: 80px 24px; text-align: center; color: var(--text3); font-size: .85rem; }
+.shared-day { margin-top: 20px; padding: 14px 16px; border-radius: 18px; background: var(--surface); border: 1px solid var(--line-2); }
+.shared-day-head { font-size: .78rem; color: var(--text2); margin-bottom: 6px; }
+.shared-day-num { font-weight: 800; color: var(--text); }
+.shared-act { display: flex; gap: 12px; padding: 10px 0; border-top: 1px solid var(--line-1); }
+.shared-day-head + .shared-act { border-top: none; }
+.shared-act-time { width: 44px; flex-shrink: 0; font-size: .78rem; font-weight: 800; color: var(--accent); }
+.shared-act-name { font-size: .88rem; font-weight: 700; color: var(--text); }
+.shared-act-loc { display: inline-block; margin-top: 3px; font-size: .72rem; color: var(--text3); text-decoration: none; }
+.shared-act-note { font-size: .72rem; color: var(--text3); margin-top: 2px; }
+.shared-itin-foot { margin-top: 28px; text-align: center; font-size: .65rem; color: var(--text3); }

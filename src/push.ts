@@ -216,3 +216,12 @@ export async function getGroupState(room: string): Promise<{ pending: PendingExp
 export async function groupAction(body: Record<string, any>) {
   return api("/api/push/group", "POST", { ...body, deviceId: getDeviceId() });
 }
+
+// ===== LINK CHIA SẺ LỊCH TRÌNH (chỉ xem, không kèm tiền) =====
+export async function manageItineraryShare(action: "create" | "revoke", room: string, editorKey: string) {
+  return api("/api/push/share", "POST", { action, room, editorKey });
+}
+
+export async function getSharedItinerary(id: string) {
+  return api(`/api/push/share?id=${encodeURIComponent(id)}`, "GET");
+}
