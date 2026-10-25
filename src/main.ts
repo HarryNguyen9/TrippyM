@@ -58,6 +58,7 @@ var currentDashboardTab, currentPaymentFilter, currentRandomMode, deleteActivity
 var deleteMember, deletePackingItem, deletePayment, dialogScrollPos, disconnectFirebase, downloadMasterExcelTemplate;
 var draftActivity, editFundLink, editHistoryCashIn, enableEditCode, enableEditLoc, enableEditMemName;
 var enableEditName, exitRoom, exportItineraryToImage, exportMasterDataToExcel, exportMemberExpensesToExcel, exportPaymentToImage;
+var exportMemberStatementToExcel;
 var exportPaymentsToExcel, finalActId, getLinkedPaymentIndices, handleQrUpload, importMasterDataFromExcel, initSwipeActions;
 var isEditMultiPayerMode, isMultiPayerMode, isOpeningExpenseFlow, isSavingActivityFlow, isUploadingImage, joinTrip;
 var loadWeatherForItinerary, logoutEditor, manualDayCollapseState, moveGalleryItem, niceConfirm, nicePrompt;
@@ -3166,10 +3167,11 @@ window.exportMemberExpensesToExcel = exportMemberExpensesToExcel = () => {
         const wb = XLSX.utils.book_new();
         const memberStats = {};
         members.forEach(m => {
-            const rawFund = (m.payments || []).reduce((s, v) => s + (Number(v) || 0), 0) || (m.paid || 0);
+            // Tách riêng tổng các lần nạp và tổng các lần rút (thay vì lấy dấu của tổng ròng)
+            const history = (m.payments || []).length ? m.payments : (m.paid ? [m.paid] : []);
             memberStats[m.name] = {
-                fundPaid: Math.max(0, rawFund),
-                fundWithdrawn: Math.abs(Math.min(0, rawFund)),
+                fundPaid: history.reduce((s, v) => s + Math.max(0, Number(v) || 0), 0),
+                fundWithdrawn: history.reduce((s, v) => s + Math.abs(Math.min(0, Number(v) || 0)), 0),
                 consumed: 0,
                 advanced: 0
             };
@@ -3216,7 +3218,7 @@ window.exportMemberExpensesToExcel = exportMemberExpensesToExcel = () => {
 
         const summaryHeader = [
             "Thành viên", "Quỹ đã đóng (VNĐ)", "Quỹ đã rút (VNĐ)", "Tổng phần chi tiêu (VNĐ)",
-            "Tổng đã ứng/trả hộ (VNĐ)", "Chênh lệch ứng - tiêu (VNĐ)", "Nợ nhóm (VNĐ)", "Được hoàn (VNĐ)"
+            "Tổng đã ứng/trả hộ (VNĐ)", "Số dư = Quỹ + Ứng − Tiêu (VNĐ)", "Còn phải trả (VNĐ)", "Được hoàn (VNĐ)"
         ];
         const summaryDataRows = members.map(m => {
             const s = memberStats[m.name];
@@ -3226,7 +3228,7 @@ window.exportMemberExpensesToExcel = exportMemberExpensesToExcel = () => {
             const balance = s.fundPaid - s.fundWithdrawn + s.advanced - s.consumed;
             const noNhom = balance < 0 ? -balance : 0;
             const duocHoan = balance > 0 ? balance : 0;
-            return [m.name, s.fundPaid, s.fundWithdrawn, s.consumed, s.advanced, s.advanced - s.consumed, noNhom, duocHoan];
+            return [m.name, s.fundPaid, s.fundWithdrawn, s.consumed, s.advanced, balance, noNhom, duocHoan];
         });
 
         const fundRows = [["Thành viên", "Loại", "Số tiền (VNĐ)", "Lần"]];
@@ -3241,7 +3243,7 @@ window.exportMemberExpensesToExcel = exportMemberExpensesToExcel = () => {
         // chọn 1 người -> chỉ hiện người đó, chọn "(Select All)" -> hiện tất cả.
         // Mỗi thành viên là 1 nhóm (Excel Group/Outline) có thể bấm nút "-" để thu gọn
         // chỉ còn dòng Tổng cộng, và có dòng trống ngăn cách giữa các thành viên.
-        const detailHeader = ["Thành viên", "Ngày", "Hoạt động", "Mô tả chi tiêu", "Phải trả (VNĐ)", "Đã ứng hộ (VNĐ)", "Quỹ đã đóng (VNĐ)"];
+        const detailHeader = ["Thành viên", "Ngày", "Hoạt động", "Mô tả chi tiêu", "Phần tiêu (VNĐ)", "Đã ứng hộ (VNĐ)", "Quỹ đã đóng (VNĐ)"];
         const combinedRows = [];
         const moneyDataCells = []; // {r, c} cells cần format VNĐ
         const rowLevels = {}; // r -> outline level (để tạo group thu gọn/mở rộng)
@@ -3268,7 +3270,7 @@ window.exportMemberExpensesToExcel = exportMemberExpensesToExcel = () => {
             const totalAdvanced = entries.reduce((s, e) => s + e.advanced, 0);
             const fundPaidForMember = memberStats[m.name].fundPaid;
             const subtotalRow = combinedRows.length;
-            combinedRows.push([m.name, "", "—", "Tổng cộng phải trả", totalConsumed, totalAdvanced, fundPaidForMember]);
+            combinedRows.push([m.name, "", "—", "Tổng cộng", totalConsumed, totalAdvanced, fundPaidForMember]);
             moneyDataCells.push({ r: subtotalRow, c: 4 }, { r: subtotalRow, c: 5 }, { r: subtotalRow, c: 6 });
             // dòng Tổng cộng giữ level 0 -> luôn hiện, là dòng đại diện khi thu gọn nhóm
 
@@ -3328,6 +3330,98 @@ window.exportMemberExpensesToExcel = exportMemberExpensesToExcel = () => {
     } catch (err) {
         console.error(err);
         showToast("Lỗi export Excel thành viên", "error");
+    }
+};
+
+// XUẤT EXCEL SAO KÊ CỦA 1 THÀNH VIÊN (mở từ modal Sao kê)
+// Sheet "Sao_Ke": tổng hợp Quỹ + Ứng − Tiêu = Số dư, rồi chi tiết từng khoản chi tiêu
+// Sheet "Nap_Rut_Quy": lịch sử nạp / rút quỹ
+window.exportMemberStatementToExcel = exportMemberStatementToExcel = (i = window.currentHistoryMemberIdx) => {
+    if (!DATA || !DATA.members || !DATA.members[i]) return showToast("Không tìm thấy thành viên!", "error");
+
+    try {
+        const st = computeMemberStatement(i);
+        const m = st.m;
+        const wb = XLSX.utils.book_new();
+        const rows = [];
+        const moneyCells = []; // {r, c} cần format VNĐ
+
+        rows.push([`SAO KÊ CHI TIÊU: ${m.name}`]);
+        rows.push([`Chuyến đi: ${DATA.trip?.name || ""}`]);
+        rows.push([]);
+
+        rows.push(["TỔNG HỢP", "Số tiền (VNĐ)"]);
+        const summaryItems = [
+            ["Quỹ đã nạp", st.totalDeposited],
+            ["Quỹ đã rút", -st.totalWithdrawn],
+            ["(1) Quỹ còn đóng góp", st.totalContributed],
+            ["(2) Đã ứng hộ (trả ngoài quỹ)", st.totalAdvanced],
+            ["(3) Đã tiêu (phần được chia)", st.totalConsumed],
+            [`Số dư = (1) + (2) − (3) → ${statementBalanceLabel(st.balance)}`, st.balance]
+        ];
+        summaryItems.forEach(item => { moneyCells.push({ r: rows.length, c: 1 }); rows.push(item); });
+        rows.push([]);
+
+        rows.push(["CHI TIẾT CHI TIÊU"]);
+        const detailHeaderRow = rows.length;
+        rows.push(["STT", "Ngày", "Hoạt động", "Mô tả", "Tổng bill (VNĐ)", "Số người chia", "Phần tiêu (VNĐ)", "Đã ứng hộ (VNĐ)", "Ứng − Tiêu (VNĐ)"]);
+        st.involvedPayments.forEach((p, idx) => {
+            const ctx = getPaymentActivityContext(p);
+            const r = rows.length;
+            rows.push([
+                idx + 1,
+                ctx.date,
+                ctx.activity || (p.linkedActId ? "Hoạt động đã xóa" : "Phát sinh"),
+                p.desc || "",
+                p.amount || 0,
+                (p.participants || []).length,
+                p.consumed,
+                p.advanced,
+                p.advanced - p.consumed
+            ]);
+            [4, 6, 7, 8].forEach(c => moneyCells.push({ r, c }));
+        });
+        const detailEndRow = rows.length - 1;
+        if (st.involvedPayments.length) {
+            const r = rows.length;
+            rows.push(["", "", "", "Tổng cộng", "", "", st.totalConsumed, st.totalAdvanced, st.totalAdvanced - st.totalConsumed]);
+            [6, 7, 8].forEach(c => moneyCells.push({ r, c }));
+        } else {
+            rows.push(["", "", "", "Chưa tham gia chi tiêu nào"]);
+        }
+
+        const ws = XLSX.utils.aoa_to_sheet(rows);
+        ws["!cols"] = [{wch: 42}, {wch: 16}, {wch: 24}, {wch: 32}, {wch: 16}, {wch: 13}, {wch: 16}, {wch: 16}, {wch: 16}];
+        ws["!merges"] = [
+            { s: { r: 0, c: 0 }, e: { r: 0, c: 8 } },
+            { s: { r: 1, c: 0 }, e: { r: 1, c: 8 } }
+        ];
+        moneyCells.forEach(({ r, c }) => {
+            const cell = ws[XLSX.utils.encode_cell({ r, c })];
+            if (cell && typeof cell.v === "number") cell.z = '#,##0" đ"';
+        });
+        if (detailEndRow > detailHeaderRow) {
+            ws["!autofilter"] = { ref: XLSX.utils.encode_range({ s: { r: detailHeaderRow, c: 0 }, e: { r: detailEndRow, c: 8 } }) };
+        }
+        XLSX.utils.book_append_sheet(wb, ws, "Sao_Ke");
+
+        const fundRows = [["Lần", "Loại", "Số tiền (VNĐ)"]];
+        let dCount = 0, wCount = 0;
+        st.fundHistory.forEach(amount => {
+            const isWithdraw = amount < 0;
+            fundRows.push([isWithdraw ? ++wCount : ++dCount, isWithdraw ? "Rút quỹ" : "Nạp quỹ", amount]);
+        });
+        fundRows.push(["", "Tổng quỹ còn đóng góp", st.totalContributed]);
+        const wsFund = XLSX.utils.aoa_to_sheet(fundRows);
+        wsFund["!cols"] = [{wch: 8}, {wch: 24}, {wch: 16}];
+        applyVNDFormat(wsFund, 1, fundRows.length - 1, [2]);
+        XLSX.utils.book_append_sheet(wb, wsFund, "Nap_Rut_Quy");
+
+        XLSX.writeFile(wb, `SaoKe_${getSafeExcelName(m.name)}_${getSafeExcelName(DATA.trip?.name)}.xlsx`);
+        showToast(`Đã xuất Excel sao kê của ${m.name}`, "success");
+    } catch (err) {
+        console.error(err);
+        showToast("Lỗi xuất Excel sao kê", "error");
     }
 };
 
@@ -5926,22 +6020,25 @@ window.toggleHistoryTab = toggleHistoryTab = (tabName) => {
     document.getElementById('history-tab-expense').style.display = tabName === 'expense' ? 'block' : 'none';
 };
 
-window.openHistoryModal = openHistoryModal = (i) => {
+// Số liệu sao kê của 1 thành viên — dùng chung cho modal Sao kê và file Excel sao kê,
+// cùng công thức với danh sách thành viên (getMemberFinance): Số dư = Quỹ + Ứng hộ − Tiêu
+function computeMemberStatement(i) {
   const m = DATA.members[i];
-  document.getElementById('historyMemName').textContent = m.name;
-  const list = document.getElementById('historyList');
-  
-  // 1. DỮ LIỆU ĐÓNG QUỸ
-  const payments = m.payments || (m.paid ? [m.paid] : []);
-  const totalContributed = payments.reduce((s, v) => s + v, 0);
+
+  // 1. DỮ LIỆU ĐÓNG QUỸ (cùng cách lấy với danh sách thành viên để số khớp nhau)
+  const fundHistory = m.payments || (m.paid ? [m.paid] : []);
+  const totalContributed = fundHistory.reduce((s, v) => s + (Number(v) || 0), 0);
+  const totalDeposited = fundHistory.reduce((s, v) => s + Math.max(0, Number(v) || 0), 0);
+  const totalWithdrawn = fundHistory.reduce((s, v) => s + Math.abs(Math.min(0, Number(v) || 0)), 0);
 
   // 2. DỮ LIỆU CHI TIÊU VÀ ỨNG TIỀN (THUẬT TOÁN CHUẨN)
-  let totalConsumed = 0; // Tổng số tiền thực sự bị trừ vào ví
-  let involvedPayments = [];
+  let totalConsumed = 0; // Phần tiền mình được chia (đã tiêu)
+  let totalAdvanced = 0; // Tiền mình đứng ra trả ngoài quỹ (ứng hộ)
+  const involvedPayments = [];
 
   (DATA.payments || []).forEach((p, idx) => {
-      if (!p.isPaid || p.isEstimate) return; // Bỏ qua dự trù & chưa trả
-      
+      if (!p || typeof p !== 'object' || !p.isPaid || p.isEstimate) return; // Bỏ qua dự trù & chưa trả
+
       let consumed = 0; // Tiền bị chia (Tiêu thụ)
       let advanced = 0; // Tiền đứng ra trả hộ (Ứng trước)
 
@@ -5950,22 +6047,44 @@ window.openHistoryModal = openHistoryModal = (i) => {
           consumed = Math.round(p.amount / p.participants.length);
       }
 
-      // B. Tính tiền ứng ra trả hộ
+      // B. Tính tiền ứng ra trả hộ (cộng dồn nếu 1 người xuất hiện nhiều lần trong multiPayers)
       if (p.multiPayers) {
-          const mp = p.multiPayers.find(x => x.name === m.name);
-          if (mp && !mp.fromFund) advanced = mp.amount; // Bỏ qua nếu móc từ quỹ ra trả
+          p.multiPayers.forEach(mp => {
+              if (mp.name === m.name && !mp.fromFund) advanced += mp.amount || 0; // Bỏ qua nếu móc từ quỹ ra trả
+          });
       } else if (p.payer === m.name && !p.fromFund) {
           advanced = p.amount;
       }
 
       if (consumed > 0 || advanced > 0) {
           totalConsumed += consumed;
+          totalAdvanced += advanced;
           involvedPayments.push({ ...p, originalIdx: idx, consumed, advanced });
       }
   });
 
+  const balance = totalContributed + totalAdvanced - totalConsumed;
+  return { m, fundHistory, totalContributed, totalDeposited, totalWithdrawn, totalConsumed, totalAdvanced, balance, involvedPayments };
+}
+
+function statementBalanceLabel(balance) {
+  return balance > 0 ? 'Được hoàn lại' : (balance < 0 ? 'Còn phải trả' : 'Cân bằng');
+}
+
+window.openHistoryModal = openHistoryModal = (i) => {
+  const st = computeMemberStatement(i);
+  const m = st.m;
+  window.currentHistoryMemberIdx = i;
+  document.getElementById('historyMemName').textContent = m.name;
+  const list = document.getElementById('historyList');
+
+  const payments = st.fundHistory;
+  const totalContributed = st.totalContributed;
+  const totalConsumed = st.totalConsumed;
+  const totalAdvanced = st.totalAdvanced;
+
   // Đảo ngược để khoản mới nhất lên đầu
-  involvedPayments.reverse();
+  const involvedPayments = [...st.involvedPayments].reverse();
 
   // 3. RENDER UI TAB QUỸ (FUND)
   let fundHtml = '';
@@ -6026,17 +6145,17 @@ window.openHistoryModal = openHistoryModal = (i) => {
     `;
   }
 
-  // 4. RENDER UI TAB CHI TIÊU (EXPENSE) - VÁ LỖI DẤU TRỪ + THÊM TỔNG ĐÃ ỨNG
+  // 4. RENDER UI TAB CHI TIÊU (EXPENSE)
+  // ĐỐI CHIẾU TỔNG QUÁT: Đóng quỹ + Đã ứng hộ − Đã tiêu. Tiền đã đóng quỹ cũng là tiền mình bỏ ra,
+  // nên "còn phải trả / được hoàn" PHẢI tính cả quỹ (VD: đóng 5tr, tiêu 5tr -> cân bằng, không nợ 5tr).
   let expHtml = '';
-  const totalAdvanced = involvedPayments.reduce((s, p) => s + (p.advanced || 0), 0);
-  const expenseBalance = totalAdvanced - totalConsumed;
-  const balColor = expenseBalance > 0 ? 'var(--blue)' : (expenseBalance < 0 ? 'var(--red)' : 'var(--text3)');
-  const balLabel = expenseBalance > 0 ? '🔄 Được hoàn lại (ứng nhiều hơn tiêu, chưa gồm quỹ)' : (expenseBalance < 0 ? '🔄 Còn phải trả (tiêu nhiều hơn ứng, chưa gồm quỹ)' : '🔄 Ứng vừa đủ tiêu (chưa gồm quỹ)');
-
-  // ĐỐI CHIẾU TỔNG QUÁT: Đóng quỹ + Đã ứng hộ so với Đã chi -> để check nhanh xem có khớp không
-  const overallBalance = totalContributed + totalAdvanced - totalConsumed;
+  const overallBalance = st.balance;
   const overallColor = overallBalance > 0 ? 'var(--green)' : (overallBalance < 0 ? 'var(--red)' : 'var(--text3)');
-  const overallLabel = overallBalance > 0 ? '✅ Được hoàn lại' : (overallBalance < 0 ? '⚠️ Còn phải đóng thêm' : '⚖️ Huề vốn');
+  const overallLabel = overallBalance > 0 ? '✅ Được hoàn lại' : (overallBalance < 0 ? '⚠️ Còn phải trả' : '⚖️ Cân bằng');
+  const balColor = overallColor;
+  const balLabel = overallBalance > 0
+    ? '🔄 Được hoàn lại (quỹ + ứng nhiều hơn tiêu)'
+    : (overallBalance < 0 ? '🔄 Còn phải trả (tiêu nhiều hơn quỹ + ứng)' : '🔄 Cân bằng (quỹ + ứng vừa đủ tiêu)');
 
   const summaryCheckHtml = `
     <div style="background: var(--surface3); border-radius: var(--radius); padding:14px 16px; margin-bottom:14px; border: 1px solid var(--line-2); box-shadow: var(--shadow);">
@@ -6066,20 +6185,24 @@ window.openHistoryModal = openHistoryModal = (i) => {
       expHtml = '<div class="empty" style="padding:20px 0">Chưa tham gia chi tiêu nào</div>';
   } else {
       expHtml = `
-      <div style="display:grid; grid-template-columns: 1fr 1fr; gap:10px; margin-bottom:12px;">
-        <div style="background: var(--surface3); border-radius: var(--radius-sm); padding: 13px; box-shadow: var(--shadow);">
-          <div style="font-size: 0.58rem; color: var(--text3); text-transform: uppercase; letter-spacing: .5px; margin-bottom: 4px;">💳 Đã ứng hộ</div>
-          <div style="font-size: 1.05rem; font-weight: 800; color: var(--blue); word-break: break-word;">+${formatVND(totalAdvanced)}</div>
+      <div style="display:grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap:8px; margin-bottom:12px;">
+        <div style="background: var(--surface3); border-radius: var(--radius-sm); padding: 10px 8px; box-shadow: var(--shadow); min-width:0;">
+          <div style="font-size: 0.56rem; color: var(--text3); text-transform: uppercase; letter-spacing: .5px; margin-bottom: 4px;">🏦 Đóng quỹ</div>
+          <div style="font-size: 0.76rem; font-weight: 800; white-space: nowrap; letter-spacing: -.2px; color: var(--green); ">+${formatVND(totalContributed)}</div>
         </div>
-        <div style="background: var(--surface3); border-radius: var(--radius-sm); padding: 13px; box-shadow: var(--shadow);">
-          <div style="font-size: 0.58rem; color: var(--text3); text-transform: uppercase; letter-spacing: .5px; margin-bottom: 4px;">💸 Đã tiêu</div>
-          <div style="font-size: 1.05rem; font-weight: 800; color: var(--red); word-break: break-word;">-${formatVND(Math.abs(totalConsumed))}</div>
+        <div style="background: var(--surface3); border-radius: var(--radius-sm); padding: 10px 8px; box-shadow: var(--shadow); min-width:0;">
+          <div style="font-size: 0.56rem; color: var(--text3); text-transform: uppercase; letter-spacing: .5px; margin-bottom: 4px;">💳 Đã ứng hộ</div>
+          <div style="font-size: 0.76rem; font-weight: 800; white-space: nowrap; letter-spacing: -.2px; color: var(--blue); ">+${formatVND(totalAdvanced)}</div>
+        </div>
+        <div style="background: var(--surface3); border-radius: var(--radius-sm); padding: 10px 8px; box-shadow: var(--shadow); min-width:0;">
+          <div style="font-size: 0.56rem; color: var(--text3); text-transform: uppercase; letter-spacing: .5px; margin-bottom: 4px;">💸 Đã tiêu</div>
+          <div style="font-size: 0.76rem; font-weight: 800; white-space: nowrap; letter-spacing: -.2px; color: var(--red);">-${formatVND(Math.abs(totalConsumed))}</div>
         </div>
       </div>
 
       <div style="display:flex; justify-content:space-between; align-items:center; gap: 10px; background: var(--surface2); border-radius: var(--radius-sm); padding: 10px 14px; margin-bottom:15px; border: 1px dashed var(--line-2);">
         <span style="font-size:0.68rem; color:var(--text2); font-weight:600;">${balLabel}</span>
-        <span style="font-size:0.85rem; font-weight:800; color:${balColor}; white-space:nowrap;">${formatVND(Math.abs(expenseBalance))}</span>
+        <span style="font-size:0.85rem; font-weight:800; color:${balColor}; white-space:nowrap;">${formatVND(Math.abs(overallBalance))}</span>
       </div>
 
       <div style="font-size: 0.7rem; color: var(--text3); text-transform: uppercase; letter-spacing: 1px; margin-bottom: 10px; padding-left: 5px;">Chi tiết từng khoản:</div>

@@ -1453,7 +1453,10 @@
   <div class="modal bottom-sheet">
     <div class="modal-title">Sao kê của: <span id="historyMemName" style="color:var(--accent)"></span></div>
     <div id="historyList" style="margin-bottom:16px;max-height:50vh;overflow-y:auto"></div>
-    <button class="btn btn-secondary" onclick="closeModal('historyModal')">Đóng</button>
+    <div style="display:flex; gap:10px;">
+      <button class="btn btn-secondary" onclick="closeModal('historyModal')">Đóng</button>
+      <button class="btn btn-primary" onclick="exportMemberStatementToExcel()">📊 Xuất Excel</button>
+    </div>
   </div>
 </div>
 
