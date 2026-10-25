@@ -254,7 +254,7 @@ window.handleCityInput = handleCityInput;
 // Luôn ghi thẳng vào DATA.trip.location (giống hành vi cũ) — dù chọn từ ô Settings hay từ
 // modal "AI xếp lịch", chọn xong là coi như đã "Lưu" luôn địa điểm cho cả chuyến đi.
 window.selectCity = selectCity = (fullName, lat, lon, targetInputId = 'settingTripLoc', suggBoxId = 'customSuggestions') => {
-    const input = document.getElementById(targetInputId);
+    const input = document.getElementById(targetInputId) as HTMLInputElement;
     const addressDetail = document.getElementById('locationFullAddress');
 
     const parts = fullName.split(',');
@@ -286,7 +286,7 @@ document.addEventListener('click', (e) => {
     [['settingTripLoc', 'customSuggestions'], ['aiItnLocation', 'aiItnSuggestions']].forEach(([inputId, boxId]) => {
         const suggBox = document.getElementById(boxId);
         const input = document.getElementById(inputId);
-        if (suggBox && !suggBox.contains(e.target) && e.target !== input) {
+        if (suggBox && !suggBox.contains(e.target as Node) && e.target !== input) {
             suggBox.style.display = 'none';
         }
     });
@@ -337,14 +337,14 @@ enableDragScroll(document.getElementById('chatQuickChips'));
 // --- XỬ LÝ NÚT SỬA TÊN CHUYẾN ĐI ---
 window.enableEditName = enableEditName = () => {
     window.cancelAllSettings(); // Đóng các ô khác trước khi mở ô này
-    document.getElementById('settingTripName').disabled = false;
+    (document.getElementById('settingTripName') as HTMLInputElement).disabled = false;
     document.getElementById('settingTripName').focus();
     document.getElementById('btnEditName').style.display = 'none';
     document.getElementById('btnSaveName').style.display = 'block';
     document.getElementById('btnCancelName').style.display = 'block';
 };
 window.cancelEditName = cancelEditName = () => {
-    const input = document.getElementById('settingTripName');
+    const input = document.getElementById('settingTripName') as HTMLInputElement;
     if(input) {
         input.value = DATA.trip.name || "";
         input.disabled = true;
@@ -357,14 +357,14 @@ window.cancelEditName = cancelEditName = () => {
 // --- XỬ LÝ NÚT SỬA TRIP ID ---
 window.enableEditCode = enableEditCode = () => {
     window.cancelAllSettings(); // Đóng các ô khác trước khi mở ô này
-    document.getElementById('settingTripCode').disabled = false;
+    (document.getElementById('settingTripCode') as HTMLInputElement).disabled = false;
     document.getElementById('settingTripCode').focus();
     document.getElementById('btnEditCode').style.display = 'none';
     document.getElementById('btnSaveCode').style.display = 'block';
     document.getElementById('btnCancelCode').style.display = 'block';
 };
 window.cancelEditCode = cancelEditCode = () => {
-    const input = document.getElementById('settingTripCode');
+    const input = document.getElementById('settingTripCode') as HTMLInputElement;
     if(input) {
         input.value = DATA.trip.code || "";
         input.disabled = true;
@@ -376,8 +376,8 @@ window.cancelEditCode = cancelEditCode = () => {
 
 // Hàm hỗ trợ để người dùng bấm vào là xem được ngay
 window.viewPublicTrip = viewPublicTrip = (code) => {
-  document.getElementById('joinTripCode').value = code;
-  document.getElementById('joinTripPass').value = ""; 
+  (document.getElementById('joinTripCode') as HTMLInputElement).value = code;
+  (document.getElementById('joinTripPass') as HTMLInputElement).value = ""; 
   
   // Cuộn lên đầu trang để người dùng thấy app đang xử lý
   window.scrollTo({ top: 0, behavior: 'smooth' });
@@ -424,7 +424,7 @@ const EXPENSE_CATEGORIES = {
 
 window.selectCategory = selectCategory = (prefix, key) => {
     const grid = document.getElementById(`${prefix}CategoryGrid`);
-    const input = document.getElementById(`${prefix}Category`);
+    const input = document.getElementById(`${prefix}Category`) as HTMLInputElement;
     if (!grid || !input) return;
     grid.querySelectorAll('.category-chip').forEach(chip => {
         chip.classList.toggle('selected', chip.getAttribute('data-category') === key);
@@ -445,15 +445,15 @@ function getTripCurrencyDefaults() {
 }
 
 function getForeignCurrencyCode(prefix) {
-    const sel = document.getElementById(`${prefix}ForeignCurrencySelect`);
-    const custom = document.getElementById(`${prefix}ForeignCurrencyCustom`);
+    const sel = document.getElementById(`${prefix}ForeignCurrencySelect`) as HTMLInputElement;
+    const custom = document.getElementById(`${prefix}ForeignCurrencyCustom`) as HTMLInputElement;
     if (!sel) return '';
     if (sel.value === 'other') return (custom && custom.value.trim().toUpperCase()) || '';
     return sel.value;
 }
 
 window.onForeignCurrencySelectChange = onForeignCurrencySelectChange = (prefix) => {
-    const sel = document.getElementById(`${prefix}ForeignCurrencySelect`);
+    const sel = document.getElementById(`${prefix}ForeignCurrencySelect`) as HTMLInputElement;
     const custom = document.getElementById(`${prefix}ForeignCurrencyCustom`);
     if (!sel || !custom) return;
     custom.style.display = sel.value === 'other' ? 'block' : 'none';
@@ -463,9 +463,9 @@ window.onForeignCurrencySelectChange = onForeignCurrencySelectChange = (prefix) 
 // khoá ô "Số tiền" chính về chế độ tự tính khi ở Ngoại tệ (không cho gõ tay 2 nơi lệch nhau).
 window.selectPmCurrencyMode = selectPmCurrencyMode = (prefix, mode) => {
     const grid = document.getElementById(`${prefix}CurrencyModeGrid`);
-    const input = document.getElementById(`${prefix}CurrencyMode`);
+    const input = document.getElementById(`${prefix}CurrencyMode`) as HTMLInputElement;
     const foreignBlock = document.getElementById(`${prefix}ForeignBlock`);
-    const amountInput = document.getElementById(`${prefix}Amount`);
+    const amountInput = document.getElementById(`${prefix}Amount`) as HTMLInputElement;
 
     if (grid) grid.querySelectorAll('.category-chip').forEach(chip => {
         chip.classList.toggle('selected', chip.getAttribute('data-mode') === mode);
@@ -485,22 +485,22 @@ window.selectPmPaymentMethod = selectPmPaymentMethod = (prefix, method) => {
     if (methodGrid) methodGrid.querySelectorAll('.category-chip').forEach(chip => {
         chip.classList.toggle('selected', chip.getAttribute('data-method') === method);
     });
-    const input = document.getElementById(`${prefix}PaymentMethod`);
+    const input = document.getElementById(`${prefix}PaymentMethod`) as HTMLInputElement;
     if (input) input.value = method;
 
     // Tự điền tỷ giá mặc định của chuyến đi theo hình thức trả — vẫn sửa tay được ngay sau đó.
     const defaults = getTripCurrencyDefaults();
-    const rateInput = document.getElementById(`${prefix}ExchangeRate`);
+    const rateInput = document.getElementById(`${prefix}ExchangeRate`) as HTMLInputElement;
     if (rateInput) rateInput.value = (method === 'cash' ? defaults.cashRate : defaults.cardRate) || '';
     updatePmForeignPreview(prefix);
 };
 
 // Tính lại số tiền VNĐ quy đổi mỗi khi gõ số ngoại tệ/tỷ giá, đổ luôn vào ô "Số tiền" chính (readonly).
 window.updatePmForeignPreview = updatePmForeignPreview = (prefix) => {
-    const foreignAmountInput = document.getElementById(`${prefix}ForeignAmount`);
-    const rateInput = document.getElementById(`${prefix}ExchangeRate`);
+    const foreignAmountInput = document.getElementById(`${prefix}ForeignAmount`) as HTMLInputElement;
+    const rateInput = document.getElementById(`${prefix}ExchangeRate`) as HTMLInputElement;
     const previewEl = document.getElementById(`${prefix}ForeignPreview`);
-    const amountInput = document.getElementById(`${prefix}Amount`);
+    const amountInput = document.getElementById(`${prefix}Amount`) as HTMLInputElement;
     if (!foreignAmountInput || !rateInput) return;
 
     const foreignAmount = parseFloat(foreignAmountInput.value) || 0;
@@ -508,11 +508,11 @@ window.updatePmForeignPreview = updatePmForeignPreview = (prefix) => {
     const vnd = Math.round(foreignAmount * rate);
 
     if (previewEl) previewEl.textContent = vnd > 0 ? `≈ ${formatVND(vnd)}` : '';
-    if (amountInput) amountInput.value = vnd || '';
+    if (amountInput) amountInput.value = String(vnd || '');
 };
 
 window.onDefaultCurrencyChange = onDefaultCurrencyChange = () => {
-    const sel = document.getElementById('settingDefaultCurrency');
+    const sel = document.getElementById('settingDefaultCurrency') as HTMLSelectElement;
     const custom = document.getElementById('settingDefaultCurrencyCustom');
     if (!sel || !custom) return;
     custom.style.display = sel.value === 'other' ? 'block' : 'none';
@@ -520,11 +520,11 @@ window.onDefaultCurrencyChange = onDefaultCurrencyChange = () => {
 
 window.saveCurrencySettings = saveCurrencySettings = () => {
     if (!isEditor) return;
-    const sel = document.getElementById('settingDefaultCurrency');
-    const custom = document.getElementById('settingDefaultCurrencyCustom');
+    const sel = document.getElementById('settingDefaultCurrency') as HTMLSelectElement;
+    const custom = document.getElementById('settingDefaultCurrencyCustom') as HTMLInputElement;
     const code = sel.value === 'other' ? (custom.value.trim().toUpperCase() || 'USD') : sel.value;
-    const cardRate = parseFloat(document.getElementById('settingCardRate').value) || 0;
-    const cashRate = parseFloat(document.getElementById('settingCashRate').value) || 0;
+    const cardRate = parseFloat((document.getElementById('settingCardRate') as HTMLInputElement).value) || 0;
+    const cashRate = parseFloat((document.getElementById('settingCashRate') as HTMLInputElement).value) || 0;
 
     if (!DATA.trip) DATA.trip = {};
     DATA.trip.currency = { code, cardRate, cashRate };
@@ -543,8 +543,8 @@ function refreshCurrencySettingsUI() {
     if (!isIntl) return;
 
     const cur = getTripCurrencyDefaults();
-    const sel = document.getElementById('settingDefaultCurrency');
-    const custom = document.getElementById('settingDefaultCurrencyCustom');
+    const sel = document.getElementById('settingDefaultCurrency') as HTMLSelectElement;
+    const custom = document.getElementById('settingDefaultCurrencyCustom') as HTMLInputElement;
     if (sel) {
         const isKnown = COMMON_CURRENCIES.includes(cur.code);
         sel.value = isKnown ? cur.code : 'other';
@@ -553,8 +553,8 @@ function refreshCurrencySettingsUI() {
             custom.value = isKnown ? '' : (cur.code || '');
         }
     }
-    const cardRateInput = document.getElementById('settingCardRate');
-    const cashRateInput = document.getElementById('settingCashRate');
+    const cardRateInput = document.getElementById('settingCardRate') as HTMLInputElement;
+    const cashRateInput = document.getElementById('settingCashRate') as HTMLInputElement;
     if (cardRateInput) cardRateInput.value = cur.cardRate || '';
     if (cashRateInput) cashRateInput.value = cur.cashRate || '';
 }
@@ -577,7 +577,7 @@ function getGeminiModel() {
 
 function refreshGeminiKeyUI() {
     const status = document.getElementById('geminiKeyStatus');
-    const modelSelect = document.getElementById('settingGeminiModel');
+    const modelSelect = document.getElementById('settingGeminiModel') as HTMLSelectElement;
     if (modelSelect) modelSelect.value = localStorage.getItem(GEMINI_MODEL_STORAGE) || '';
 
     if (status) {
@@ -588,7 +588,7 @@ function refreshGeminiKeyUI() {
 }
 
 window.saveGeminiModel = saveGeminiModel = () => {
-    const input = document.getElementById('settingGeminiModel');
+    const input = document.getElementById('settingGeminiModel') as HTMLSelectElement;
     const val = input ? input.value.trim() : '';
     if (!val) {
         localStorage.removeItem(GEMINI_MODEL_STORAGE);
@@ -669,9 +669,9 @@ async function callOpenRouterChat(apiKey, primaryModel, messages, xTitle) {
 
 function refreshOpenRouterKeyUI() {
     const status = document.getElementById('openRouterKeyStatus');
-    const modelSelect = document.getElementById('settingOpenRouterModel');
+    const modelSelect = document.getElementById('settingOpenRouterModel') as HTMLSelectElement;
     if (modelSelect) modelSelect.value = localStorage.getItem(OPENROUTER_MODEL_STORAGE) || '';
-    const chatModelSelect = document.getElementById('settingChatModel');
+    const chatModelSelect = document.getElementById('settingChatModel') as HTMLSelectElement;
     if (chatModelSelect) chatModelSelect.value = localStorage.getItem(CHAT_MODEL_STORAGE) || '';
 
     if (status) {
@@ -682,7 +682,7 @@ function refreshOpenRouterKeyUI() {
 }
 
 window.saveOpenRouterModel = saveOpenRouterModel = () => {
-    const select = document.getElementById('settingOpenRouterModel');
+    const select = document.getElementById('settingOpenRouterModel') as HTMLSelectElement;
     const val = select ? select.value.trim() : '';
     if (!val) {
         localStorage.removeItem(OPENROUTER_MODEL_STORAGE);
@@ -695,7 +695,7 @@ window.saveOpenRouterModel = saveOpenRouterModel = () => {
 };
 
 window.saveChatModel = saveChatModel = () => {
-    const select = document.getElementById('settingChatModel');
+    const select = document.getElementById('settingChatModel') as HTMLSelectElement;
     const val = select ? select.value.trim() : '';
     if (!val) {
         localStorage.removeItem(CHAT_MODEL_STORAGE);
@@ -850,7 +850,7 @@ function addQuickExpenseFromChat(desc, amount) {
 }
 
 window.sendChatMessageFromInput = sendChatMessageFromInput = () => {
-    const input = document.getElementById('chatInput');
+    const input = document.getElementById('chatInput') as HTMLInputElement;
     if (!input) return;
     const text = input.value.trim();
     if (!text) return;
@@ -934,7 +934,7 @@ window.toggleChatMic = toggleChatMic = () => {
         };
         _chatRecognition.onresult = (event) => {
             const transcript = event.results[0][0].transcript;
-            const input = document.getElementById('chatInput');
+            const input = document.getElementById('chatInput') as HTMLInputElement;
             if (input) input.value = transcript;
         };
         _chatRecognition.onerror = (event) => {
@@ -1062,7 +1062,7 @@ const AI_ITN_STYLE_LABELS = {
 
 window.selectAiItnStyle = selectAiItnStyle = (style) => {
     const grid = document.getElementById('aiItnStyleGrid');
-    const input = document.getElementById('aiItnStyle');
+    const input = document.getElementById('aiItnStyle') as HTMLInputElement;
     if (!grid || !input) return;
     grid.querySelectorAll('.category-chip').forEach(chip => {
         chip.classList.toggle('selected', chip.getAttribute('data-style') === style);
@@ -1071,7 +1071,7 @@ window.selectAiItnStyle = selectAiItnStyle = (style) => {
 };
 
 window.updateAiItnNightsLabel = updateAiItnNightsLabel = () => {
-    const daysInput = document.getElementById('aiItnDays');
+    const daysInput = document.getElementById('aiItnDays') as HTMLInputElement;
     const label = document.getElementById('aiItnNightsLabel');
     if (!daysInput || !label) return;
     const numDays = Math.max(1, Math.min(14, parseInt(daysInput.value, 10) || 1));
@@ -1085,17 +1085,17 @@ window.openAiItineraryModal = openAiItineraryModal = () => {
     }
 
     const location = ((DATA && DATA.trip && DATA.trip.location) || '').trim();
-    const locInput = document.getElementById('aiItnLocation');
+    const locInput = document.getElementById('aiItnLocation') as HTMLInputElement;
     if (locInput) locInput.value = location;
     // Địa điểm đã lưu sẵn của chuyến đi thì coi như hợp lệ luôn, không cần chọn lại từ gợi ý.
     window._locationConfirmed = !!location;
 
-    const daysInput = document.getElementById('aiItnDays');
-    if (daysInput) daysInput.value = 3;
+    const daysInput = document.getElementById('aiItnDays') as HTMLInputElement;
+    if (daysInput) daysInput.value = '3';
     updateAiItnNightsLabel();
     selectAiItnStyle('relax');
 
-    const startInput = document.getElementById('aiItnStartDate');
+    const startInput = document.getElementById('aiItnStartDate') as HTMLInputElement;
     if (startInput) {
         const today = new Date();
         startInput.value = `${today.getFullYear()}-${String(today.getMonth() + 1).padStart(2, '0')}-${String(today.getDate()).padStart(2, '0')}`;
@@ -1110,7 +1110,7 @@ window.generateAiItinerary = generateAiItinerary = async () => {
         return showToast("Đã có lịch trình rồi, không thể tạo chồng lên!", "error");
     }
 
-    const locInput = document.getElementById('aiItnLocation');
+    const locInput = document.getElementById('aiItnLocation') as HTMLInputElement;
     const typedLoc = locInput ? locInput.value.trim() : '';
     if (!typedLoc) return showToast("Vui lòng chọn địa điểm trước", "error");
 
@@ -1120,9 +1120,9 @@ window.generateAiItinerary = generateAiItinerary = async () => {
         return showToast("⚠️ Vui lòng BẤM CHỌN một địa điểm từ danh sách gợi ý!", "error");
     }
 
-    const numDays = Math.max(1, Math.min(14, parseInt(document.getElementById('aiItnDays').value, 10) || 3));
-    const startDateVal = document.getElementById('aiItnStartDate').value;
-    const style = (document.getElementById('aiItnStyle').value || 'relax').trim();
+    const numDays = Math.max(1, Math.min(14, parseInt((document.getElementById('aiItnDays') as HTMLInputElement).value, 10) || 3));
+    const startDateVal = (document.getElementById('aiItnStartDate') as HTMLInputElement).value;
+    const style = ((document.getElementById('aiItnStyle') as HTMLInputElement).value || 'relax').trim();
     if (!startDateVal) return showToast("Vui lòng chọn ngày bắt đầu", "error");
 
     const apiKey = getGeminiApiKey();
@@ -1137,7 +1137,7 @@ window.generateAiItinerary = generateAiItinerary = async () => {
     const location = ((DATA.trip.fullAddress) || (DATA.trip.location) || typedLoc).trim();
     const styleLabel = AI_ITN_STYLE_LABELS[style] || AI_ITN_STYLE_LABELS.relax;
 
-    const btn = document.getElementById('btnGenerateAiItn');
+    const btn = document.getElementById('btnGenerateAiItn') as HTMLButtonElement;
     const originalBtnHtml = btn ? btn.innerHTML : '';
     if (btn) { btn.disabled = true; btn.innerHTML = '🤖 Đang xếp lịch, chờ chút...'; }
 
@@ -1385,10 +1385,10 @@ window.switchWelcomeTab = switchWelcomeTab = (tab) => {
 };
 
 window.createNewTrip = createNewTrip = async () => {
-  const code = document.getElementById('newTripCode').value.trim();
-  const pass = document.getElementById('newTripPass').value.trim();
-  const name = document.getElementById('newTripName').value.trim() || "Chuyến đi mới";
-  const vibeInput = document.querySelector('input[name="newTripVibe"]:checked');
+  const code = (document.getElementById('newTripCode') as HTMLInputElement).value.trim();
+  const pass = (document.getElementById('newTripPass') as HTMLInputElement).value.trim();
+  const name = (document.getElementById('newTripName') as HTMLInputElement).value.trim() || "Chuyến đi mới";
+  const vibeInput = document.querySelector('input[name="newTripVibe"]:checked') as HTMLInputElement;
   const vibe = vibeInput ? vibeInput.value : "beach";
 
   if (!code) return showToast("Phải nhập Mã Room ID", "error");
@@ -1437,8 +1437,8 @@ window.createNewTrip = createNewTrip = async () => {
 };
 
 window.joinTrip = joinTrip = async () => {
-  const code = document.getElementById('joinTripCode').value.trim();
-  const pass = document.getElementById('joinTripPass').value.trim();
+  const code = (document.getElementById('joinTripCode') as HTMLInputElement).value.trim();
+  const pass = (document.getElementById('joinTripPass') as HTMLInputElement).value.trim();
   if (!code) return showToast("Phải nhập Mã Room ID", "error");
 
   showToast("Đang kết nối tới phòng...", "info");
@@ -1697,7 +1697,7 @@ function renderAll(flashUpdate = false) {
       }
   }
 
-  const locInput = document.getElementById('settingTripLoc');
+  const locInput = document.getElementById('settingTripLoc') as HTMLInputElement;
   if (locInput) {
       locInput.value = DATA.trip.location || '';
   }
@@ -1813,7 +1813,7 @@ function getTodayPayments(activityIds) {
 }
 
 window.openFullScheduleFromToday = openFullScheduleFromToday = () => {
-  document.querySelectorAll('.swipe-content').forEach(el => {
+  document.querySelectorAll('.swipe-content').forEach((el: HTMLElement) => {
     el.style.transition = 'transform 0.3s cubic-bezier(0.2, 0.8, 0.2, 1)';
     el.style.transform = 'translateX(0)';
   });
@@ -2274,7 +2274,7 @@ window.renderPayments = renderPayments = (flash = false) => {
     }
 
     // --- BIỂU ĐỒ TRÒN: CHI TIÊU THEO DANH MỤC ---
-    const categoryTotals = {};
+    const categoryTotals: Record<string, number> = {};
     payments.forEach(p => {
         if (p.isPaid && !p.isEstimate) {
             const key = p.category && EXPENSE_CATEGORIES[p.category] ? p.category : 'other';
@@ -2673,9 +2673,9 @@ window.renderCollection = renderCollection = (flash = false) => {
   remainEl.style.color = actualBalance < 0 ? 'var(--red)' : 'var(--accent)';
 
   // Logic QR code & Link Quỹ (Giữ nguyên tính năng cũ của bác)
-  const linkInput = document.getElementById('fundLinkInput');
+  const linkInput = document.getElementById('fundLinkInput') as HTMLInputElement;
   const actionBtn = document.getElementById('fundLinkActionBtn'); 
-  const qrImg = document.getElementById('fundQrImg');
+  const qrImg = document.getElementById('fundQrImg') as HTMLImageElement;
   if (linkInput && actionBtn) {
     linkInput.value = fund.link || "";
     if (!isEditor) { linkInput.disabled = true; } 
@@ -2988,7 +2988,7 @@ window.generateMemberFinanceSummary = generateMemberFinanceSummary = async () =>
             <div style="font-size: 0.8rem;">Đang soi sổ quỹ từng người...</div>
         </div>`;
 
-    const btn = document.getElementById('btnMemberAiSummary');
+    const btn = document.getElementById('btnMemberAiSummary') as HTMLButtonElement;
     _isGeneratingMemberSummary = true;
     if (btn) { btn.disabled = true; btn.innerHTML = '🤖 Đang soi...'; }
 
@@ -3066,25 +3066,70 @@ function getPaymentFromFundText(p) {
     return p.fromFund ? "x" : "";
 }
 
+// Ngày đầy đủ (có năm) của 1 day trong lịch trình. Ngày nhập thiếu năm (vd "01/05")
+// lấy năm từ ngày gần nhất có năm trong chuyến; lệch ≥ 6 tháng coi như vắt qua năm mới (31/12 → 01/01).
+function getDayFullDate(day) {
+    const parse = (s) => {
+        const [dd, mm, yy] = String(s || "").split('/').map(n => parseInt(n));
+        return { dd, mm, yy: yy && yy < 100 ? yy + 2000 : yy };
+    };
+    const cur = parse(day?.date);
+    if (!cur.dd || !cur.mm) return null;
+
+    let yyyy = cur.yy;
+    if (!yyyy) {
+        const days = (DATA?.days || []).filter(Boolean);
+        const idx = days.indexOf(day);
+        for (let k = idx - 1; k >= 0 && !yyyy; k--) {
+            const prev = parse(days[k].date);
+            if (prev.yy && prev.mm) yyyy = prev.yy + (prev.mm - cur.mm >= 6 ? 1 : 0);
+        }
+        for (let k = idx + 1; k < days.length && !yyyy; k++) {
+            const next = parse(days[k].date);
+            if (next.yy && next.mm) yyyy = next.yy - (cur.mm - next.mm >= 6 ? 1 : 0);
+        }
+        if (!yyyy) yyyy = new Date().getFullYear();
+    }
+    return new Date(yyyy, cur.mm - 1, cur.dd);
+}
+
 function getPaymentActivityContext(payment) {
     if (!payment || !payment.linkedActId || !DATA || !DATA.days) {
-        return { date: "", dayTitle: "", activity: "", time: "", location: "" };
+        return { date: "", dayTitle: "", activity: "", time: "", location: "", sortTime: null };
     }
 
     for (const day of DATA.days || []) {
+        if (!day) continue;
         const act = (day.activities || []).find(a => a && a.id === payment.linkedActId);
         if (act) {
+            const fullDate = getDayFullDate(day);
+            let sortTime = null;
+            if (fullDate) {
+                const [hh, mi] = (act.time || "00:00").split(':').map(n => parseInt(n) || 0);
+                sortTime = new Date(fullDate.getFullYear(), fullDate.getMonth(), fullDate.getDate(), hh, mi).getTime();
+            }
             return {
-                date: day.date || "",
+                date: fullDate
+                    ? `${String(fullDate.getDate()).padStart(2, '0')}/${String(fullDate.getMonth() + 1).padStart(2, '0')}/${fullDate.getFullYear()}`
+                    : (day.date || ""),
                 dayTitle: day.title || "",
                 activity: act.name || "",
                 time: act.time || "",
-                location: act.location || ""
+                location: act.location || "",
+                sortTime
             };
         }
     }
 
-    return { date: "", dayTitle: "", activity: "Hoạt động đã xóa", time: "", location: "" };
+    return { date: "", dayTitle: "", activity: "Hoạt động đã xóa", time: "", location: "", sortTime: null };
+}
+
+// Sắp xếp theo ngày giờ tăng dần; khoản không có ngày (phát sinh / hoạt động đã xóa) xếp cuối, giữ thứ tự gốc.
+function compareBySortTime(a, b) {
+    if (a.sortTime == null && b.sortTime == null) return 0;
+    if (a.sortTime == null) return 1;
+    if (b.sortTime == null) return -1;
+    return a.sortTime - b.sortTime;
 }
 
 function applyVNDFormat(ws, rowStart, rowEnd, colIndexes) {
@@ -3208,6 +3253,7 @@ window.exportMemberExpensesToExcel = exportMemberExpensesToExcel = () => {
                 memberStats[m.name].advanced += advanced;
                 memberEntries[m.name].push({
                     date: ctx.date,
+                    sortTime: ctx.sortTime,
                     activity: activityLabel,
                     desc: p.desc || "",
                     consumed,
@@ -3257,7 +3303,7 @@ window.exportMemberExpensesToExcel = exportMemberExpensesToExcel = () => {
 
         const memberNamesWithData = members.filter(m => memberEntries[m.name].length);
         memberNamesWithData.forEach((m, idx) => {
-            const entries = memberEntries[m.name];
+            const entries = memberEntries[m.name].sort(compareBySortTime);
 
             entries.forEach(e => {
                 const r = combinedRows.length;
@@ -3365,8 +3411,10 @@ window.exportMemberStatementToExcel = exportMemberStatementToExcel = (i = window
         rows.push(["CHI TIẾT CHI TIÊU"]);
         const detailHeaderRow = rows.length;
         rows.push(["STT", "Ngày", "Hoạt động", "Mô tả", "Tổng bill (VNĐ)", "Số người chia", "Phần tiêu (VNĐ)", "Đã ứng hộ (VNĐ)", "Ứng − Tiêu (VNĐ)"]);
-        st.involvedPayments.forEach((p, idx) => {
-            const ctx = getPaymentActivityContext(p);
+        const sortedInvolved = st.involvedPayments
+            .map(p => ({ p, ctx: getPaymentActivityContext(p) }))
+            .sort((a, b) => compareBySortTime(a.ctx, b.ctx));
+        sortedInvolved.forEach(({ p, ctx }, idx) => {
             const r = rows.length;
             rows.push([
                 idx + 1,
@@ -3547,13 +3595,13 @@ window.importMasterDataFromExcel = importMasterDataFromExcel = (event) => {
     const reader = new FileReader();
     reader.onload = function(e) {
         try {
-            const data = new Uint8Array(e.target.result);
+            const data = new Uint8Array(e.target.result as ArrayBuffer);
             const workbook = XLSX.read(data, { type: 'array' });
 
             if (!DATA.members) DATA.members = [];
             let currentMemberNames = DATA.members.map(m => m.name);
 
-            let groupedDays = {};
+            let groupedDays: Record<string, any> = {};
             let newLinkedPayments = [];
             let newManualPayments = [];
             let hasValidData = false;
@@ -3693,7 +3741,7 @@ window.importMasterDataFromExcel = importMasterDataFromExcel = (event) => {
                               if (!fromFund && (payer.toLowerCase() === 'quỹ' || payer.toLowerCase() === 'quy')) { fromFund = true; isPaid = true; }
                               if (multiPayers) isPaid = true; // Góp chung thì tự động coi như đã trả
 
-                              let newPay = { desc: finalPayDesc, amount: amount, payer: payer || (fromFund ? "Quỹ" : "Chưa rõ"), isPaid: isPaid, fromFund: fromFund, participants: participants, linkedActId: lastActId, isEstimate: false };
+                              let newPay: Record<string, any> = { desc: finalPayDesc, amount: amount, payer: payer || (fromFund ? "Quỹ" : "Chưa rõ"), isPaid: isPaid, fromFund: fromFund, participants: participants, linkedActId: lastActId, isEstimate: false };
                               if (multiPayers) newPay.multiPayers = multiPayers; // Nhúng vào data
                               newLinkedPayments.push(newPay);
                           }
@@ -3784,7 +3832,7 @@ window.importMasterDataFromExcel = importMasterDataFromExcel = (event) => {
                             if (participants.length === 0 && !isEstimate) { participants = [...currentMemberNames]; }
                             if (multiPayers) isPaid = true; // Góp chung thì coi như đã trả
 
-                            let newPay = { desc: finalDesc, amount, payer: payer || (fromFund ? "Quỹ" : (isEstimate ? "" : "Chưa rõ")), isPaid, fromFund, participants, isEstimate, linkedActId: "" };
+                            let newPay: Record<string, any> = { desc: finalDesc, amount, payer: payer || (fromFund ? "Quỹ" : (isEstimate ? "" : "Chưa rõ")), isPaid, fromFund, participants, isEstimate, linkedActId: "" };
                             if (multiPayers) newPay.multiPayers = multiPayers;
                             newManualPayments.push(newPay);
                         }
@@ -4211,7 +4259,7 @@ window.syncToFirebase = syncToFirebase = async () => {
 // Change Trip Code on Firebase
 window.changeTripCode = changeTripCode = async () => {
     if (!isEditor) return;
-    const newCode = document.getElementById('settingTripCode').value.trim();
+    const newCode = (document.getElementById('settingTripCode') as HTMLInputElement).value.trim();
     const oldCode = DATA.trip.code;
 
     if (!newCode) return showToast("Mã Room ID không được để trống", "error");
@@ -4290,9 +4338,9 @@ window.changeTripCode = changeTripCode = async () => {
 
 // ===== CRUD OPERATIONS =====
 window.resetEditDayForm = resetEditDayForm = () => {
-    const dateInput = document.getElementById('editDayDate');
-    const titleInput = document.getElementById('editDayTitle');
-    const idxInput = document.getElementById('editDayIdx');
+    const dateInput = document.getElementById('editDayDate') as HTMLInputElement;
+    const titleInput = document.getElementById('editDayTitle') as HTMLInputElement;
+    const idxInput = document.getElementById('editDayIdx') as HTMLInputElement;
 
     if (dateInput) {
         dateInput.value = '';
@@ -4303,8 +4351,8 @@ window.resetEditDayForm = resetEditDayForm = () => {
 };
 
 window.addDay = addDay = () => {
-    const dateInput = document.getElementById('newDayDate').value;
-    const titleInput = document.getElementById('dayTitle');
+    const dateInput = (document.getElementById('newDayDate') as HTMLInputElement).value;
+    const titleInput = document.getElementById('dayTitle') as HTMLInputElement;
     const titleValue = titleInput ? titleInput.value : '';
 
     if (!dateInput) return showToast("Vui lòng chọn ngày", "error");
@@ -4336,8 +4384,8 @@ window.addDay = addDay = () => {
 
 // THÊM HÀM NÀY ĐỂ NÚT THÊM NGÀY HOẠT ĐỘNG
 window.resetDayForm = resetDayForm = () => {
-    const dateInput = document.getElementById('newDayDate');
-    const titleInput = document.getElementById('dayTitle');
+    const dateInput = document.getElementById('newDayDate') as HTMLInputElement;
+    const titleInput = document.getElementById('dayTitle') as HTMLInputElement;
     if (dateInput) {
         dateInput.value = '';
         dateInput.setAttribute('data-date', ''); // Xóa chữ "Chọn ngày" cũ
@@ -4350,11 +4398,11 @@ window.openEditDay = openEditDay = (di) => {
     const day = DATA.days[di];
     
     // Nạp Index và Tiêu đề
-    if(document.getElementById('editDayIdx')) document.getElementById('editDayIdx').value = di;
-    if(document.getElementById('editDayTitle')) document.getElementById('editDayTitle').value = day.title || "";
+    if(document.getElementById('editDayIdx')) (document.getElementById('editDayIdx') as HTMLInputElement).value = di;
+    if(document.getElementById('editDayTitle')) (document.getElementById('editDayTitle') as HTMLInputElement).value = day.title || "";
 
     // Nạp Ngày (Chỉ đổi định dạng, không cần lo giấu placeholder nữa)
-    const dateInput = document.getElementById('editDayDate'); 
+    const dateInput = document.getElementById('editDayDate') as HTMLInputElement; 
     if (dateInput) {
         if (day.date && day.date.includes('/')) {
             const parts = day.date.split('/');
@@ -4376,12 +4424,12 @@ window.openEditDay = openEditDay = (di) => {
 
 // HÀM LƯU BẢNG SỬA NGÀY
 window.saveEditDay = saveEditDay = () => {
-    const diInput = document.getElementById('editDayIdx').value;
+    const diInput = (document.getElementById('editDayIdx') as HTMLInputElement).value;
     if (diInput === '') return;
     const di = parseInt(diInput, 10);
 
-    const title = document.getElementById('editDayTitle').value.trim();
-    const dateInput = document.getElementById('editDayDate').value; 
+    const title = (document.getElementById('editDayTitle') as HTMLInputElement).value.trim();
+    const dateInput = (document.getElementById('editDayDate') as HTMLInputElement).value; 
 
     // Mặc định giữ nguyên ngày cũ nếu người dùng không chọn ngày mới
     let dateToSave = DATA.days[di].date; 
@@ -4502,7 +4550,7 @@ window.exportItineraryToImage = exportItineraryToImage = async () => {
 
         // 3. TẠO FILE VÀ TẢI VỀ
         const imgData = canvas.toDataURL('image/jpeg', 0.9);
-        document.getElementById('capturedImagePreview').src = imgData;
+        (document.getElementById('capturedImagePreview') as HTMLImageElement).src = imgData;
         openModal('imageResultModal');
         showToast("✅ Đã chụp xong!", "success");
 
@@ -4545,7 +4593,7 @@ window.exportPaymentToImage = exportPaymentToImage = async () => {
 
         // 3. TẠO FILE VÀ TẢI VỀ
         const imgData = canvas.toDataURL('image/jpeg', 0.9);
-        document.getElementById('capturedImagePreview').src = imgData;
+        (document.getElementById('capturedImagePreview') as HTMLImageElement).src = imgData;
         openModal('imageResultModal');
         showToast("✅ Đã chụp xong!", "success");
 
@@ -4560,7 +4608,7 @@ window.exportPaymentToImage = exportPaymentToImage = async () => {
 };
 
 window.openActModal = openActModal = (dayIdx) => {
-    const daySelect = document.getElementById('actDayIdx');
+    const daySelect = document.getElementById('actDayIdx') as HTMLSelectElement;
     
     // 1. Tự động lấy tất cả các ngày đang có và nặn thành các lựa chọn (Options)
     if (daySelect && DATA.days) {
@@ -4573,24 +4621,24 @@ window.openActModal = openActModal = (dayIdx) => {
     // 2. Tự động chọn ngày (Nếu bấm từ nút + của 1 ngày cụ thể thì chọn ngày đó, nếu bấm FAB thì chọn ngày cuối)
     if (daySelect) {
         if (dayIdx !== undefined && dayIdx >= 0) {
-            daySelect.value = dayIdx;
+            daySelect.value = String(dayIdx);
         } else if (DATA.days && DATA.days.length > 0) {
-            daySelect.value = DATA.days.length - 1;
+            daySelect.value = String(DATA.days.length - 1);
         }
     }
 
     // 3. Reset các ô còn lại
-    document.getElementById('actHour').value = '08';
-    document.getElementById('actMinute').value = '00';
-    document.getElementById('actName').value = '';
+    (document.getElementById('actHour') as HTMLSelectElement).value = '08';
+    (document.getElementById('actMinute') as HTMLSelectElement).value = '00';
+    (document.getElementById('actName') as HTMLInputElement).value = '';
     
     // An toàn kiểm tra xem có ô location không (vì mình mới thêm)
     if (document.getElementById('actLocation')) {
-        document.getElementById('actLocation').value = '';
+        (document.getElementById('actLocation') as HTMLInputElement).value = '';
     }
     
-    document.getElementById('actNote').value = '';
-    const cbExpense = document.getElementById('actHasExpense');
+    (document.getElementById('actNote') as HTMLInputElement).value = '';
+    const cbExpense = document.getElementById('actHasExpense') as HTMLInputElement;
     if (cbExpense) cbExpense.checked = false;
     
     openModal('actModal');
@@ -4598,12 +4646,12 @@ window.openActModal = openActModal = (dayIdx) => {
 
 window.addActivity = addActivity = () => {
     if (!isEditor) return;
-    const di = parseInt(document.getElementById('actDayIdx').value);
-    const h = document.getElementById('actHour').value;
-    const m = document.getElementById('actMinute').value;
-    const name = document.getElementById('actName').value.trim();
-    const location = document.getElementById('actLocation').value.trim(); 
-    const note = document.getElementById('actNote').value.trim();
+    const di = parseInt((document.getElementById('actDayIdx') as HTMLSelectElement).value);
+    const h = (document.getElementById('actHour') as HTMLSelectElement).value;
+    const m = (document.getElementById('actMinute') as HTMLSelectElement).value;
+    const name = (document.getElementById('actName') as HTMLInputElement).value.trim();
+    const location = (document.getElementById('actLocation') as HTMLInputElement).value.trim(); 
+    const note = (document.getElementById('actNote') as HTMLInputElement).value.trim();
 
     if (!name) return showToast("Điền tên hoạt động", "error");
 
@@ -4697,7 +4745,7 @@ window.openMapModal = openMapModal = (locationStr) => {
     // ✅ ĐÃ SỬA: Dùng đúng URL nhúng chuẩn của Google Maps và thêm dấu $
     const embedUrl = `https://maps.google.com/maps?q=${encodeURIComponent(locationStr)}&hl=vi&z=17&output=embed`;
     
-    document.getElementById('mapIframe').src = embedUrl;
+    (document.getElementById('mapIframe') as HTMLImageElement).src = embedUrl;
     openModal('mapModal');
 };
 
@@ -4707,16 +4755,16 @@ window.openEditActivity = openEditActivity = (di, ai) => {
         const act = DATA.days[di].activities[ai];
         if (!act.id) act.id = 'act_' + Date.now(); // Cấp ID cho data cũ
 
-        document.getElementById('editActDayIdx').value = di;
-        document.getElementById('editActIdx').value = ai; // Đảm bảo ID này khớp với HTML
+        (document.getElementById('editActDayIdx') as HTMLInputElement).value = di;
+        (document.getElementById('editActIdx') as HTMLInputElement).value = ai; // Đảm bảo ID này khớp với HTML
 
         const timeParts = (act.time || "08:00").split(':');
-        document.getElementById('editActHour').value = timeParts[0].padStart(2, '0');
-        document.getElementById('editActMinute').value = timeParts[1].padStart(2, '0');
+        (document.getElementById('editActHour') as HTMLSelectElement).value = timeParts[0].padStart(2, '0');
+        (document.getElementById('editActMinute') as HTMLSelectElement).value = timeParts[1].padStart(2, '0');
 
-        document.getElementById('editActName').value = act.name || '';
-        document.getElementById('editActLocation').value = act.location || '';
-        document.getElementById('editActNote').value = act.note || '';
+        (document.getElementById('editActName') as HTMLInputElement).value = act.name || '';
+        (document.getElementById('editActLocation') as HTMLInputElement).value = act.location || '';
+        (document.getElementById('editActNote') as HTMLInputElement).value = act.note || '';
 
         const expContainer = document.getElementById('editActExpenseContainer');
         if (expContainer) {
@@ -4790,20 +4838,20 @@ window.unlinkPaymentFromAct = unlinkPaymentFromAct = (pIdx, di, ai) => {
 };
 
 window.saveEditActivity = saveEditActivity = (forceExpense = false) => {
-    const di = parseInt(document.getElementById('editActDayIdx').value);
-    const ai = parseInt(document.getElementById('editActIdx').value);
-    const name = document.getElementById('editActName').value.trim();
-    const location = document.getElementById('editActLocation').value.trim(); 
+    const di = parseInt((document.getElementById('editActDayIdx') as HTMLInputElement).value);
+    const ai = parseInt((document.getElementById('editActIdx') as HTMLInputElement).value);
+    const name = (document.getElementById('editActName') as HTMLInputElement).value.trim();
+    const location = (document.getElementById('editActLocation') as HTMLInputElement).value.trim(); 
 
     if (!name) return showToast("Điền tên hoạt động", "error");
 
     const act = DATA.days[di].activities[ai];
-    act.time = `${document.getElementById('editActHour').value}:${document.getElementById('editActMinute').value}`;
+    act.time = `${(document.getElementById('editActHour') as HTMLSelectElement).value}:${(document.getElementById('editActMinute') as HTMLSelectElement).value}`;
     act.name = name;
     act.location = location; 
-    act.note = document.getElementById('editActNote').value.trim();
+    act.note = (document.getElementById('editActNote') as HTMLInputElement).value.trim();
 
-    const cb = document.getElementById('editActHasExpense');
+    const cb = document.getElementById('editActHasExpense') as HTMLInputElement;
     const wantExpense = forceExpense === true || (cb ? cb.checked : false);
 
     DATA.days[di].activities.sort((a, b) => (a.time||"").localeCompare(b.time||""));
@@ -4829,7 +4877,7 @@ window.saveEditActivity = saveEditActivity = (forceExpense = false) => {
 };
 
 window.toggleEstimateMode = toggleEstimateMode = (prefix) => {
-    const isEstimate = document.getElementById(`${prefix}IsEstimate`).checked;
+    const isEstimate = (document.getElementById(`${prefix}IsEstimate`) as HTMLInputElement).checked;
     const dynamicFields = document.getElementById(`${prefix}DynamicFields`);
     const labelEl = document.getElementById(`${prefix}EstimateLabel`);
 
@@ -4848,7 +4896,7 @@ window.toggleMultiPayerMode = toggleMultiPayerMode = () => {
     const singleArea = document.getElementById('pmSinglePayerArea');
     const multiArea = document.getElementById('pmMultiPayerArea');
     const btn = document.getElementById('btnToggleMulti');
-    const amountInput = document.getElementById('pmAmount');
+    const amountInput = document.getElementById('pmAmount') as HTMLInputElement;
 
     // 🧹 CHỐT CHẶN: Reset tiền về rỗng và dọn sạch các hàng cũ mỗi khi chuyển đổi
     amountInput.value = ''; 
@@ -4900,10 +4948,10 @@ window.addPayerRow = addPayerRow = () => {
 
 window.updateMultiTotal = updateMultiTotal = () => {
     let total = 0;
-    document.getElementById('payerRowsContainer').querySelectorAll('.payer-amt').forEach(input => {
+    document.getElementById('payerRowsContainer').querySelectorAll('.payer-amt').forEach((input: HTMLInputElement) => {
         total += parseFloat(input.value) || 0;
     });
-    document.getElementById('pmAmount').value = total;
+    (document.getElementById('pmAmount') as HTMLInputElement).value = String(total);
 };
 
 // --- HÀM LƯU CHI TIÊU DUY NHẤT VÀ HOÀN CHỈNH ---
@@ -4915,21 +4963,21 @@ window.savePayment = savePayment = () => {
         return showToast("⏳ Đang tải ảnh lên, vui lòng chờ 1-2 giây rồi bấm Thêm!", "warning");
     }
 
-    const desc = document.getElementById('pmDesc').value.trim();
-    const amount = parseFloat(document.getElementById('pmAmount').value) || 0;
-    const isEstimate = document.getElementById('pmIsEstimate').checked;
-    const categoryInput = document.getElementById('pmCategory');
+    const desc = (document.getElementById('pmDesc') as HTMLInputElement).value.trim();
+    const amount = parseFloat((document.getElementById('pmAmount') as HTMLInputElement).value) || 0;
+    const isEstimate = (document.getElementById('pmIsEstimate') as HTMLInputElement).checked;
+    const categoryInput = document.getElementById('pmCategory') as HTMLInputElement;
     const category = (categoryInput && categoryInput.value) || 'other';
 
     // Thu thập dữ liệu ngoại tệ nếu chuyến đi Quốc tế và đang ở chế độ Ngoại tệ
-    const currencyModeInput = document.getElementById('pmCurrencyMode');
+    const currencyModeInput = document.getElementById('pmCurrencyMode') as HTMLInputElement;
     const isForeignMode = isIntlTrip() && currencyModeInput && currencyModeInput.value === 'foreign';
     let foreignAmount = 0, foreignCurrency = '', exchangeRate = 0, paymentMethod = '';
     if (isForeignMode) {
-        foreignAmount = parseFloat(document.getElementById('pmForeignAmount').value) || 0;
+        foreignAmount = parseFloat((document.getElementById('pmForeignAmount') as HTMLInputElement).value) || 0;
         foreignCurrency = getForeignCurrencyCode('pm');
-        exchangeRate = parseFloat(document.getElementById('pmExchangeRate').value) || 0;
-        paymentMethod = document.getElementById('pmPaymentMethod').value || 'card';
+        exchangeRate = parseFloat((document.getElementById('pmExchangeRate') as HTMLInputElement).value) || 0;
+        paymentMethod = (document.getElementById('pmPaymentMethod') as HTMLInputElement).value || 'card';
         if (foreignAmount <= 0 || !foreignCurrency || exchangeRate <= 0) {
             return showToast("Vui lòng nhập đủ số tiền ngoại tệ, đơn vị và tỷ giá", "error");
         }
@@ -4946,7 +4994,7 @@ window.savePayment = savePayment = () => {
         participants = Array.from(chips).map(c => c.getAttribute('data-name'));
         if (participants.length === 0) return showToast("Phải có ít nhất 1 người tham gia", "error");
 
-        isPaid = document.getElementById('pmIsPaid').checked;
+        isPaid = (document.getElementById('pmIsPaid') as HTMLInputElement).checked;
 
         if (window.isMultiPayerMode) {
             // Lấy danh sách những người góp chung
@@ -4954,9 +5002,9 @@ window.savePayment = savePayment = () => {
             let hasEmptyName = false; // Cờ theo dõi lỗi
 
             document.getElementById('payerRowsContainer').querySelectorAll('.payer-row').forEach(row => {
-                const name = row.querySelector('.payer-name').value;
-                const amt = parseFloat(row.querySelector('.payer-amt').value) || 0;
-                const isFund = row.querySelector('.payer-fund').checked;
+                const name = (row.querySelector('.payer-name') as HTMLInputElement).value;
+                const amt = parseFloat((row.querySelector('.payer-amt') as HTMLInputElement).value) || 0;
+                const isFund = (row.querySelector('.payer-fund') as HTMLInputElement).checked;
                 
                 if (!name && amt > 0) hasEmptyName = true; // Có tiền mà quên chọn tên
                 if (amt > 0 && name) multiPayers.push({ name, amount: amt, fromFund: isFund });
@@ -4967,8 +5015,8 @@ window.savePayment = savePayment = () => {
             payer = "Nhiều người trả";
             
         } else {
-            payer = document.getElementById('pmPayer').value;
-            fromFund = document.getElementById('pmFromFund').checked;
+            payer = (document.getElementById('pmPayer') as HTMLSelectElement).value;
+            fromFund = (document.getElementById('pmFromFund') as HTMLInputElement).checked;
             
             // CHỐT CHẶN: Bắt lỗi nếu quên chọn người trả tiền
             if (!payer) return showToast("Vui lòng chọn người trả tiền!", "error");
@@ -4977,11 +5025,11 @@ window.savePayment = savePayment = () => {
 
     try {
         if (!DATA.payments) DATA.payments = [];
-        const actId = document.getElementById('pmLinkedActId') ? document.getElementById('pmLinkedActId').value : "";
-        const receiptUrl = document.getElementById('pmReceiptUrl').value;
+        const actId = document.getElementById('pmLinkedActId') ? (document.getElementById('pmLinkedActId') as HTMLInputElement).value : "";
+        const receiptUrl = (document.getElementById('pmReceiptUrl') as HTMLInputElement).value;
 
         // 3. LƯU VÀO DATA
-        const newPayment = { desc, amount, category, payer, isPaid, fromFund, participants, linkedActId: actId, isEstimate, receiptUrl };
+        const newPayment: Record<string, any> = { desc, amount, category, payer, isPaid, fromFund, participants, linkedActId: actId, isEstimate, receiptUrl };
         if (multiPayers) newPayment.multiPayers = multiPayers; // Nhúng cục góp chung vào dữ liệu
         if (isForeignMode) {
             newPayment.foreignAmount = foreignAmount;
@@ -4999,7 +5047,7 @@ window.savePayment = savePayment = () => {
         try { renderPayments(); renderItinerary(); } catch(e) {}
 
         // 5. DỌN DẸP FORM
-        document.getElementById('pmReceiptUrl').value = "";
+        (document.getElementById('pmReceiptUrl') as HTMLInputElement).value = "";
         const preview = document.getElementById('pmPreviewContainer');
         if(preview) preview.style.display = 'none';
         closeModal('paymentModal');
@@ -5033,7 +5081,7 @@ window.toggleEditMultiPayerMode = toggleEditMultiPayerMode = (forceState = null)
     const singleArea = document.getElementById('editPmSinglePayerArea');
     const multiArea = document.getElementById('editPmMultiPayerArea');
     const btn = document.getElementById('btnEditToggleMulti');
-    const amountInput = document.getElementById('editPmAmount');
+    const amountInput = document.getElementById('editPmAmount') as HTMLInputElement;
 
     // 🧹 CHỐT CHẶN: Nếu NGƯỜI DÙNG TỰ BẤM chuyển đổi -> Dọn rác và reset tiền
     if (isManualClick) {
@@ -5086,10 +5134,10 @@ window.addEditPayerRow = addEditPayerRow = (name = "", amt = "", fromFund = fals
 
 window.updateEditMultiTotal = updateEditMultiTotal = () => {
     let total = 0;
-    document.getElementById('editPayerRowsContainer').querySelectorAll('.payer-amt').forEach(input => {
+    document.getElementById('editPayerRowsContainer').querySelectorAll('.payer-amt').forEach((input: HTMLInputElement) => {
         total += parseFloat(input.value) || 0;
     });
-    document.getElementById('editPmAmount').value = total;
+    (document.getElementById('editPmAmount') as HTMLInputElement).value = String(total);
 };
 
 window.deletePayment = deletePayment = async (i) => { // Thêm chữ 'async' ở đây nè bác
@@ -5119,11 +5167,11 @@ window.deletePayment = deletePayment = async (i) => { // Thêm chữ 'async' ở
 
 window.removeEditPmReceipt = removeEditPmReceipt = () => {
     // 1. Xóa link trong ô input ẩn
-    const urlInput = document.getElementById('editPmReceiptUrl');
+    const urlInput = document.getElementById('editPmReceiptUrl') as HTMLInputElement;
     if (urlInput) urlInput.value = "";
     
     // 2. Xóa luôn đường dẫn ảnh để chống hiển thị lại ảnh cũ (Ghost image)
-    const previewImg = document.getElementById('editPmReceiptPreview');
+    const previewImg = document.getElementById('editPmReceiptPreview') as HTMLImageElement;
     if (previewImg) previewImg.src = "";
     
     // 3. Ẩn khung chứa ảnh đi
@@ -5138,9 +5186,9 @@ window.removeEditPmReceipt = removeEditPmReceipt = () => {
 window.openEditPayment = openEditPayment = (i) => {
   const p = DATA.payments[i];
   const members = DATA.members || [];
-  document.getElementById('editPmIdx').value = i;
-  document.getElementById('editPmDesc').value = p.desc;
-  document.getElementById('editPmAmount').value = p.amount;
+  (document.getElementById('editPmIdx') as HTMLInputElement).value = i;
+  (document.getElementById('editPmDesc') as HTMLInputElement).value = p.desc;
+  (document.getElementById('editPmAmount') as HTMLInputElement).value = p.amount;
   selectCategory('editPm', p.category && EXPENSE_CATEGORIES[p.category] ? p.category : 'other');
 
   // 💱 Ẩn/hiện khối Ngoại tệ theo vibe chuyến đi, nạp lại đúng dữ liệu đã lưu (nếu có)
@@ -5149,25 +5197,25 @@ window.openEditPayment = openEditPayment = (i) => {
   if (isIntlTrip()) {
       if (p.foreignAmount && p.foreignCurrency) {
           selectPmCurrencyMode('editPm', 'foreign');
-          document.getElementById('editPmForeignAmount').value = p.foreignAmount;
-          const fSel = document.getElementById('editPmForeignCurrencySelect');
+          (document.getElementById('editPmForeignAmount') as HTMLInputElement).value = p.foreignAmount;
+          const fSel = document.getElementById('editPmForeignCurrencySelect') as HTMLSelectElement;
           const isKnown = COMMON_CURRENCIES.includes(p.foreignCurrency);
           fSel.value = isKnown ? p.foreignCurrency : 'other';
           onForeignCurrencySelectChange('editPm');
-          if (!isKnown) document.getElementById('editPmForeignCurrencyCustom').value = p.foreignCurrency;
+          if (!isKnown) (document.getElementById('editPmForeignCurrencyCustom') as HTMLInputElement).value = p.foreignCurrency;
           selectPmPaymentMethod('editPm', p.paymentMethod === 'cash' ? 'cash' : 'card');
           // selectPmPaymentMethod tự điền tỷ giá MẶC ĐỊNH của chuyến đi — ghi đè lại bằng tỷ giá THẬT đã lưu.
-          document.getElementById('editPmExchangeRate').value = p.exchangeRate || '';
+          (document.getElementById('editPmExchangeRate') as HTMLInputElement).value = p.exchangeRate || '';
           updatePmForeignPreview('editPm');
-          document.getElementById('editPmAmount').value = p.amount; // Giữ đúng số VNĐ đã lưu, không tính lại từ tỷ giá mặc định
+          (document.getElementById('editPmAmount') as HTMLInputElement).value = p.amount; // Giữ đúng số VNĐ đã lưu, không tính lại từ tỷ giá mặc định
       } else {
           selectPmCurrencyMode('editPm', 'vnd');
-          document.getElementById('editPmForeignAmount').value = '';
+          (document.getElementById('editPmForeignAmount') as HTMLInputElement).value = '';
       }
   }
 
   // Bơm dữ liệu hoạt động vào dropdown
-  const actSelect = document.getElementById('editPmLinkedActId');
+  const actSelect = document.getElementById('editPmLinkedActId') as HTMLSelectElement;
   let optionsHtml = '<option value="">Chưa có liên kết</option>';
   if (DATA.days && DATA.days.length > 0) {
       DATA.days.forEach((day, dIdx) => {
@@ -5184,15 +5232,15 @@ window.openEditPayment = openEditPayment = (i) => {
   actSelect.value = p.linkedActId || ""; 
 
   // Trạng thái dự trù
-  document.getElementById('editPmIsEstimate').checked = p.isEstimate || false;
+  (document.getElementById('editPmIsEstimate') as HTMLInputElement).checked = p.isEstimate || false;
   toggleEstimateMode('editPm');
 
-  const isPaidInput = document.getElementById('editPmIsPaid');
-  const fromFundInput = document.getElementById('editPmFromFund');
+  const isPaidInput = document.getElementById('editPmIsPaid') as HTMLInputElement;
+  const fromFundInput = document.getElementById('editPmFromFund') as HTMLInputElement;
   isPaidInput.checked = p.isPaid || false;
   fromFundInput.checked = p.fromFund || false;
   
-  const payerSelect = document.getElementById('editPmPayer');
+  const payerSelect = document.getElementById('editPmPayer') as HTMLSelectElement;
   const partContainer = document.getElementById('editPmParticipants');
 
   if (members.length > 0) {
@@ -5208,10 +5256,10 @@ window.openEditPayment = openEditPayment = (i) => {
 
       isPaidInput.disabled = false;
       fromFundInput.disabled = false;
-      isPaidInput.nextElementSibling.style.opacity = '1';
-      fromFundInput.nextElementSibling.style.opacity = '1';
-      isPaidInput.nextElementSibling.style.cursor = 'pointer';
-      fromFundInput.nextElementSibling.style.cursor = 'pointer';
+      (isPaidInput.nextElementSibling as HTMLElement).style.opacity = '1';
+      (fromFundInput.nextElementSibling as HTMLElement).style.opacity = '1';
+      (isPaidInput.nextElementSibling as HTMLElement).style.cursor = 'pointer';
+      (fromFundInput.nextElementSibling as HTMLElement).style.cursor = 'pointer';
 
   } else {
       payerSelect.innerHTML = '<option value="">Chưa có thành viên</option>';
@@ -5221,10 +5269,10 @@ window.openEditPayment = openEditPayment = (i) => {
       fromFundInput.disabled = true;
       isPaidInput.checked = false;
       fromFundInput.checked = false;
-      isPaidInput.nextElementSibling.style.opacity = '0.4';
-      fromFundInput.nextElementSibling.style.opacity = '0.4';
-      isPaidInput.nextElementSibling.style.cursor = 'not-allowed';
-      fromFundInput.nextElementSibling.style.cursor = 'not-allowed';
+      (isPaidInput.nextElementSibling as HTMLElement).style.opacity = '0.4';
+      (fromFundInput.nextElementSibling as HTMLElement).style.opacity = '0.4';
+      (isPaidInput.nextElementSibling as HTMLElement).style.cursor = 'not-allowed';
+      (fromFundInput.nextElementSibling as HTMLElement).style.cursor = 'not-allowed';
   }
 
   // --- 💡 NẠP DỮ LIỆU ĐỒNG THANH TOÁN (MULTI-PAYER) VÀO GIAO DIỆN ---
@@ -5248,9 +5296,9 @@ window.openEditPayment = openEditPayment = (i) => {
 
   // Hiển thị ảnh Bill cũ nếu có
   const rUrl = p.receiptUrl || "";
-  document.getElementById('editPmReceiptUrl').value = rUrl;
+  (document.getElementById('editPmReceiptUrl') as HTMLInputElement).value = rUrl;
   if (rUrl) {
-      document.getElementById('editPmReceiptPreview').src = rUrl;
+      (document.getElementById('editPmReceiptPreview') as HTMLImageElement).src = rUrl;
       document.getElementById('editPmPreviewContainer').style.display = 'block';
   } else {
       document.getElementById('editPmPreviewContainer').style.display = 'none';
@@ -5263,22 +5311,22 @@ window.saveEditPayment = saveEditPayment = () => {
     if (!isEditor) return;
     if (window.isUploadingImage) return showToast("⏳ Đang tải ảnh lên, vui lòng chờ 1-2 giây rồi bấm Lưu!", "warning");
     
-    const i = parseInt(document.getElementById('editPmIdx').value, 10);
-    const desc = document.getElementById('editPmDesc').value.trim();
-    const amount = parseFloat(document.getElementById('editPmAmount').value) || 0;
-    const isEstimate = document.getElementById('editPmIsEstimate').checked;
-    const editPmReceiptUrl = document.getElementById('editPmReceiptUrl').value;
-    const editCategoryInput = document.getElementById('editPmCategory');
+    const i = parseInt((document.getElementById('editPmIdx') as HTMLInputElement).value, 10);
+    const desc = (document.getElementById('editPmDesc') as HTMLInputElement).value.trim();
+    const amount = parseFloat((document.getElementById('editPmAmount') as HTMLInputElement).value) || 0;
+    const isEstimate = (document.getElementById('editPmIsEstimate') as HTMLInputElement).checked;
+    const editPmReceiptUrl = (document.getElementById('editPmReceiptUrl') as HTMLInputElement).value;
+    const editCategoryInput = document.getElementById('editPmCategory') as HTMLInputElement;
     const category = (editCategoryInput && editCategoryInput.value) || 'other';
 
-    const editCurrencyModeInput = document.getElementById('editPmCurrencyMode');
+    const editCurrencyModeInput = document.getElementById('editPmCurrencyMode') as HTMLInputElement;
     const isForeignMode = isIntlTrip() && editCurrencyModeInput && editCurrencyModeInput.value === 'foreign';
     let foreignAmount = 0, foreignCurrency = '', exchangeRate = 0, paymentMethod = '';
     if (isForeignMode) {
-        foreignAmount = parseFloat(document.getElementById('editPmForeignAmount').value) || 0;
+        foreignAmount = parseFloat((document.getElementById('editPmForeignAmount') as HTMLInputElement).value) || 0;
         foreignCurrency = getForeignCurrencyCode('editPm');
-        exchangeRate = parseFloat(document.getElementById('editPmExchangeRate').value) || 0;
-        paymentMethod = document.getElementById('editPmPaymentMethod').value || 'card';
+        exchangeRate = parseFloat((document.getElementById('editPmExchangeRate') as HTMLInputElement).value) || 0;
+        paymentMethod = (document.getElementById('editPmPaymentMethod') as HTMLInputElement).value || 'card';
         if (foreignAmount <= 0 || !foreignCurrency || exchangeRate <= 0) {
             return showToast("Vui lòng nhập đủ số tiền ngoại tệ, đơn vị và tỷ giá", "error");
         }
@@ -5290,7 +5338,7 @@ window.saveEditPayment = saveEditPayment = () => {
     let multiPayers = null;
 
     if (!isEstimate) {
-        isPaid = document.getElementById('editPmIsPaid').checked;
+        isPaid = (document.getElementById('editPmIsPaid') as HTMLInputElement).checked;
         const chips = document.getElementById('editPmParticipants').querySelectorAll('.participant-chip.selected');
         participants = Array.from(chips).map(c => c.getAttribute('data-name'));
         if (participants.length === 0) return showToast("Phải có ít nhất 1 người tham gia", "error");
@@ -5299,9 +5347,9 @@ window.saveEditPayment = saveEditPayment = () => {
             multiPayers = [];
             let hasEmptyName = false;
             document.getElementById('editPayerRowsContainer').querySelectorAll('.payer-row').forEach(row => {
-                const name = row.querySelector('.payer-name').value;
-                const amt = parseFloat(row.querySelector('.payer-amt').value) || 0;
-                const isFund = row.querySelector('.payer-fund').checked;
+                const name = (row.querySelector('.payer-name') as HTMLInputElement).value;
+                const amt = parseFloat((row.querySelector('.payer-amt') as HTMLInputElement).value) || 0;
+                const isFund = (row.querySelector('.payer-fund') as HTMLInputElement).checked;
                 
                 if (!name && amt > 0) hasEmptyName = true;
                 if (amt > 0 && name) multiPayers.push({ name, amount: amt, fromFund: isFund });
@@ -5311,15 +5359,15 @@ window.saveEditPayment = saveEditPayment = () => {
             if (multiPayers.length === 0) return showToast("Chưa nhập số tiền góp", "error");
             payer = "Nhiều người trả";
         } else {
-            payer = document.getElementById('editPmPayer').value;
-            fromFund = document.getElementById('editPmFromFund').checked;
+            payer = (document.getElementById('editPmPayer') as HTMLSelectElement).value;
+            fromFund = (document.getElementById('editPmFromFund') as HTMLInputElement).checked;
             if (!payer) return showToast("Vui lòng chọn người trả tiền!", "error");
         }
     }
 
     try {
-        const keptLinkedActId = document.getElementById('editPmLinkedActId').value;
-        const updatedPayment = {
+        const keptLinkedActId = (document.getElementById('editPmLinkedActId') as HTMLSelectElement).value;
+        const updatedPayment: Record<string, any> = {
             desc, amount, category, payer, isPaid, fromFund,
             participants, linkedActId: keptLinkedActId,
             isEstimate, receiptUrl: editPmReceiptUrl
@@ -5436,9 +5484,9 @@ window.toggleAllParticipants = toggleAllParticipants = (containerId) => {
 
 window.addMember = addMember = () => {
     if (!isEditor) return;
-    const name = document.getElementById('memName').value.trim();
-    const paid = parseFloat(document.getElementById('memPaid').value) || 0;
-    const avatarSeed = document.getElementById('newMemAvatarSeed').value; 
+    const name = (document.getElementById('memName') as HTMLInputElement).value.trim();
+    const paid = parseFloat((document.getElementById('memPaid') as HTMLInputElement).value) || 0;
+    const avatarSeed = (document.getElementById('newMemAvatarSeed') as HTMLInputElement).value; 
 
     if (!name) return showToast("Điền tên thành viên", "error");
     
@@ -5451,7 +5499,7 @@ window.addMember = addMember = () => {
     }
     
     // 2. THÊM VÀO DỮ LIỆU GỐC (Single Source of Truth)
-    const newMem = { name, payments: paid > 0 ? [paid] : [] };
+    const newMem: Record<string, any> = { name, payments: paid > 0 ? [paid] : [] };
     if (avatarSeed) newMem.avatarSeed = avatarSeed; 
     DATA.members.push(newMem); 
 
@@ -5464,8 +5512,8 @@ window.addMember = addMember = () => {
     closeModal('memberModal');
     
     // Bonus: Xóa trắng form để lần sau mở lên không bị dính số cũ
-    document.getElementById('memName').value = "";
-    document.getElementById('memPaid').value = "";
+    (document.getElementById('memName') as HTMLInputElement).value = "";
+    (document.getElementById('memPaid') as HTMLInputElement).value = "";
     
     showToast("Đã thêm thành viên thành công!", "success");
 };
@@ -5511,8 +5559,8 @@ window.saveBulkMembers = saveBulkMembers = () => {
     if (!isEditor) return;
     const rows = Array.from(document.querySelectorAll('#bulkMemberRows .bulk-mem-row'));
     const entries = rows.map(row => ({
-        name: row.querySelector('.bulk-mem-name').value.trim(),
-        paid: parseFloat(row.querySelector('.bulk-mem-paid').value) || 0
+        name: (row.querySelector('.bulk-mem-name') as HTMLInputElement).value.trim(),
+        paid: parseFloat((row.querySelector('.bulk-mem-paid') as HTMLInputElement).value) || 0
     })).filter(e => e.name);
 
     if (!entries.length) return showToast("Điền tên ít nhất 1 thành viên", "error");
@@ -5545,7 +5593,7 @@ window.saveBulkMembers = saveBulkMembers = () => {
 };
 
 window.enableEditMemName = enableEditMemName = () => {
-    const nameInput = document.getElementById('editMemName');
+    const nameInput = document.getElementById('editMemName') as HTMLInputElement;
     nameInput.disabled = false;
     nameInput.style.opacity = '1';
     nameInput.style.background = 'var(--surface2)'; // Đổi màu nền cho nó sáng lên
@@ -5581,10 +5629,10 @@ window.openEditMember = openEditMember = (i) => {
     });
     const balance = totalContributed + advanced - consumed;
     
-    document.getElementById('editMemIndex').value = i;
+    (document.getElementById('editMemIndex') as HTMLInputElement).value = i;
     
     // Nạp Tên
-    const nameInput = document.getElementById('editMemName');
+    const nameInput = document.getElementById('editMemName') as HTMLInputElement;
     nameInput.value = m.name || '';
     nameInput.disabled = true;
     nameInput.style.opacity = '0.8';
@@ -5602,11 +5650,11 @@ window.openEditMember = openEditMember = (i) => {
     
     const maxWithdrawEl = document.getElementById('editMemMaxWithdraw');
     maxWithdrawEl.textContent = balance > 0 ? formatVND(balance) : '0đ (Đang nợ quỹ)';
-    document.getElementById('editMemWithdraw').setAttribute('data-max', balance > 0 ? balance : 0);
+    document.getElementById('editMemWithdraw').setAttribute('data-max', String(balance > 0 ? balance : 0));
     
     // Reset các ô nhập liệu
-    document.getElementById('editMemAdd').value = ''; 
-    document.getElementById('editMemWithdraw').value = ''; 
+    (document.getElementById('editMemAdd') as HTMLInputElement).value = ''; 
+    (document.getElementById('editMemWithdraw') as HTMLInputElement).value = ''; 
     
     openModal('editMemberModal');
 };
@@ -5614,16 +5662,16 @@ window.openEditMember = openEditMember = (i) => {
 window.saveEditMember = saveEditMember = () => {
     if (!isEditor) return;
 
-    const indexEl = document.getElementById('editMemIndex');
+    const indexEl = document.getElementById('editMemIndex') as HTMLInputElement;
     if (!indexEl) return console.error("Không tìm thấy element editMemIndex");
     const i = parseInt(indexEl.value, 10);
 
-    const newName = document.getElementById('editMemName').value.trim();
+    const newName = (document.getElementById('editMemName') as HTMLInputElement).value.trim();
     const oldName = DATA.members[i].name; 
     
     // Lấy số tiền từ 2 ô Nạp và Rút
-    const addAmount = parseFloat(document.getElementById('editMemAdd')?.value) || 0; 
-    const withdrawAmount = parseFloat(document.getElementById('editMemWithdraw')?.value) || 0;
+    const addAmount = parseFloat((document.getElementById('editMemAdd') as HTMLInputElement)?.value) || 0; 
+    const withdrawAmount = parseFloat((document.getElementById('editMemWithdraw') as HTMLInputElement)?.value) || 0;
     const maxWithdraw = parseFloat(document.getElementById('editMemWithdraw')?.getAttribute('data-max')) || 0;
 
     if (!newName) return showToast("Tên không được để trống", "error");
@@ -5681,10 +5729,10 @@ window.saveEditMember = saveEditMember = () => {
 
 // Mở bảng và reset mọi thứ về mặc định
 window.openAddMemberModal = openAddMemberModal = () => {
-    document.getElementById('memName').value = '';
-    document.getElementById('memPaid').value = '';
-    document.getElementById('newMemAvatarSeed').value = ''; // Xóa seed random
-    document.getElementById('newMemAvatarPreview').src = `https://api.dicebear.com/8.x/adventurer/svg?seed=New&backgroundColor=b6e3f4,c0aede,d1d4f9,ffd5dc,ffdfbf`;
+    (document.getElementById('memName') as HTMLInputElement).value = '';
+    (document.getElementById('memPaid') as HTMLInputElement).value = '';
+    (document.getElementById('newMemAvatarSeed') as HTMLInputElement).value = ''; // Xóa seed random
+    (document.getElementById('newMemAvatarPreview') as HTMLImageElement).src = `https://api.dicebear.com/8.x/adventurer/svg?seed=New&backgroundColor=b6e3f4,c0aede,d1d4f9,ffd5dc,ffdfbf`;
     document.getElementById('bulkMemberRows').innerHTML = ''; // Về trạng thái trống mỗi lần mở lại modal
     switchMemberAddMode('single');
     openModal('memberModal');
@@ -5692,20 +5740,20 @@ window.openAddMemberModal = openAddMemberModal = () => {
 
 // Vừa gõ tên vừa update mặt (nếu chưa bấm random)
 window.updateNewMemberAvatarPreview = updateNewMemberAvatarPreview = () => {
-    const name = document.getElementById('memName').value.trim() || 'New';
-    const seedInput = document.getElementById('newMemAvatarSeed').value;
+    const name = (document.getElementById('memName') as HTMLInputElement).value.trim() || 'New';
+    const seedInput = (document.getElementById('newMemAvatarSeed') as HTMLInputElement).value;
     
     // Chỉ tự đổi ảnh theo tên nếu người dùng CHƯA bấm chọn random
     if (!seedInput) {
-        document.getElementById('newMemAvatarPreview').src = `https://api.dicebear.com/8.x/adventurer/svg?seed=${encodeURIComponent(name)}&backgroundColor=b6e3f4,c0aede,d1d4f9,ffd5dc,ffdfbf`;
+        (document.getElementById('newMemAvatarPreview') as HTMLImageElement).src = `https://api.dicebear.com/8.x/adventurer/svg?seed=${encodeURIComponent(name)}&backgroundColor=b6e3f4,c0aede,d1d4f9,ffd5dc,ffdfbf`;
     }
 };
 
 // Bấm vào hình để xoay Avatar random
 window.randomizeNewMemberAvatar = randomizeNewMemberAvatar = () => {
     const randomSeed = 'avatar_' + Date.now() + Math.random();
-    document.getElementById('newMemAvatarSeed').value = randomSeed;
-    document.getElementById('newMemAvatarPreview').src = `https://api.dicebear.com/8.x/adventurer/svg?seed=${encodeURIComponent(randomSeed)}&backgroundColor=b6e3f4,c0aede,d1d4f9,ffd5dc,ffdfbf`;
+    (document.getElementById('newMemAvatarSeed') as HTMLInputElement).value = randomSeed;
+    (document.getElementById('newMemAvatarPreview') as HTMLImageElement).src = `https://api.dicebear.com/8.x/adventurer/svg?seed=${encodeURIComponent(randomSeed)}&backgroundColor=b6e3f4,c0aede,d1d4f9,ffd5dc,ffdfbf`;
 };
 
 window.deleteMember = deleteMember = async (i) => {
@@ -5756,7 +5804,7 @@ window.deleteMember = deleteMember = async (i) => {
 
 window.saveTripInfo = saveTripInfo = () => {
     if (!isEditor) return;
-    const name = document.getElementById('settingTripName').value.trim();
+    const name = (document.getElementById('settingTripName') as HTMLInputElement).value.trim();
     if (!name) return showToast("Tên chuyến đi không được trống", "error");
     
     DATA.trip.name = name;
@@ -5776,7 +5824,7 @@ window.updateManagementUI = updateManagementUI = () => {
     // Bật/tắt class khóa UI toàn cục
     document.body.classList.toggle('trip-finished', isFinished);
     if (isFinished) {
-        document.querySelectorAll('.swipe-content').forEach(el => {
+        document.querySelectorAll('.swipe-content').forEach((el: HTMLElement) => {
             el.style.transition = 'transform 0.2s ease';
             el.style.transform = 'translateX(0)';
         });
@@ -5789,7 +5837,7 @@ window.updateManagementUI = updateManagementUI = () => {
     }
 
     const btnFinish = document.getElementById('btnFinishTrip');
-    const btnShare = document.getElementById('btnShareTrip');
+    const btnShare = document.getElementById('btnShareTrip') as HTMLButtonElement;
     const indFinished = document.getElementById('indFinished');
     const indShared = document.getElementById('indShared');
     
@@ -5916,17 +5964,17 @@ window.openAddPaymentModal = openAddPaymentModal = (prefillName = "", linkedActI
         showToast(DATA?.trip?.isFinished ? "Chuyến đi đã kết thúc" : "Chỉ Editor mới được thêm chi tiêu", "info");
         return;
     }
-    const payerSelect = document.getElementById('pmPayer');
+    const payerSelect = document.getElementById('pmPayer') as HTMLSelectElement;
     const partContainer = document.getElementById('pmParticipants');
     const members = DATA.members || [];
   
-    document.getElementById('pmDesc').value = prefillName;
-    document.getElementById('pmAmount').value = '';
+    (document.getElementById('pmDesc') as HTMLInputElement).value = prefillName;
+    (document.getElementById('pmAmount') as HTMLInputElement).value = '';
     selectCategory('pm', 'food');
-    if(document.getElementById('pmLinkedActId')) document.getElementById('pmLinkedActId').value = linkedActId;
+    if(document.getElementById('pmLinkedActId')) (document.getElementById('pmLinkedActId') as HTMLInputElement).value = linkedActId;
 
     // Mặc định reset Dự trù về Tắt
-    document.getElementById('pmIsEstimate').checked = false;
+    (document.getElementById('pmIsEstimate') as HTMLInputElement).checked = false;
     toggleEstimateMode('pm');
 
     // 💱 Ẩn/hiện khối Ngoại tệ theo vibe chuyến đi, reset về VNĐ mỗi lần mở
@@ -5934,14 +5982,14 @@ window.openAddPaymentModal = openAddPaymentModal = (prefillName = "", linkedActI
     if (pmCurrencyWrap) pmCurrencyWrap.style.display = isIntlTrip() ? 'block' : 'none';
     if (isIntlTrip()) {
         selectPmCurrencyMode('pm', 'vnd');
-        document.getElementById('pmForeignAmount').value = '';
+        (document.getElementById('pmForeignAmount') as HTMLInputElement).value = '';
         const defaults = getTripCurrencyDefaults();
-        const fCurSelect = document.getElementById('pmForeignCurrencySelect');
+        const fCurSelect = document.getElementById('pmForeignCurrencySelect') as HTMLSelectElement;
         if (fCurSelect) {
             const isKnown = COMMON_CURRENCIES.includes(defaults.code);
             fCurSelect.value = isKnown ? defaults.code : 'other';
             onForeignCurrencySelectChange('pm');
-            if (!isKnown) document.getElementById('pmForeignCurrencyCustom').value = defaults.code || '';
+            if (!isKnown) (document.getElementById('pmForeignCurrencyCustom') as HTMLInputElement).value = defaults.code || '';
         }
         selectPmPaymentMethod('pm', 'card');
     }
@@ -5954,7 +6002,7 @@ window.openAddPaymentModal = openAddPaymentModal = (prefillName = "", linkedActI
     document.getElementById('pmMultiPayerArea').style.display = 'none';
     document.getElementById('btnToggleMulti').innerHTML = '+ Góp tiền chung';
     document.getElementById('payerRowsContainer').innerHTML = ''; // Xóa sạch các hàng cũ
-    const amtInput = document.getElementById('pmAmount');
+    const amtInput = document.getElementById('pmAmount') as HTMLInputElement;
     if (amtInput) {
         amtInput.readOnly = false; // Mở khóa ô nhập tổng tiền
         amtInput.style.opacity = '1';
@@ -5962,8 +6010,8 @@ window.openAddPaymentModal = openAddPaymentModal = (prefillName = "", linkedActI
     // =========================================================
 
     // Lấy 2 nút checkbox Thanh toán / Rút quỹ
-    const isPaidInput = document.getElementById('pmIsPaid');
-    const fromFundInput = document.getElementById('pmFromFund');
+    const isPaidInput = document.getElementById('pmIsPaid') as HTMLInputElement;
+    const fromFundInput = document.getElementById('pmFromFund') as HTMLInputElement;
   
     if (members.length > 0) {
         payerSelect.innerHTML = `<option value="" disabled selected>Chọn người...</option>` + members.map(m => `<option value="${esc(m.name)}">${esc(m.name)}</option>`).join('');
@@ -5978,10 +6026,10 @@ window.openAddPaymentModal = openAddPaymentModal = (prefillName = "", linkedActI
         // Mở khóa 2 nút tick
         isPaidInput.disabled = false;
         fromFundInput.disabled = false;
-        isPaidInput.nextElementSibling.style.opacity = '1';
-        fromFundInput.nextElementSibling.style.opacity = '1';
-        isPaidInput.nextElementSibling.style.cursor = 'pointer';
-        fromFundInput.nextElementSibling.style.cursor = 'pointer';
+        (isPaidInput.nextElementSibling as HTMLElement).style.opacity = '1';
+        (fromFundInput.nextElementSibling as HTMLElement).style.opacity = '1';
+        (isPaidInput.nextElementSibling as HTMLElement).style.cursor = 'pointer';
+        (fromFundInput.nextElementSibling as HTMLElement).style.cursor = 'pointer';
 
     } else {
         payerSelect.innerHTML = '<option value="">Chưa có thành viên</option>';
@@ -5995,10 +6043,10 @@ window.openAddPaymentModal = openAddPaymentModal = (prefillName = "", linkedActI
         fromFundInput.checked = false;
         
         // CSS làm mờ và hiện dấu cấm click
-        isPaidInput.nextElementSibling.style.opacity = '0.4';
-        fromFundInput.nextElementSibling.style.opacity = '0.4';
-        isPaidInput.nextElementSibling.style.cursor = 'not-allowed';
-        fromFundInput.nextElementSibling.style.cursor = 'not-allowed';
+        (isPaidInput.nextElementSibling as HTMLElement).style.opacity = '0.4';
+        (fromFundInput.nextElementSibling as HTMLElement).style.opacity = '0.4';
+        (isPaidInput.nextElementSibling as HTMLElement).style.cursor = 'not-allowed';
+        (fromFundInput.nextElementSibling as HTMLElement).style.cursor = 'not-allowed';
     }
     openModal('paymentModal');
 };
@@ -6249,10 +6297,12 @@ window.openHistoryModal = openHistoryModal = (i) => {
 // 💳 TỔNG QUAN: AI ĐÃ ỨNG BAO NHIÊU & MỤC GÌ (WEB, KHÔNG CẦN EXCEL)
 // Phân biệt rõ: Ứng cá nhân (chưa rút quỹ) vs Đã rút quỹ để trả
 // ============================================
+type AdvanceOverviewEntry = { personal: number; fund: number; items: any[] };
+
 function computeAdvanceOverviewData() {
     const members = DATA.members || [];
     const payments = (DATA.payments || []).filter(p => p && typeof p === 'object');
-    const map = {};
+    const map: Record<string, AdvanceOverviewEntry> = {};
     members.forEach(m => { map[m.name] = { personal: 0, fund: 0, items: [] }; });
 
     payments.forEach(p => {
@@ -6285,7 +6335,7 @@ window.setAdvanceOverviewFilter = setAdvanceOverviewFilter = (f) => {
 function renderAdvanceOverview() {
     const list = document.getElementById('advanceOverviewList');
     const members = DATA.members || [];
-    const map = window._advOverviewData || {};
+    const map: Record<string, AdvanceOverviewEntry> = window._advOverviewData || {};
     const filter = window._advOverviewFilter || 'all';
 
     let grandPersonal = 0, grandFund = 0;
@@ -6435,7 +6485,7 @@ window.deleteHistoryCashIn = deleteHistoryCashIn = async (memIdx, payIdx, oldVal
 // ===== QR/Link =====
 window.saveFundLink = saveFundLink = () => {
     if (!isEditor) return;
-    const linkInput = document.getElementById('fundLinkInput');
+    const linkInput = document.getElementById('fundLinkInput') as HTMLInputElement;
     
     // Lưu dữ liệu
     DATA.fund.link = linkInput.value.trim();
@@ -6454,7 +6504,7 @@ window.saveFundLink = saveFundLink = () => {
 window.editFundLink = editFundLink = () => {
     if (!isEditor) return;
     
-    const linkInput = document.getElementById('fundLinkInput');
+    const linkInput = document.getElementById('fundLinkInput') as HTMLInputElement;
     const actionBtn = document.getElementById('fundLinkActionBtn');
 
     // Mở khóa input và tự động focus (đặt trỏ chuột) vào đó
@@ -6467,7 +6517,7 @@ window.editFundLink = editFundLink = () => {
 };
 
 window.openFundLink = openFundLink = () => {
-    const link = document.getElementById('fundLinkInput').value.trim();
+    const link = (document.getElementById('fundLinkInput') as HTMLInputElement).value.trim();
     if (!link) return showToast("Chưa có link quỹ", "error");
     window.open(link, '_blank');
 };
@@ -6489,10 +6539,10 @@ window.handleQrUpload = handleQrUpload = (event) => {
 
     const reader = new FileReader();
     reader.onload = function(e) {
-        const base64String = e.target.result;
+        const base64String = e.target.result as string;
         
         // 1. Cập nhật giao diện ngay lập tức
-        document.getElementById('fundQrImg').src = base64String;
+        (document.getElementById('fundQrImg') as HTMLImageElement).src = base64String;
         
         // 2. Lưu vào dữ liệu DATA
         if (!DATA.fund) DATA.fund = { collected: 0, used: 0 };
@@ -6521,7 +6571,7 @@ window.removeFundQr = removeFundQr = async () => {
     if (!ok) return;
 
     // 2. Cập nhật giao diện ngay lập tức về placeholder
-    document.getElementById('fundQrImg').src = "https://placehold.co/200x200?text=Chưa+có+mã+QR";
+    (document.getElementById('fundQrImg') as HTMLImageElement).src = "https://placehold.co/200x200?text=Chưa+có+mã+QR";
 
     // 3. Xóa dữ liệu trong mảng DATA
     if (!DATA.fund) DATA.fund = { collected: 0, used: 0 };
@@ -6539,7 +6589,7 @@ window.removeFundQr = removeFundQr = async () => {
 // ============================================
 window.enableEditLoc = enableEditLoc = () => {
     window.cancelAllSettings();
-    document.getElementById('settingTripLoc').disabled = false;
+    (document.getElementById('settingTripLoc') as HTMLInputElement).disabled = false;
     document.getElementById('settingTripLoc').focus();
     document.getElementById('btnEditLoc').style.display = 'none';
     document.getElementById('btnSaveLoc').style.display = 'block';
@@ -6551,7 +6601,7 @@ window.enableEditLoc = enableEditLoc = () => {
 window.cancelEditLoc = cancelEditLoc = () => {
     document.body.classList.remove('searching-city'); // Mở khóa cuộn
     document.getElementById('customSuggestions').style.display = 'none';
-    const input = document.getElementById('settingTripLoc');
+    const input = document.getElementById('settingTripLoc') as HTMLInputElement;
     if(input) {
         input.value = DATA.trip.location || "";
         input.disabled = true;
@@ -6563,7 +6613,7 @@ window.cancelEditLoc = cancelEditLoc = () => {
 
 window.saveTripLoc = saveTripLoc = () => {
     if (!isEditor) return;
-    const inputVal = document.getElementById('settingTripLoc').value.trim();
+    const inputVal = (document.getElementById('settingTripLoc') as HTMLInputElement).value.trim();
 
     // Bắt buộc phải bấm chọn từ danh sách gợi ý (selectCity) mới coi là hợp lệ.
     // Trước đây chỉ check "dropdown đang mở hay không" nên bị lách: gõ tay rồi bấm ra ngoài
@@ -6864,7 +6914,7 @@ window.generatePackingChecklist = generatePackingChecklist = async () => {
             <div style="font-size: 0.8rem;">Đang soi lịch trình + thời tiết...</div>
         </div>`;
 
-    const btn = document.getElementById('btnAiPackingSuggest');
+    const btn = document.getElementById('btnAiPackingSuggest') as HTMLButtonElement;
     _isGeneratingPacking = true;
     if (btn) { btn.disabled = true; btn.innerHTML = '🎒 Đang soi...'; }
 
@@ -6955,7 +7005,7 @@ window.checkItineraryReality = checkItineraryReality = async () => {
             <div style="font-size: 0.8rem;">Đang soi độ khả thi của lịch trình...</div>
         </div>`;
 
-    const btn = document.getElementById('btnCheckItineraryReality');
+    const btn = document.getElementById('btnCheckItineraryReality') as HTMLButtonElement;
     _isCheckingItinerary = true;
     if (btn) { btn.disabled = true; btn.innerHTML = '🚨 Đang soi...'; }
 
@@ -7049,20 +7099,20 @@ window.addSelectedAiPackingItems = addSelectedAiPackingItems = () => {
 
 window.openPackingModal = openPackingModal = (idx = -1) => {
     if (!isEditor) return;
-    const assigneeSelect = document.getElementById('packAssignee');
+    const assigneeSelect = document.getElementById('packAssignee') as HTMLSelectElement;
     const members = DATA.members || [];
     
     // Tự động tải danh sách thành viên vào dropdown để chia việc
     assigneeSelect.innerHTML = `<option value="Cả nhóm">Cả nhóm</option>` + 
         members.map(m => `<option value="${esc(m.name)}">${esc(m.name)}</option>`).join('');
 
-    document.getElementById('packingIdx').value = idx;
+    (document.getElementById('packingIdx') as HTMLInputElement).value = String(idx);
 
     if (idx >= 0 && DATA.packingList && DATA.packingList[idx]) {
-        document.getElementById('packName').value = DATA.packingList[idx].name;
+        (document.getElementById('packName') as HTMLInputElement).value = DATA.packingList[idx].name;
         assigneeSelect.value = DATA.packingList[idx].assignee || 'Cả nhóm';
     } else {
-        document.getElementById('packName').value = '';
+        (document.getElementById('packName') as HTMLInputElement).value = '';
         assigneeSelect.value = 'Cả nhóm';
     }
     openModal('packingModal');
@@ -7070,9 +7120,9 @@ window.openPackingModal = openPackingModal = (idx = -1) => {
 
 window.savePackingItem = savePackingItem = () => {
     if (!isEditor) return;
-    const idx = parseInt(document.getElementById('packingIdx').value);
-    const name = document.getElementById('packName').value.trim();
-    const assignee = document.getElementById('packAssignee').value;
+    const idx = parseInt((document.getElementById('packingIdx') as HTMLInputElement).value);
+    const name = (document.getElementById('packName') as HTMLInputElement).value.trim();
+    const assignee = (document.getElementById('packAssignee') as HTMLSelectElement).value;
 
     if (!name) return showToast("Vui lòng nhập tên món đồ", "error");
     if (!DATA.packingList) DATA.packingList = [];
@@ -7163,7 +7213,7 @@ window.renderPackingList = renderPackingList = (flash = false) => {
     // trả transform về 0 kèm transition -> mắt thấy dòng trượt êm tới vị trí mới thay vì nhảy cục.
     const newRows = Array.from(list.querySelectorAll('.swipe-container[data-pk-idx]'));
     const toAnimate = [];
-    newRows.forEach(el => {
+    newRows.forEach((el: HTMLElement) => {
         const key = el.getAttribute('data-pk-idx');
         const oldTop = oldRects[key];
         if (oldTop === undefined) return;
@@ -7196,7 +7246,7 @@ window.renderPackingList = renderPackingList = (flash = false) => {
 // --- CACHE OFFLINE 100% CHO ẢNH/FILE GIẤY TỜ: lưu thẳng bytes ảnh vào IndexedDB trên máy,
 // để vừa xuống sân bay chưa kịp bật mạng vẫn mở được Passport/Vé máy bay ra xem ngay. ---
 function openVaultDB() {
-    return new Promise((resolve, reject) => {
+    return new Promise<IDBDatabase>((resolve, reject) => {
         const req = indexedDB.open('trippy_vault_cache', 1);
         req.onupgradeneeded = () => { req.result.createObjectStore('files'); };
         req.onsuccess = () => resolve(req.result);
@@ -7219,7 +7269,7 @@ async function cacheVaultFileBlob(url, blob) {
 async function getCachedVaultFileBlob(url) {
     try {
         const db = await openVaultDB();
-        return await new Promise((resolve, reject) => {
+        return await new Promise<Blob | null>((resolve, reject) => {
             const tx = db.transaction('files', 'readonly');
             const req = tx.objectStore('files').get(url);
             req.onsuccess = () => resolve(req.result || null);
@@ -7362,11 +7412,11 @@ window.renderVaultCards = renderVaultCards = () => {
 
 window.openAddVaultCardModal = openAddVaultCardModal = () => {
     if (!isEditor) return;
-    document.getElementById('vaultCardEditId').value = '';
-    document.getElementById('vaultCardTitle').value = '';
-    document.getElementById('vaultCardContent').value = '';
-    document.getElementById('vaultCardZoomable').checked = false;
-    document.getElementById('vaultCardAddress').value = '';
+    (document.getElementById('vaultCardEditId') as HTMLInputElement).value = '';
+    (document.getElementById('vaultCardTitle') as HTMLInputElement).value = '';
+    (document.getElementById('vaultCardContent') as HTMLTextAreaElement).value = '';
+    (document.getElementById('vaultCardZoomable') as HTMLInputElement).checked = false;
+    (document.getElementById('vaultCardAddress') as HTMLInputElement).value = '';
     window._vaultFormFiles = [];
     renderVaultFormFilesPreview();
     selectVaultCardType('text');
@@ -7374,8 +7424,8 @@ window.openAddVaultCardModal = openAddVaultCardModal = () => {
 };
 
 window.selectVaultCardType = selectVaultCardType = (type) => {
-    document.getElementById('vaultCardTypeInput').value = type;
-    document.querySelectorAll('#vaultTypePicker .category-chip').forEach(el => el.classList.toggle('selected', el.dataset.type === type));
+    (document.getElementById('vaultCardTypeInput') as HTMLInputElement).value = type;
+    document.querySelectorAll('#vaultTypePicker .category-chip').forEach((el: HTMLElement) => el.classList.toggle('selected', el.dataset.type === type));
     document.getElementById('vaultFieldsText').style.display = type === 'text' ? 'block' : 'none';
     document.getElementById('vaultFieldsImage').style.display = (type === 'image' || type === 'file') ? 'block' : 'none';
     document.getElementById('vaultFieldsLocation').style.display = type === 'location' ? 'block' : 'none';
@@ -7385,11 +7435,11 @@ window.editVaultCard = editVaultCard = (id) => {
     if (!isEditor) return;
     const card = (DATA.vault || []).find(c => c.id === id);
     if (!card) return;
-    document.getElementById('vaultCardEditId').value = id;
-    document.getElementById('vaultCardTitle').value = card.title || '';
-    document.getElementById('vaultCardContent').value = card.content || '';
-    document.getElementById('vaultCardZoomable').checked = !!card.zoomable;
-    document.getElementById('vaultCardAddress').value = card.address || '';
+    (document.getElementById('vaultCardEditId') as HTMLInputElement).value = id;
+    (document.getElementById('vaultCardTitle') as HTMLInputElement).value = card.title || '';
+    (document.getElementById('vaultCardContent') as HTMLTextAreaElement).value = card.content || '';
+    (document.getElementById('vaultCardZoomable') as HTMLInputElement).checked = !!card.zoomable;
+    (document.getElementById('vaultCardAddress') as HTMLInputElement).value = card.address || '';
     // Cho phép đổi loại ô thoải mái (VD: 3 card mặc định Wifi/Taxi/SOS đang là văn bản
     // vẫn có thể đổi qua ảnh, chụp thẳng cái thẻ giấy thay vì gõ lại chữ)
     window._vaultFormFiles = (card.type === 'image' || card.type === 'file') ? [...(card.files || [])] : [];
@@ -7415,7 +7465,7 @@ function renderVaultFormFilesPreview() {
 // lỗi/timeout trên mạng di động, hoặc bị Cloudinary preset từ chối định dạng. Nén lại qua canvas về JPEG
 // kích thước vừa phải trước khi gửi lên, vừa nhẹ vừa đồng nhất định dạng cho chắc ăn.
 function compressImageFile(file, maxSize = 1600, quality = 0.82) {
-    return new Promise((resolve) => {
+    return new Promise<File>((resolve) => {
         if (!file.type || !file.type.startsWith('image/') || file.type === 'image/gif') {
             return resolve(file); // Không đụng vào GIF hay file không phải ảnh (PDF...)
         }
@@ -7480,9 +7530,9 @@ window.removeVaultFormFile = removeVaultFormFile = (idx) => {
 
 window.saveVaultCard = saveVaultCard = () => {
     if (!isEditor) return;
-    const editId = document.getElementById('vaultCardEditId').value;
-    const type = document.getElementById('vaultCardTypeInput').value;
-    const title = document.getElementById('vaultCardTitle').value.trim();
+    const editId = (document.getElementById('vaultCardEditId') as HTMLInputElement).value;
+    const type = (document.getElementById('vaultCardTypeInput') as HTMLInputElement).value;
+    const title = (document.getElementById('vaultCardTitle') as HTMLInputElement).value.trim();
     if (!title) return showToast("Điền tên cho ô thông tin", "error");
 
     if (!DATA.vault) DATA.vault = [];
@@ -7493,23 +7543,23 @@ window.saveVaultCard = saveVaultCard = () => {
         card.title = title;
         card.type = type;
         if (type === 'text') {
-            card.content = document.getElementById('vaultCardContent').value.trim();
-            card.zoomable = document.getElementById('vaultCardZoomable').checked;
+            card.content = (document.getElementById('vaultCardContent') as HTMLTextAreaElement).value.trim();
+            card.zoomable = (document.getElementById('vaultCardZoomable') as HTMLInputElement).checked;
         } else if (type === 'image' || type === 'file') {
             card.files = window._vaultFormFiles || [];
         } else if (type === 'location') {
-            card.address = document.getElementById('vaultCardAddress').value.trim();
+            card.address = (document.getElementById('vaultCardAddress') as HTMLInputElement).value.trim();
             card.mapUrl = card.address ? `https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(card.address)}` : '';
         }
     } else {
-        const newCard = { id: Date.now(), type, title };
+        const newCard: Record<string, any> = { id: Date.now(), type, title };
         if (type === 'text') {
-            newCard.content = document.getElementById('vaultCardContent').value.trim();
-            newCard.zoomable = document.getElementById('vaultCardZoomable').checked;
+            newCard.content = (document.getElementById('vaultCardContent') as HTMLTextAreaElement).value.trim();
+            newCard.zoomable = (document.getElementById('vaultCardZoomable') as HTMLInputElement).checked;
         } else if (type === 'image' || type === 'file') {
             newCard.files = window._vaultFormFiles || [];
         } else if (type === 'location') {
-            newCard.address = document.getElementById('vaultCardAddress').value.trim();
+            newCard.address = (document.getElementById('vaultCardAddress') as HTMLInputElement).value.trim();
             newCard.mapUrl = newCard.address ? `https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(newCard.address)}` : '';
         }
         DATA.vault.push(newCard);
@@ -7607,7 +7657,7 @@ window.openRandomModal = openRandomModal = () => {
     // Reset lại trạng thái mỗi khi mở lên
     document.getElementById('randResult').textContent = "Sẵn sàng!";
     document.getElementById('randResult').className = "random-display";
-    document.getElementById('btnSpin').disabled = false;
+    (document.getElementById('btnSpin') as HTMLButtonElement).disabled = false;
     document.getElementById('btnSpin').innerHTML = "QUAY NGAY 🎯";
     switchRandomMode('members');
     openModal('randomModal');
@@ -7625,7 +7675,7 @@ window.switchRandomMode = switchRandomMode = (mode) => {
 
 window.spinRandomizer = spinRandomizer = () => {
     const display = document.getElementById('randResult');
-    const btn = document.getElementById('btnSpin');
+    const btn = document.getElementById('btnSpin') as HTMLButtonElement;
 
     let options = [];
     
@@ -7636,7 +7686,7 @@ window.spinRandomizer = spinRandomizer = () => {
         }
         options = DATA.members.map(m => m.name);
     } else {
-        const val = document.getElementById('randOptions').value;
+        const val = (document.getElementById('randOptions') as HTMLInputElement).value;
         options = val.split(',').map(s => s.trim()).filter(s => s);
         if (options.length < 2) {
             return showToast("Hãy nhập ít nhất 2 lựa chọn để quay!", "error");
@@ -7679,7 +7729,7 @@ window.spinRandomizer = spinRandomizer = () => {
 // QUẢN LÝ CHỌN AVATAR 🧑‍🎤
 // ============================================
 window.openAvatarModal = openAvatarModal = (i) => {
-    document.getElementById('editAvatarMemIdx').value = i;
+    (document.getElementById('editAvatarMemIdx') as HTMLInputElement).value = i;
     const m = DATA.members[i];
     
     // Lấy seed hiện tại của user, nếu chưa có thì lấy Tên
@@ -7692,9 +7742,9 @@ window.openAvatarModal = openAvatarModal = (i) => {
 
 // Hàm khi bấm vào các icon có sẵn hoặc khi load preview
 window.selectAvatarSeed = selectAvatarSeed = (seed) => {
-    document.getElementById('currentAvatarSeed').value = seed;
+    (document.getElementById('currentAvatarSeed') as HTMLInputElement).value = seed;
     const url = `https://api.dicebear.com/8.x/adventurer/svg?seed=${encodeURIComponent(seed)}&backgroundColor=b6e3f4,c0aede,d1d4f9,ffd5dc,ffdfbf`;
-    document.getElementById('avatarPreview').src = url;
+    (document.getElementById('avatarPreview') as HTMLImageElement).src = url;
 };
 
 // Hàm bấm nút 🎲 Ngẫu nhiên
@@ -7707,8 +7757,8 @@ window.randomizeAvatarInModal = randomizeAvatarInModal = () => {
 
 // Hàm bấm Lưu
 window.saveAvatar = saveAvatar = () => {
-    const i = parseInt(document.getElementById('editAvatarMemIdx').value);
-    const seed = document.getElementById('currentAvatarSeed').value;
+    const i = parseInt((document.getElementById('editAvatarMemIdx') as HTMLInputElement).value);
+    const seed = (document.getElementById('currentAvatarSeed') as HTMLInputElement).value;
     
     // Lưu thẳng vào DATA
     DATA.members[i].avatarSeed = seed;
@@ -7804,7 +7854,7 @@ function updateTripCountdown() {
   // Gắn mốc thời gian chuẩn xác đến từng phút
   const targetDate = new Date(yyyy, mm, dd, targetHour, targetMinute, 0);
   const now = new Date();
-  const diff = targetDate - now;
+  const diff = targetDate.getTime() - now.getTime();
 
   if (isNaN(targetDate.getTime())) {
     container.innerHTML = `<div style="font-size:0.75rem; color:var(--red)">Định dạng ngày lỗi!</div>`;
@@ -7893,7 +7943,7 @@ window.openLinkToActModal = openLinkToActModal = (paymentIdx) => {
     const p = DATA.payments[paymentIdx];
     if (!p) return;
 
-    document.getElementById('linkPmIdx').value = paymentIdx;
+    (document.getElementById('linkPmIdx') as HTMLInputElement).value = paymentIdx;
     document.getElementById('linkPmDescDisplay').textContent = p.desc || 'Chi tiêu';
 
     const selectEl = document.getElementById('linkActTarget');
@@ -7928,9 +7978,9 @@ window.openLinkToActModal = openLinkToActModal = (paymentIdx) => {
 window.saveLinkToAct = saveLinkToAct = () => {
     if (!isEditor) return;
     
-    const paymentIdxStr = document.getElementById('linkPmIdx').value;
+    const paymentIdxStr = (document.getElementById('linkPmIdx') as HTMLInputElement).value;
     const paymentIdx = parseInt(paymentIdxStr, 10);
-    const targetActId = document.getElementById('linkActTarget').value;
+    const targetActId = (document.getElementById('linkActTarget') as HTMLSelectElement).value;
 
     if (isNaN(paymentIdx) || !DATA.payments[paymentIdx]) {
         return showToast("Lỗi: Không tìm thấy khoản chi tiêu!", "error");
@@ -8186,9 +8236,9 @@ window.isUploadingImage = isUploadingImage = false;
 window.uploadReceipt = uploadReceipt = async (input, previewId, containerId, urlInputId) => {
     if (!input.files || !input.files[0]) return;
     const file = input.files[0];
-    const preview = document.getElementById(previewId);
+    const preview = document.getElementById(previewId) as HTMLImageElement;
     const container = document.getElementById(containerId);
-    const urlInput = document.getElementById(urlInputId);
+    const urlInput = document.getElementById(urlInputId) as HTMLInputElement;
 
     // Cài đặt bối cảnh cho Container để chứa tia Laser
     container.style.position = 'relative';
@@ -8415,7 +8465,7 @@ let lbIsDragging = false;
 let scrollPosBeforeLightbox = 0;
 
 const lbOverlay = document.getElementById('appLightbox');
-const lbImg = document.getElementById('lightboxImg');
+const lbImg = document.getElementById('lightboxImg') as HTMLImageElement;
 
 window.openLightbox = openLightbox = (url) => {
     // 1. Khóa cứng nền đằng sau
@@ -8458,7 +8508,7 @@ lbOverlay.onclick = (e) => {
 // --- LOGIC CẢM ỨNG ĐA ĐIỂM (ZOOM & PAN) ---
 lbOverlay.addEventListener('touchstart', (e) => {
     // 🔑 Bỏ qua nếu đang bấm vào nút X
-    if (e.target.closest('.lightbox-close')) return;
+    if ((e.target as HTMLElement).closest('.lightbox-close')) return;
     
     if (e.touches.length === 2) {
         lbImg.style.transition = 'none'; 
@@ -8473,7 +8523,7 @@ lbOverlay.addEventListener('touchstart', (e) => {
 
 lbOverlay.addEventListener('touchmove', (e) => {
     // 🔑 MẤU CHỐT Ở ĐÂY: Nếu chạm nút X, không được khóa hành vi để bảo toàn lệnh Click
-    if (e.target.closest('.lightbox-close')) return;
+    if ((e.target as HTMLElement).closest('.lightbox-close')) return;
 
     e.preventDefault(); // KHÓA CỨNG SCROLL NỀN KHI VUỐT ẢNH
     if (e.touches.length === 2) {
@@ -8490,7 +8540,7 @@ lbOverlay.addEventListener('touchmove', (e) => {
 
 lbOverlay.addEventListener('touchend', (e) => {
     // 🔑 Bỏ qua nếu đang bấm vào nút X
-    if (e.target.closest('.lightbox-close')) return;
+    if ((e.target as HTMLElement).closest('.lightbox-close')) return;
     
     lbIsDragging = false;
     if (e.touches.length === 0) {
@@ -8549,13 +8599,13 @@ function closeModal(id) {
     // Dọn ảnh Form Thêm
     if (id === 'paymentModal') {
         if(document.getElementById('pmPreviewContainer')) document.getElementById('pmPreviewContainer').style.display = 'none';
-        if(document.getElementById('pmReceiptPreview')) document.getElementById('pmReceiptPreview').src = '';
+        if(document.getElementById('pmReceiptPreview')) (document.getElementById('pmReceiptPreview') as HTMLImageElement).src = '';
     }
     
     // Dọn ảnh Form Sửa
     if (id === 'editPaymentModal') {
         if(document.getElementById('editPmPreviewContainer')) document.getElementById('editPmPreviewContainer').style.display = 'none';
-        if(document.getElementById('editPmReceiptPreview')) document.getElementById('editPmReceiptPreview').src = '';
+        if(document.getElementById('editPmReceiptPreview')) (document.getElementById('editPmReceiptPreview') as HTMLImageElement).src = '';
         if(document.getElementById('btnEditPmRemove')) document.getElementById('btnEditPmRemove').style.display = 'none';
     }
 
@@ -8572,11 +8622,11 @@ function closeModal(id) {
 }
 
 function setupNav() {
-  document.querySelectorAll('.nav-item').forEach(btn => {
+  document.querySelectorAll('.nav-item').forEach((btn: HTMLElement) => {
     btn.onclick = () => {
       
       // --- 🧹 BẢN VÁ: Tự động đóng tất cả các thẻ đang bị vuốt dở ---
-      document.querySelectorAll('.swipe-content').forEach(el => {
+      document.querySelectorAll('.swipe-content').forEach((el: HTMLElement) => {
           el.style.transition = 'transform 0.3s cubic-bezier(0.2, 0.8, 0.2, 1)';
           el.style.transform = 'translateX(0)'; // Ép chạy về vị trí 0
       });
@@ -8607,7 +8657,7 @@ function setupNav() {
 
 // --- 🚀 HỆ THỐNG DIALOG HIỆN ĐẠI (BẢN VÁ LỖI BÀN PHÍM VĨNH VIỄN) ---
 window.openSettingsPage = openSettingsPage = () => {
-  document.querySelectorAll('.swipe-content').forEach(el => {
+  document.querySelectorAll('.swipe-content').forEach((el: HTMLElement) => {
       el.style.transition = 'transform 0.3s cubic-bezier(0.2, 0.8, 0.2, 1)';
       el.style.transform = 'translateX(0)';
   });
@@ -8638,7 +8688,7 @@ window.niceConfirm = niceConfirm = (title, text, type = 'danger') => {
         document.getElementById('dialogPromptArea').style.display = 'none';
 
         // Trả lại vị trí ban đầu trước khi mở
-        const dialogCard = dialog.querySelector('.dialog-card');
+        const dialogCard = dialog.querySelector('.dialog-card') as HTMLElement;
         dialogCard.style.transform = 'translateY(0)';
         dialogCard.style.transition = 'transform 0.3s ease';
 
@@ -8658,7 +8708,7 @@ window.niceConfirm = niceConfirm = (title, text, type = 'danger') => {
             // Bỏ focus phần tử đang gõ TRƯỚC khi ẩn dialog: nếu để bàn phím ảo tự đóng SAU khi
             // overlay đã display:none, một số trình duyệt mobile (đặc biệt iOS Safari) bị lệch
             // visual viewport và "khóa cứng" input lần mở dialog kế tiếp, phải bấm 2 lần mới gõ được.
-            if (document.activeElement && document.activeElement !== document.body) document.activeElement.blur();
+            if (document.activeElement && document.activeElement !== document.body) (document.activeElement as HTMLElement).blur();
             dialog.classList.remove('open');
             if (!wasAlreadyLocked) {
                 document.body.style.removeProperty('overflow');
@@ -8685,7 +8735,7 @@ window.nicePrompt = nicePrompt = (title, text, defaultValue = '') => {
         document.getElementById('dialogText').textContent = text;
         
         const inputArea = document.getElementById('dialogPromptArea');
-        const input = document.getElementById('dialogInput');
+        const input = document.getElementById('dialogInput') as HTMLInputElement;
         inputArea.style.display = 'block';
         input.value = defaultValue;
         
@@ -8693,7 +8743,7 @@ window.nicePrompt = nicePrompt = (title, text, defaultValue = '') => {
         btnConfirm.className = 'btn btn-primary';
         btnConfirm.textContent = 'Xác nhận';
 
-        const dialogCard = dialog.querySelector('.dialog-card');
+        const dialogCard = dialog.querySelector('.dialog-card') as HTMLElement;
         // Reset transform để trình duyệt tự do canh giữa
         dialogCard.style.transform = 'none';
         dialogCard.style.transition = 'transform 0.3s cubic-bezier(0.32, 0.72, 0, 1)';
@@ -8727,7 +8777,7 @@ window.nicePrompt = nicePrompt = (title, text, defaultValue = '') => {
             // Bỏ focus TRƯỚC khi ẩn dialog: để bàn phím ảo tự đóng sau khi overlay đã display:none
             // khiến 1 số trình duyệt mobile (đặc biệt iOS Safari) lệch visual viewport, "khóa cứng"
             // input ở lần mở dialog kế tiếp -> phải bấm ra ngoài xong không gõ lại được nữa.
-            if (document.activeElement && document.activeElement !== document.body) document.activeElement.blur();
+            if (document.activeElement && document.activeElement !== document.body) (document.activeElement as HTMLElement).blur();
             dialog.classList.remove('open');
             if (!wasAlreadyLocked) {
                 document.body.style.removeProperty('overflow');
@@ -8839,6 +8889,7 @@ window.updateIsland = updateIsland = (type, mainText, icon = getTripTheme().icon
 
 // Gắn an toàn vào hàm renderAll gốc để không làm crash App
 const __originalRenderAllIsland = window.renderAll;
+// @ts-expect-error -- cố ý ghi đè hàm renderAll gốc để mọi lời gọi nội bộ cũng dùng bản bọc mới
 window.renderAll = renderAll = (flash) => {
     if (typeof __originalRenderAllIsland === 'function') {
         __originalRenderAllIsland(flash);
@@ -8918,15 +8969,15 @@ setInterval(window.updateSmartIsland, 60000);
 
 // --- BẢN VÁ LỖI VUỐT (ĐO LẠI KÍCH THƯỚC ĐỘNG NGAY LÚC CHẠM) ---
 window.initSwipeActions = initSwipeActions = () => {
-    document.querySelectorAll('.swipe-content').forEach(el => {
+    document.querySelectorAll('.swipe-content').forEach((el: HTMLElement) => {
         // Chống gán sự kiện nhiều lần gây lag
         if (el.dataset.swipeInited) return;
         el.dataset.swipeInited = 'true';
 
         el.style.userSelect = 'none';
-        el.style.WebkitUserSelect = 'none';
+        el.style.webkitUserSelect = 'none';
 
-        const actionsEl = el.previousElementSibling;
+        const actionsEl = el.previousElementSibling as HTMLElement;
         
         let startX = 0, startY = 0, currentX = 0, currentY = 0;
         let isDragging = false;
@@ -8996,14 +9047,14 @@ window.initSwipeActions = initSwipeActions = () => {
         };
 
         // PC
-        el.addEventListener('mousedown', e => { if (e.button === 0) startDrag(e.clientX, e.clientY); });
-        el.addEventListener('mousemove', e => doDrag(e.clientX, e.clientY));
+        el.addEventListener('mousedown', e => { if ((e as MouseEvent).button === 0) startDrag((e as MouseEvent).clientX, (e as MouseEvent).clientY); });
+        el.addEventListener('mousemove', e => doDrag((e as MouseEvent).clientX, (e as MouseEvent).clientY));
         el.addEventListener('mouseleave', endDrag);
         el.addEventListener('mouseup', endDrag);
 
         // Mobile
-        el.addEventListener('touchstart', e => startDrag(e.touches[0].clientX, e.touches[0].clientY), {passive: true});
-        el.addEventListener('touchmove', e => doDrag(e.touches[0].clientX, e.touches[0].clientY), {passive: true});
+        el.addEventListener('touchstart', e => startDrag((e as TouchEvent).touches[0].clientX, (e as TouchEvent).touches[0].clientY), {passive: true});
+        el.addEventListener('touchmove', e => doDrag((e as TouchEvent).touches[0].clientX, (e as TouchEvent).touches[0].clientY), {passive: true});
         el.addEventListener('touchend', endDrag);
         el.addEventListener('touchcancel', endDrag);
     });
@@ -9036,10 +9087,10 @@ function isModalContentScrolled(modal) {
 
 function initDraggableModals() {
     // 1. XỬ LÝ KÉO XUỐNG ĐỂ ĐÓNG (SWIPE-TO-CLOSE)
-    document.querySelectorAll('.modal').forEach(modal => {
+    document.querySelectorAll('.modal').forEach((modal: HTMLElement) => {
         modal.addEventListener('touchstart', (e) => {
             // Hàng rào bảo vệ: Bỏ qua tất cả các nút, ô nhập liệu, tên thành viên, checkbox...
-            if (e.target.closest('input, textarea, select, button, label, summary, .form-section-header, .participant-chip, .tab, .option-group, .chip-checkbox')) {
+            if ((e.target as HTMLElement).closest('input, textarea, select, button, label, summary, .form-section-header, .participant-chip, .tab, .option-group, .chip-checkbox')) {
                 isDragging = false;
                 return;
             }
@@ -9052,7 +9103,7 @@ function initDraggableModals() {
                 return;
             }
 
-            startY = e.touches[0].clientY;
+            startY = (e as TouchEvent).touches[0].clientY;
             currentY = startY; 
             isDragging = true;
             dragStarted = false; 
@@ -9061,7 +9112,7 @@ function initDraggableModals() {
         modal.addEventListener('touchmove', (e) => {
             if (!isDragging) return;
             
-            currentY = e.touches[0].clientY;
+            currentY = (e as TouchEvent).touches[0].clientY;
             const diff = currentY - startY;
 
             // CHỐNG RUNG TAY: Phải vuốt xuống hơn 15px mới tính là kéo (Ngăn lỗi tap nhầm)
@@ -10028,7 +10079,7 @@ window.triggerSwipeHint = triggerSwipeHint = () => {
     if (!timelineTab || timelineTab.offsetParent === null) return;
     
     // 3. Chỉ lấy chính xác cái thẻ hoạt động đầu tiên của Lịch trình
-    const firstSwipeItem = timelineTab.querySelector('.swipe-content');
+    const firstSwipeItem = timelineTab.querySelector('.swipe-content') as HTMLElement;
     
     if (firstSwipeItem) {
         // Đợi UI render xong nửa giây rồi mới nhá hàng
@@ -10089,7 +10140,7 @@ function cleanupPendingActivityExpense(removePayments = false) {
 }
 
 window.openExpenseFlow = openExpenseFlow = () => {
-    const name = document.getElementById('actName').value.trim();
+    const name = (document.getElementById('actName') as HTMLInputElement).value.trim();
     if (!name) return showToast("Vui lòng nhập tên hoạt động trước!", "error");
     
     // 1. Tạo ID trước (nhưng chưa lưu vào DATA)
@@ -10098,11 +10149,11 @@ window.openExpenseFlow = openExpenseFlow = () => {
     // 2. Cất giữ "bản nháp" những gì bác đang gõ
     window.draftActivity = draftActivity = {
         name,
-        h: document.getElementById('actHour').value,
-        m: document.getElementById('actMinute').value,
-        loc: document.getElementById('actLocation').value,
-        note: document.getElementById('actNote').value,
-        di: document.getElementById('actDayIdx').value
+        h: (document.getElementById('actHour') as HTMLSelectElement).value,
+        m: (document.getElementById('actMinute') as HTMLSelectElement).value,
+        loc: (document.getElementById('actLocation') as HTMLInputElement).value,
+        note: (document.getElementById('actNote') as HTMLInputElement).value,
+        di: (document.getElementById('actDayIdx') as HTMLSelectElement).value
     };
 
     // 3. Xuất vé khứ hồi loại "Thêm mới"
@@ -10114,7 +10165,7 @@ window.openExpenseFlow = openExpenseFlow = () => {
     setTimeout(() => {
         try {
             openAddPaymentModal(name, window.finalActId);
-            const estimateInput = document.getElementById('pmIsEstimate');
+            const estimateInput = document.getElementById('pmIsEstimate') as HTMLInputElement;
             if (estimateInput) {
                 estimateInput.checked = false;
                 toggleEstimateMode('pm');
@@ -10127,6 +10178,7 @@ window.openExpenseFlow = openExpenseFlow = () => {
 
 // --- HÀM ĐÓNG MODAL CẢI TIẾN ---
 const __oldCloseModalFlow = window.closeModal;
+// @ts-expect-error -- cố ý ghi đè hàm closeModal gốc để mọi lời gọi nội bộ cũng dùng bản bọc mới
 window.closeModal = closeModal = (id) => {
     __oldCloseModalFlow(id); 
     
@@ -10143,12 +10195,12 @@ window.closeModal = closeModal = (id) => {
             else if (returnInfo.mode === 'add_flow' && window.draftActivity) {
                 // (Giữ nguyên logic phục hồi bản nháp cũ của bác ở đây...)
                 const d = window.draftActivity;
-                document.getElementById('actName').value = d.name;
-                document.getElementById('actHour').value = d.h;
-                document.getElementById('actMinute').value = d.m;
-                document.getElementById('actLocation').value = d.loc;
-                document.getElementById('actNote').value = d.note;
-                document.getElementById('actDayIdx').value = d.di;
+                (document.getElementById('actName') as HTMLInputElement).value = d.name;
+                (document.getElementById('actHour') as HTMLSelectElement).value = d.h;
+                (document.getElementById('actMinute') as HTMLSelectElement).value = d.m;
+                (document.getElementById('actLocation') as HTMLInputElement).value = d.loc;
+                (document.getElementById('actNote') as HTMLInputElement).value = d.note;
+                (document.getElementById('actDayIdx') as HTMLSelectElement).value = d.di;
                 
                 const hasSavedPayment = DATA.payments && DATA.payments.some(p => p.linkedActId === window.finalActId);
                 const btn = document.getElementById('btnActExpenseFlow');
