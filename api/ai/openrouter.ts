@@ -1,22 +1,12 @@
 // POST /api/ai/openrouter
 // body: { task, model, messages }
-//   task     "chat" | "member-summary" | "packing" | "reality-check"
+//   task     1 trong AI_TASKS (api/_lib/ai.ts): "chat", "member-summary", "packing", "reality-check" là việc
+//            chính của OpenRouter; "suggest", "itinerary" là dự phòng khi Gemini lỗi / hết lượt
 //   model    1 trong OPENROUTER_MODELS
-//   messages [{ role: "system" | "user" | "assistant", content: string }]
+//   messages [{ role: "system" | "user" | "assistant", content: string }] (chỉ "chat" được nhiều tin)
 // trả về: { content } hoặc { error }
 // Việc thử lần lượt các model dự phòng vẫn do client làm (mỗi lần thử = 1 request tới đây).
-import { isForeignOrigin, OPENROUTER_MODELS, readJsonBody, scrubError } from "../_lib/ai.js";
-
-const TASK_TITLES: Record<string, string> = {
-  chat: "Trippy - AI Chat",
-  "member-summary": "Trippy - AI Member Summary",
-  packing: "Trippy - AI Packing List",
-  "reality-check": "Trippy - AI Itinerary Reality Check",
-};
-const ROLES = new Set(["system", "user", "assistant"]);
-const MAX_MESSAGES = 24;      // app giữ tối đa 20 lượt chat + 1 system prompt
-const MAX_MESSAGE_CHARS = 12000;
-const MAX_TOTAL_CHARS = 40000;
+import { AI_TASKS, isForeignOrigin, OPENROUTER_MODELS, readJsonBody, scrubError, validateMessages } from "../_lib/ai.js";
 
 export default async function handler(req: any, res: any) {
   if (req.method !== "POST") return res.status(405).json({ error: "Method not allowed" });
@@ -26,24 +16,10 @@ export default async function handler(req: any, res: any) {
   if (!apiKey) return res.status(503).json({ error: "Máy chủ chưa cấu hình OPENROUTER_API_KEY", code: "no_key" });
 
   const { task, model, messages } = readJsonBody(req);
-  const title = TASK_TITLES[task];
-  if (!title) return res.status(400).json({ error: "task không hợp lệ" });
   if (!OPENROUTER_MODELS.has(model)) return res.status(400).json({ error: "Model không được hỗ trợ" });
-  if (!Array.isArray(messages) || !messages.length || messages.length > MAX_MESSAGES) {
-    return res.status(400).json({ error: "messages không hợp lệ" });
-  }
-  // Chỉ "chat" mới có nhiều lượt; các tác vụ còn lại app luôn gửi đúng 1 tin nhắn user.
-  if (task !== "chat" && messages.length !== 1) return res.status(400).json({ error: "messages không hợp lệ" });
-
-  let total = 0;
-  const clean: { role: string; content: string }[] = [];
-  for (const m of messages) {
-    if (!m || !ROLES.has(m.role) || typeof m.content !== "string") return res.status(400).json({ error: "messages không hợp lệ" });
-    if (m.content.length > MAX_MESSAGE_CHARS) return res.status(413).json({ error: "Tin nhắn quá dài" });
-    total += m.content.length;
-    clean.push({ role: m.role, content: m.content });
-  }
-  if (total > MAX_TOTAL_CHARS) return res.status(413).json({ error: "Nội dung quá dài" });
+  const v = validateMessages(task, messages);
+  if ("error" in v) return res.status(v.status).json({ error: v.error });
+  const cfg = AI_TASKS[task];
 
   const proto = String(req.headers["x-forwarded-proto"] || "https");
   const host = String(req.headers["x-forwarded-host"] || req.headers.host || "");
@@ -55,9 +31,14 @@ export default async function handler(req: any, res: any) {
         "Content-Type": "application/json",
         Authorization: `Bearer ${apiKey}`,
         ...(host ? { "HTTP-Referer": `${proto}://${host}` } : {}),
-        "X-Title": title,
+        "X-Title": cfg.title,
       },
-      body: JSON.stringify({ model, messages: clean, max_tokens: 8000 }),
+      body: JSON.stringify({
+        model,
+        messages: v.messages,
+        max_tokens: 8000,
+        ...(cfg.temperature !== undefined ? { temperature: cfg.temperature } : {}),
+      }),
     });
     const data: any = await r.json().catch(() => ({}));
     if (!r.ok) {

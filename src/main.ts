@@ -621,17 +621,17 @@ window.saveAiModelMode = saveAiModelMode = () => {
     refreshAiModelModeUI();
 };
 
-// task: 'suggest' | 'itinerary' (xem api/ai/gemini.ts). Trả về text JSON mà Gemini sinh ra.
-// Chế độ tự động: model đang chọn bị quá tải ("high demand") / hết quota thì thử lần lượt các model Gemini còn lại.
-async function callGeminiProxy(task, prompt) {
+// Thử lần lượt các model Gemini qua proxy /api/ai/gemini (chế độ thủ công: chỉ model đã chọn).
+// Model quá tải ("high demand") / hết quota thì thử model kế tiếp. Trả về text; throw lỗi lần thử cuối.
+async function tryGeminiModels(task, messages) {
     const primary = getGeminiModel();
     const modelsToTry = isAiAutoFallback() ? [primary, ...GEMINI_MODELS.filter(m => m !== primary)] : [primary];
     let lastError = null;
     for (const model of modelsToTry) {
         try {
-            const data = await postAiProxy('/api/ai/gemini', { task, model, prompt });
-            const text = (data && data.text) || '';
-            if (!text.trim()) throw new Error("AI trả về nội dung trống");
+            const data = await postAiProxy('/api/ai/gemini', { task, model, messages });
+            const text = ((data && data.text) || '').trim();
+            if (!text) throw new Error("AI trả về nội dung trống");
             return text;
         } catch (e) {
             // Máy chủ chưa có khoá / yêu cầu bị từ chối thì đổi model cũng vô ích -> dừng luôn
@@ -641,6 +641,30 @@ async function callGeminiProxy(task, prompt) {
         }
     }
     throw lastError || new Error("Tất cả model đều lỗi");
+}
+
+// Gộp lỗi của 2 nhà cung cấp thành 1 thông báo khi cả hai đều thất bại.
+function combineAiErrors(first, firstName, second, secondName) {
+    return new Error(`${firstName}: ${(first && first.message) || 'lỗi'} · ${secondName}: ${(second && second.message) || 'lỗi'}`);
+}
+
+// task: 'suggest' | 'itinerary' — việc chính của Gemini. Trả về text JSON (caller tự JSON.parse).
+// Chế độ tự động: hết model Gemini (hết lượt / quá tải / chưa có khoá) thì chuyển sang OpenRouter.
+async function callGeminiProxy(task, prompt) {
+    const messages = [{ role: 'user', content: prompt }];
+    try {
+        return await tryGeminiModels(task, messages);
+    } catch (geminiErr) {
+        if (!isAiAutoFallback()) throw geminiErr;
+        console.warn('[AI] Gemini không dùng được, chuyển sang OpenRouter...', geminiErr);
+        try {
+            const { content } = await tryOpenRouterModels(task, getOpenRouterModel(), messages);
+            // OpenRouter hay bọc JSON trong ```json ...``` -> chuẩn hoá lại thành JSON thuần
+            return JSON.stringify(extractJsonPayload(content));
+        } catch (orErr) {
+            throw combineAiErrors(geminiErr, 'Gemini', orErr, 'OpenRouter');
+        }
+    }
 }
 
 // Cho phép người dùng tự đổi model (vd. khi model mặc định bị hết quota trên tài khoản của họ).
@@ -699,10 +723,10 @@ const OPENROUTER_FALLBACK_POOL = [
     'meta-llama/llama-3.1-8b-instruct'
 ];
 
-// Gọi OpenRouter chat completions qua proxy /api/ai/openrouter, tự động fallback sang model khác trong
-// OPENROUTER_FALLBACK_POOL nếu model chính lỗi. Trả về { content, modelUsed }; throw lỗi của lần thử
-// CUỐI CÙNG nếu tất cả đều fail. task: 'chat' | 'member-summary' | 'packing' | 'reality-check'.
-async function callOpenRouterChat(task, primaryModel, messages) {
+// Thử lần lượt các model OpenRouter qua proxy /api/ai/openrouter (chế độ thủ công: chỉ model đã chọn),
+// model chính lỗi thì thử các model trong OPENROUTER_FALLBACK_POOL. Trả về { content, modelUsed };
+// throw lỗi của lần thử CUỐI CÙNG nếu tất cả đều fail.
+async function tryOpenRouterModels(task, primaryModel, messages) {
     const modelsToTry = isAiAutoFallback()
         ? [primaryModel, ...OPENROUTER_FALLBACK_POOL.filter(m => m !== primaryModel)]
         : [primaryModel];
@@ -724,6 +748,23 @@ async function callOpenRouterChat(task, primaryModel, messages) {
         }
     }
     throw lastError || new Error("Tất cả model đều lỗi");
+}
+
+// task: 'chat' | 'member-summary' | 'packing' | 'reality-check' — việc chính của OpenRouter.
+// Chế độ tự động: hết model OpenRouter (hết credit / quá tải / chưa có khoá) thì chuyển sang Gemini.
+async function callOpenRouterChat(task, primaryModel, messages) {
+    try {
+        return await tryOpenRouterModels(task, primaryModel, messages);
+    } catch (orErr) {
+        if (!isAiAutoFallback()) throw orErr;
+        console.warn('[AI] OpenRouter không dùng được, chuyển sang Gemini...', orErr);
+        try {
+            const content = await tryGeminiModels(task, messages);
+            return { content, modelUsed: getGeminiModel(), usedFallback: true };
+        } catch (geminiErr) {
+            throw combineAiErrors(orErr, 'OpenRouter', geminiErr, 'Gemini');
+        }
+    }
 }
 
 function refreshOpenRouterKeyUI() {

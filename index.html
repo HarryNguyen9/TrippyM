@@ -390,11 +390,11 @@
     <div class="form-group">
       <label class="form-label">CÁCH CHỌN MODEL KHI AI LỖI</label>
       <select class="form-input" id="settingAiModelMode" onchange="saveAiModelMode()">
-        <option value="auto">🔄 Tự động: model lỗi / quá tải thì tự thử model khác</option>
+        <option value="auto">🔄 Tự động: model lỗi / hết lượt thì tự đổi model, đổi cả Gemini ⇄ OpenRouter</option>
         <option value="manual">✋ Thủ công: chỉ dùng đúng model đã chọn bên dưới</option>
       </select>
       <div style="font-size: 0.65rem; color: var(--text3); margin-top: 6px; line-height: 1.5;">
-        Áp dụng cho mọi tính năng AI (Gemini và OpenRouter). Thủ công: nếu model báo lỗi thì bạn tự đổi model ở các ô dưới rồi thử lại.
+        Tự động: thử hết các model của nhà cung cấp chính trước (Gemini cho gợi ý món ngon / lập lịch trình, OpenRouter cho các tính năng còn lại), hết lượt thì chuyển sang nhà cung cấp kia. Thủ công: model báo lỗi thì bạn tự đổi model ở các ô dưới rồi thử lại.
       </div>
     </div>
 

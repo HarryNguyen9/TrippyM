@@ -32,6 +32,50 @@ export const OPENROUTER_MODELS = new Set([
   "meta-llama/llama-3.1-8b-instruct",
 ]);
 
+// Các tác vụ AI app đang dùng. Mỗi tác vụ gọi được qua CẢ 2 proxy (Gemini <-> OpenRouter dự phòng cho nhau).
+//   json  = kết quả phải là JSON (Gemini bật responseMimeType JSON)
+//   multi = được gửi nhiều tin nhắn (lịch sử chat); các tác vụ khác luôn đúng 1 tin nhắn user
+export const AI_TASKS: Record<string, { title: string; json: boolean; temperature?: number; multi?: boolean }> = {
+  suggest: { title: "Trippy - AI Suggest", json: true, temperature: 0.8 },
+  itinerary: { title: "Trippy - AI Itinerary", json: true, temperature: 0.9 },
+  chat: { title: "Trippy - AI Chat", json: false, multi: true },
+  "member-summary": { title: "Trippy - AI Member Summary", json: false },
+  packing: { title: "Trippy - AI Packing List", json: false },
+  "reality-check": { title: "Trippy - AI Itinerary Reality Check", json: false },
+};
+
+const ROLES = new Set(["system", "user", "assistant"]);
+const MAX_MESSAGES = 24;      // app giữ tối đa 20 lượt chat + 1 system prompt
+const MAX_MESSAGE_CHARS = 12000;
+const MAX_TOTAL_CHARS = 40000;
+
+export type ChatMessage = { role: "system" | "user" | "assistant"; content: string };
+
+// Kiểm tra messages theo tác vụ. Trả về { messages } đã làm sạch hoặc { status, error }.
+export function validateMessages(task: string, messages: unknown):
+  { messages: ChatMessage[] } | { status: number; error: string } {
+  const cfg = AI_TASKS[task];
+  if (!cfg) return { status: 400, error: "task không hợp lệ" };
+  if (!Array.isArray(messages) || !messages.length || messages.length > MAX_MESSAGES) {
+    return { status: 400, error: "messages không hợp lệ" };
+  }
+  if (!cfg.multi && (messages.length !== 1 || messages[0]?.role !== "user")) {
+    return { status: 400, error: "messages không hợp lệ" };
+  }
+  let total = 0;
+  const clean: ChatMessage[] = [];
+  for (const m of messages as any[]) {
+    if (!m || !ROLES.has(m.role) || typeof m.content !== "string" || !m.content.trim()) {
+      return { status: 400, error: "messages không hợp lệ" };
+    }
+    if (m.content.length > MAX_MESSAGE_CHARS) return { status: 413, error: "Tin nhắn quá dài" };
+    total += m.content.length;
+    clean.push({ role: m.role, content: m.content });
+  }
+  if (total > MAX_TOTAL_CHARS) return { status: 413, error: "Nội dung quá dài" };
+  return { messages: clean };
+}
+
 export function readJsonBody(req: any) {
   if (typeof req.body === "string") {
     try { return JSON.parse(req.body); } catch { return {}; }

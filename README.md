@@ -106,14 +106,17 @@ HTML cũ.
 Các tính năng AI (gợi ý món ngon/địa điểm, AI lập lịch trình, chat AI, gợi ý đồ mang, tóm tắt quỹ,
 soi lịch trình) **không gọi thẳng** Gemini/OpenRouter từ trình duyệt nữa mà đi qua 2 Vercel Function:
 
-| Endpoint | Nhà cung cấp | Tác vụ được phép (`task`) |
-|---|---|---|
-| `/api/ai/gemini` | Gemini | `suggest`, `itinerary` |
-| `/api/ai/openrouter` | OpenRouter | `chat`, `member-summary`, `packing`, `reality-check` |
+| Endpoint | Nhà cung cấp | Việc chính | Dự phòng cho |
+|---|---|---|---|
+| `/api/ai/gemini` | Gemini | `suggest`, `itinerary` | các tác vụ của OpenRouter |
+| `/api/ai/openrouter` | OpenRouter | `chat`, `member-summary`, `packing`, `reality-check` | `suggest`, `itinerary` |
 
-Proxy chỉ nhận đúng các tác vụ trên, chỉ các model có trong ô chọn model ở Cài đặt (danh sách nằm ở
-`api/_lib/ai.ts`, thêm model mới thì sửa cả `index.html` lẫn file này), giới hạn độ dài đầu vào, và từ chối
-request đến từ trang web khác (header `Origin`).
+Ở chế độ **Tự động** (Cài đặt → "Cách chọn model khi AI lỗi"), app thử hết các model của nhà cung cấp chính,
+vẫn lỗi (hết lượt, quá tải, chưa có khoá) thì chuyển sang nhà cung cấp kia. Chế độ **Thủ công** chỉ gọi đúng model đã chọn.
+
+Proxy chỉ nhận đúng các tác vụ trên (`AI_TASKS` trong `api/_lib/ai.ts`), chỉ các model có trong ô chọn model ở
+Cài đặt (thêm model mới thì sửa cả `index.html`, `src/main.ts` lẫn `api/_lib/ai.ts`), giới hạn độ dài đầu vào,
+và từ chối request đến từ trang web khác (header `Origin`).
 
 > ⚠️ **Không bao giờ** đặt khoá AI vào biến có tiền tố `VITE_` — Vite nhúng các biến đó vào bundle JS công khai.
 > Khoá cũ trong `VITE_GEMINI_API_KEY` / `VITE_OPENROUTER_API_KEY` đã bị lộ theo cách này, phải thu hồi và tạo khoá mới.
