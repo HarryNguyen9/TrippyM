@@ -8,14 +8,13 @@
 // Proxy KHÔNG nhận yêu cầu tuỳ ý: chỉ các "task" app đang dùng, chỉ model trong danh sách dưới đây
 // (phải khớp các <option> trong index.html + OPENROUTER_FALLBACK_POOL trong src/main.ts), có giới hạn độ dài.
 
+// Google đã tắt gemini-2.0-* và đang khai tử gemini-2.5-* (xem https://ai.google.dev/gemini-api/docs/deprecations).
+// Phải khớp GEMINI_MODELS trong src/main.ts và <select id="settingGeminiModel"> trong index.html.
 export const GEMINI_MODELS = new Set([
-  "gemini-2.0-flash",
-  "gemini-2.0-flash-lite",
-  "gemini-2.5-flash",
-  "gemini-2.5-flash-lite",
-  "gemini-2.5-pro",
-  "gemini-flash-latest",
-  "gemini-pro-latest",
+  "gemini-3.6-flash",
+  "gemini-3.8-flash",
+  "gemini-3.5-flash-lite",
+  "gemini-3.1-flash-lite",
 ]);
 
 export const OPENROUTER_MODELS = new Set([

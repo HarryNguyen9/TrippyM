@@ -560,7 +560,15 @@ function refreshCurrencySettingsUI() {
 }
 
 // --- 🤖 TRỢ LÝ AI (GEMINI) — GỢI Ý MÓN NGON / ĐỊA ĐIỂM HOT ---
-const GEMINI_MODEL_DEFAULT = 'gemini-2.0-flash';
+const GEMINI_MODEL_DEFAULT = 'gemini-3.6-flash';
+// Phải khớp GEMINI_MODELS trong api/_lib/ai.ts (proxy từ chối model ngoài danh sách).
+const GEMINI_MODELS = ['gemini-3.6-flash', 'gemini-3.8-flash', 'gemini-3.5-flash-lite', 'gemini-3.1-flash-lite'];
+
+// Model người dùng đã chọn, bỏ qua giá trị cũ không còn trong danh sách (vd. gemini-2.0-flash đã bị Google tắt).
+function getGeminiModelOverride() {
+    const v = (localStorage.getItem(GEMINI_MODEL_STORAGE) || '').trim();
+    return GEMINI_MODELS.includes(v) ? v : '';
+}
 const GEMINI_MODEL_STORAGE = 'gemini_model_override';
 // Khoá Gemini nằm ở server (biến GEMINI_API_KEY trên Vercel), app chỉ gọi qua proxy /api/ai/gemini.
 let _aiSuggestCache = {};
@@ -595,13 +603,13 @@ async function callGeminiProxy(task, prompt) {
 
 // Cho phép người dùng tự đổi model (vd. khi model mặc định bị hết quota trên tài khoản của họ).
 function getGeminiModel() {
-    return (localStorage.getItem(GEMINI_MODEL_STORAGE) || '').trim() || GEMINI_MODEL_DEFAULT;
+    return getGeminiModelOverride() || GEMINI_MODEL_DEFAULT;
 }
 
 function refreshGeminiKeyUI() {
     const status = document.getElementById('geminiKeyStatus');
     const modelSelect = document.getElementById('settingGeminiModel') as HTMLSelectElement;
-    if (modelSelect) modelSelect.value = localStorage.getItem(GEMINI_MODEL_STORAGE) || '';
+    if (modelSelect) modelSelect.value = getGeminiModelOverride();
 
     if (status) {
         status.textContent = '🔒 Khoá Gemini đặt trên máy chủ (biến GEMINI_API_KEY trên Vercel), không lộ ra trình duyệt.';
