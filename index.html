@@ -387,6 +387,19 @@
 
   <div class="section-header section-title">AI trợ lý (Gemini + OpenRouter)</div>
   <div class="trip-card" style="padding:16px;margin-bottom:12px;">
+    <div class="form-group">
+      <label class="form-label">CÁCH CHỌN MODEL KHI AI LỖI</label>
+      <select class="form-input" id="settingAiModelMode" onchange="saveAiModelMode()">
+        <option value="auto">🔄 Tự động: model lỗi / quá tải thì tự thử model khác</option>
+        <option value="manual">✋ Thủ công: chỉ dùng đúng model đã chọn bên dưới</option>
+      </select>
+      <div style="font-size: 0.65rem; color: var(--text3); margin-top: 6px; line-height: 1.5;">
+        Áp dụng cho mọi tính năng AI (Gemini và OpenRouter). Thủ công: nếu model báo lỗi thì bạn tự đổi model ở các ô dưới rồi thử lại.
+      </div>
+    </div>
+
+    <div style="height: 1px; background: rgba(255,255,255,0.06); margin: 15px 0;"></div>
+
     <div id="geminiKeyStatus" style="font-size: 0.68rem; color: var(--accent); margin-bottom: 10px; line-height: 1.5;"></div>
 
     <div class="form-group">

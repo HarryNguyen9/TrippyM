@@ -62,7 +62,7 @@ var exportMemberStatementToExcel;
 var exportPaymentsToExcel, finalActId, getLinkedPaymentIndices, handleQrUpload, importMasterDataFromExcel, initSwipeActions;
 var isEditMultiPayerMode, isMultiPayerMode, isOpeningExpenseFlow, isSavingActivityFlow, isUploadingImage, joinTrip;
 var loadWeatherForItinerary, logoutEditor, manualDayCollapseState, moveGalleryItem, niceConfirm, nicePrompt;
-var askAiSuggestions, generateAiItinerary, saveGeminiModel;
+var askAiSuggestions, generateAiItinerary, saveGeminiModel, saveAiModelMode;
 var addSelectedAiPackingItems, generatePackingChecklist, saveOpenRouterModel, checkItineraryReality;
 var openChatModal, saveChatModel, sendChatMessage, sendChatMessageFromInput, sendChatQuickChip, toggleChatMic;
 var copyMemberSummaryToClipboard, generateMemberFinanceSummary;
@@ -595,10 +595,52 @@ async function postAiProxy(path, body) {
     return data;
 }
 
+// Cách chọn model khi AI lỗi, áp dụng cho cả Gemini và OpenRouter:
+//   'auto'   (mặc định) model lỗi / quá tải thì tự thử lần lượt các model dự phòng
+//   'manual' chỉ gọi đúng model người dùng đã chọn, lỗi thì báo luôn để họ tự đổi
+const AI_MODEL_MODE_STORAGE = 'ai_model_mode';
+
+function isAiAutoFallback() {
+    return localStorage.getItem(AI_MODEL_MODE_STORAGE) !== 'manual';
+}
+
+function refreshAiModelModeUI() {
+    const select = document.getElementById('settingAiModelMode') as HTMLSelectElement;
+    if (select) select.value = isAiAutoFallback() ? 'auto' : 'manual';
+}
+
+window.saveAiModelMode = saveAiModelMode = () => {
+    const select = document.getElementById('settingAiModelMode') as HTMLSelectElement;
+    if (select && select.value === 'manual') {
+        localStorage.setItem(AI_MODEL_MODE_STORAGE, 'manual');
+        showToast("Thủ công: AI chỉ dùng đúng model bạn chọn", "info");
+    } else {
+        localStorage.removeItem(AI_MODEL_MODE_STORAGE);
+        showToast("Tự động: model lỗi thì AI tự thử model khác", "success");
+    }
+    refreshAiModelModeUI();
+};
+
 // task: 'suggest' | 'itinerary' (xem api/ai/gemini.ts). Trả về text JSON mà Gemini sinh ra.
+// Chế độ tự động: model đang chọn bị quá tải ("high demand") / hết quota thì thử lần lượt các model Gemini còn lại.
 async function callGeminiProxy(task, prompt) {
-    const data = await postAiProxy('/api/ai/gemini', { task, model: getGeminiModel(), prompt });
-    return (data && data.text) || '';
+    const primary = getGeminiModel();
+    const modelsToTry = isAiAutoFallback() ? [primary, ...GEMINI_MODELS.filter(m => m !== primary)] : [primary];
+    let lastError = null;
+    for (const model of modelsToTry) {
+        try {
+            const data = await postAiProxy('/api/ai/gemini', { task, model, prompt });
+            const text = (data && data.text) || '';
+            if (!text.trim()) throw new Error("AI trả về nội dung trống");
+            return text;
+        } catch (e) {
+            // Máy chủ chưa có khoá / yêu cầu bị từ chối thì đổi model cũng vô ích -> dừng luôn
+            if (e && e.fatal) throw e;
+            console.warn(`[Gemini] Model "${model}" lỗi, thử model dự phòng tiếp theo...`, e);
+            lastError = e;
+        }
+    }
+    throw lastError || new Error("Tất cả model đều lỗi");
 }
 
 // Cho phép người dùng tự đổi model (vd. khi model mặc định bị hết quota trên tài khoản của họ).
@@ -610,6 +652,7 @@ function refreshGeminiKeyUI() {
     const status = document.getElementById('geminiKeyStatus');
     const modelSelect = document.getElementById('settingGeminiModel') as HTMLSelectElement;
     if (modelSelect) modelSelect.value = getGeminiModelOverride();
+    refreshAiModelModeUI();
 
     if (status) {
         status.textContent = '🔒 Khoá Gemini đặt trên máy chủ (biến GEMINI_API_KEY trên Vercel), không lộ ra trình duyệt.';
@@ -660,7 +703,9 @@ const OPENROUTER_FALLBACK_POOL = [
 // OPENROUTER_FALLBACK_POOL nếu model chính lỗi. Trả về { content, modelUsed }; throw lỗi của lần thử
 // CUỐI CÙNG nếu tất cả đều fail. task: 'chat' | 'member-summary' | 'packing' | 'reality-check'.
 async function callOpenRouterChat(task, primaryModel, messages) {
-    const modelsToTry = [primaryModel, ...OPENROUTER_FALLBACK_POOL.filter(m => m !== primaryModel)];
+    const modelsToTry = isAiAutoFallback()
+        ? [primaryModel, ...OPENROUTER_FALLBACK_POOL.filter(m => m !== primaryModel)]
+        : [primaryModel];
     let lastError = null;
 
     for (let i = 0; i < modelsToTry.length; i++) {
