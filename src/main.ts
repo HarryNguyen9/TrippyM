@@ -562,12 +562,35 @@ function refreshCurrencySettingsUI() {
 // --- 🤖 TRỢ LÝ AI (GEMINI) — GỢI Ý MÓN NGON / ĐỊA ĐIỂM HOT ---
 const GEMINI_MODEL_DEFAULT = 'gemini-2.0-flash';
 const GEMINI_MODEL_STORAGE = 'gemini_model_override';
-// Key CHỈ cấu hình qua Environment Variable trên Vercel (build-time) — không cho nhập tay trong app.
-const GEMINI_ENV_KEY = (import.meta.env.VITE_GEMINI_API_KEY || '').trim();
+// Khoá Gemini nằm ở server (biến GEMINI_API_KEY trên Vercel), app chỉ gọi qua proxy /api/ai/gemini.
 let _aiSuggestCache = {};
 
-function getGeminiApiKey() {
-    return GEMINI_ENV_KEY;
+// Gọi proxy AI ở server. Lỗi cấu hình/yêu cầu bị từ chối được đánh dấu fatal để khỏi thử model dự phòng vô ích.
+async function postAiProxy(path, body) {
+    let res;
+    try {
+        res = await fetch(path, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify(body)
+        });
+    } catch (e) {
+        throw new Error("Không kết nối được máy chủ AI");
+    }
+    const data = await res.json().catch(() => ({}));
+    if (!res.ok) {
+        const err: any = new Error((data && data.error) || `Lỗi HTTP ${res.status}`);
+        err.noKey = !!(data && data.code === 'no_key');
+        err.fatal = err.noKey || res.status === 400 || res.status === 403 || res.status === 404 || res.status === 413;
+        throw err;
+    }
+    return data;
+}
+
+// task: 'suggest' | 'itinerary' (xem api/ai/gemini.ts). Trả về text JSON mà Gemini sinh ra.
+async function callGeminiProxy(task, prompt) {
+    const data = await postAiProxy('/api/ai/gemini', { task, model: getGeminiModel(), prompt });
+    return (data && data.text) || '';
 }
 
 // Cho phép người dùng tự đổi model (vd. khi model mặc định bị hết quota trên tài khoản của họ).
@@ -581,9 +604,7 @@ function refreshGeminiKeyUI() {
     if (modelSelect) modelSelect.value = localStorage.getItem(GEMINI_MODEL_STORAGE) || '';
 
     if (status) {
-        status.textContent = GEMINI_ENV_KEY
-            ? '✅ Đã có key cấu hình sẵn trên server (Environment Variable).'
-            : '⚠️ Chưa cấu hình key — Admin cần set biến VITE_GEMINI_API_KEY trên Vercel.';
+        status.textContent = '🔒 Khoá Gemini đặt trên máy chủ (biến GEMINI_API_KEY trên Vercel), không lộ ra trình duyệt.';
     }
 }
 
@@ -603,12 +624,7 @@ window.saveGeminiModel = saveGeminiModel = () => {
 // --- 🎒 OPENROUTER (DEEPSEEK) — DÙNG CHO CHECKLIST ĐỒ ĐẠC AI ---
 const OPENROUTER_MODEL_DEFAULT = 'deepseek/deepseek-chat';
 const OPENROUTER_MODEL_STORAGE = 'openrouter_model_override';
-// Key CHỈ cấu hình qua Environment Variable trên Vercel (build-time) — không cho nhập tay trong app.
-const OPENROUTER_ENV_KEY = (import.meta.env.VITE_OPENROUTER_API_KEY || '').trim();
-
-function getOpenRouterApiKey() {
-    return OPENROUTER_ENV_KEY;
-}
+// Khoá OpenRouter nằm ở server (biến OPENROUTER_API_KEY trên Vercel), app chỉ gọi qua proxy /api/ai/openrouter.
 
 function getOpenRouterModel() {
     return (localStorage.getItem(OPENROUTER_MODEL_STORAGE) || '').trim() || OPENROUTER_MODEL_DEFAULT;
@@ -632,34 +648,24 @@ const OPENROUTER_FALLBACK_POOL = [
     'meta-llama/llama-3.1-8b-instruct'
 ];
 
-// Gọi OpenRouter chat completions, tự động fallback sang model khác trong OPENROUTER_FALLBACK_POOL
-// nếu model chính lỗi. Trả về { content, modelUsed }; throw lỗi của lần thử CUỐI CÙNG nếu tất cả đều fail.
-async function callOpenRouterChat(apiKey, primaryModel, messages, xTitle) {
+// Gọi OpenRouter chat completions qua proxy /api/ai/openrouter, tự động fallback sang model khác trong
+// OPENROUTER_FALLBACK_POOL nếu model chính lỗi. Trả về { content, modelUsed }; throw lỗi của lần thử
+// CUỐI CÙNG nếu tất cả đều fail. task: 'chat' | 'member-summary' | 'packing' | 'reality-check'.
+async function callOpenRouterChat(task, primaryModel, messages) {
     const modelsToTry = [primaryModel, ...OPENROUTER_FALLBACK_POOL.filter(m => m !== primaryModel)];
     let lastError = null;
 
     for (let i = 0; i < modelsToTry.length; i++) {
         const model = modelsToTry[i];
         try {
-            const res = await fetch('https://openrouter.ai/api/v1/chat/completions', {
-                method: 'POST',
-                headers: {
-                    'Content-Type': 'application/json',
-                    'Authorization': `Bearer ${apiKey}`,
-                    'HTTP-Referer': window.location.origin,
-                    'X-Title': xTitle
-                },
-                body: JSON.stringify({ model, messages })
-            });
-
-            const data = await res.json();
-            if (!res.ok) throw new Error((data && data.error && data.error.message) || `Lỗi HTTP ${res.status}`);
-
-            const content = (data?.choices?.[0]?.message?.content || '').trim();
+            const data = await postAiProxy('/api/ai/openrouter', { task, model, messages });
+            const content = ((data && data.content) || '').trim();
             if (!content) throw new Error("AI trả về nội dung trống");
 
             return { content, modelUsed: model, usedFallback: i > 0 };
         } catch (e) {
+            // Máy chủ chưa có khoá / yêu cầu bị từ chối thì đổi model cũng vô ích -> dừng luôn
+            if (e && e.fatal) throw e;
             console.warn(`[OpenRouter] Model "${model}" lỗi, thử model dự phòng tiếp theo...`, e);
             lastError = e;
         }
@@ -675,9 +681,7 @@ function refreshOpenRouterKeyUI() {
     if (chatModelSelect) chatModelSelect.value = localStorage.getItem(CHAT_MODEL_STORAGE) || '';
 
     if (status) {
-        status.textContent = OPENROUTER_ENV_KEY
-            ? '✅ Đã có key cấu hình sẵn trên server (Environment Variable).'
-            : '⚠️ Chưa cấu hình key — Admin cần set biến VITE_OPENROUTER_API_KEY trên Vercel.';
+        status.textContent = '🔒 Khoá OpenRouter đặt trên máy chủ (biến OPENROUTER_API_KEY trên Vercel), không lộ ra trình duyệt.';
     }
 }
 
@@ -869,13 +873,6 @@ window.sendChatMessageFromInput = sendChatMessageFromInput = () => {
 window.sendChatMessage = sendChatMessage = async (hiddenPrompt, displayLabel) => {
     if (displayLabel) appendChatBubble('user', displayLabel);
 
-    const apiKey = getOpenRouterApiKey();
-    if (!apiKey) {
-        appendChatBubble('ai', "⚠️ Chưa cấu hình OpenRouter API Key. Nhờ Admin set biến VITE_OPENROUTER_API_KEY trên Vercel.");
-        openSettingsPage();
-        return;
-    }
-
     const loadingBubble = appendChatBubble('ai', '🤖 Đang suy nghĩ...', true);
 
     _chatHistory.push({ role: 'user', content: hiddenPrompt });
@@ -884,7 +881,7 @@ window.sendChatMessage = sendChatMessage = async (hiddenPrompt, displayLabel) =>
 
     try {
         const messages = [{ role: 'system', content: buildTripSystemPrompt() }, ..._chatHistory];
-        const { content } = await callOpenRouterChat(apiKey, getChatModel(), messages, 'Trippy - AI Chat');
+        const { content } = await callOpenRouterChat('chat', getChatModel(), messages);
 
         const reply = content || "Mình chưa nghĩ ra câu trả lời, bạn hỏi lại theo cách khác giúp mình nhé!";
         _chatHistory.push({ role: 'assistant', content: reply });
@@ -894,7 +891,7 @@ window.sendChatMessage = sendChatMessage = async (hiddenPrompt, displayLabel) =>
     } catch (e) {
         console.error(e);
         loadingBubble.classList.remove('loading');
-        loadingBubble.textContent = `😵 Lỗi: ${e.message || 'Không xác định'}. Kiểm tra lại API Key trong Cài đặt hoặc thử lại sau.`;
+        loadingBubble.textContent = `😵 Lỗi: ${e.message || 'Không xác định'}. Thử đổi model AI trong Cài đặt hoặc thử lại sau.`;
         _chatHistory.pop(); // Bỏ lượt hỏi lỗi ra khỏi lịch sử để không làm hỏng ngữ cảnh câu hỏi lần sau
     }
 
@@ -993,13 +990,6 @@ window.askAiSuggestions = askAiSuggestions = async (forceRefresh = false) => {
     // để AI khỏi đoán mò khi tên ngắn trùng với địa điểm khác (VD "Ko" cũng khớp 1 vùng ở Nga).
     const fullLocation = ((DATA.trip.fullAddress) || location).trim();
 
-    const apiKey = getGeminiApiKey();
-    if (!apiKey) {
-        showToast("Chưa cấu hình Gemini API Key! Nhờ Admin set biến VITE_GEMINI_API_KEY trên Vercel.", "error");
-        openSettingsPage();
-        return;
-    }
-
     openModal('aiSuggestModal');
     const locLabel = document.getElementById('aiSuggestLocation');
     if (locLabel) locLabel.textContent = location;
@@ -1023,19 +1013,7 @@ Trả lời NGẮN GỌN bằng tiếng Việt. CHỈ trả về DUY NHẤT mộ
 [{"type":"food hoặc place","icon":"1 emoji phù hợp","name":"Tên món/địa điểm","desc":"Mô tả 1 câu ngắn dưới 20 từ"}]`;
 
     try {
-        const res = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/${getGeminiModel()}:generateContent?key=${encodeURIComponent(apiKey)}`, {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({
-                contents: [{ parts: [{ text: prompt }] }],
-                generationConfig: { responseMimeType: 'application/json', temperature: 0.8 }
-            })
-        });
-
-        const data = await res.json();
-        if (!res.ok) throw new Error((data && data.error && data.error.message) || `Lỗi HTTP ${res.status}`);
-
-        const rawText = data?.candidates?.[0]?.content?.parts?.[0]?.text || '';
+        const rawText = await callGeminiProxy('suggest', prompt);
         const items = JSON.parse(rawText);
         if (!Array.isArray(items)) throw new Error("AI trả về sai định dạng");
 
@@ -1048,7 +1026,7 @@ Trả lời NGẮN GỌN bằng tiếng Việt. CHỈ trả về DUY NHẤT mộ
             <div style="text-align:center; padding: 30px 10px; color: var(--red);">
                 <div style="font-size: 2rem; margin-bottom: 10px;">😵</div>
                 <div style="font-size: 0.8rem; line-height:1.5;">Không hỏi được AI: ${esc(e.message || 'Lỗi không xác định')}</div>
-                <div style="font-size: 0.65rem; color: var(--text3); margin-top: 6px;">Kiểm tra lại API Key trong Cài đặt hoặc thử lại sau.</div>
+                <div style="font-size: 0.65rem; color: var(--text3); margin-top: 6px;">Thử đổi model AI trong Cài đặt hoặc thử lại sau.</div>
             </div>`;
     }
 };
@@ -1125,13 +1103,6 @@ window.generateAiItinerary = generateAiItinerary = async () => {
     const style = ((document.getElementById('aiItnStyle') as HTMLInputElement).value || 'relax').trim();
     if (!startDateVal) return showToast("Vui lòng chọn ngày bắt đầu", "error");
 
-    const apiKey = getGeminiApiKey();
-    if (!apiKey) {
-        showToast("Chưa cấu hình Gemini API Key! Nhờ Admin set biến VITE_GEMINI_API_KEY trên Vercel.", "error");
-        openSettingsPage();
-        return;
-    }
-
     // selectCity() đã ghi thẳng vào DATA.trip khi bấm chọn gợi ý, nên đây luôn là dữ liệu mới nhất
     // (tự động "cập nhật trong Settings luôn" như yêu cầu, không cần bước lưu riêng).
     const location = ((DATA.trip.fullAddress) || (DATA.trip.location) || typedLoc).trim();
@@ -1155,19 +1126,7 @@ CHỈ trả về DUY NHẤT 1 JSON array độ dài đúng ${numDays} (không ma
 [{"title":"Chủ đề ngắn cho ngày (VD: Khám phá trung tâm)","activities":[{"time":"08:00","name":"Tên hoạt động","location":"Tên địa điểm","note":"Mô tả ngắn"}]}]`;
 
     try {
-        const res = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/${getGeminiModel()}:generateContent?key=${encodeURIComponent(apiKey)}`, {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({
-                contents: [{ parts: [{ text: prompt }] }],
-                generationConfig: { responseMimeType: 'application/json', temperature: 0.9 }
-            })
-        });
-
-        const data = await res.json();
-        if (!res.ok) throw new Error((data && data.error && data.error.message) || `Lỗi HTTP ${res.status}`);
-
-        const rawText = data?.candidates?.[0]?.content?.parts?.[0]?.text || '';
+        const rawText = await callGeminiProxy('itinerary', prompt);
         const aiDays = JSON.parse(rawText);
         if (!Array.isArray(aiDays) || !aiDays.length) throw new Error("AI trả về sai định dạng");
 
@@ -2973,13 +2932,6 @@ window.generateMemberFinanceSummary = generateMemberFinanceSummary = async () =>
         return;
     }
 
-    const apiKey = getOpenRouterApiKey();
-    if (!apiKey) {
-        showToast("Chưa cấu hình OpenRouter API Key! Nhờ Admin set biến VITE_OPENROUTER_API_KEY trên Vercel.", "error");
-        openSettingsPage();
-        return;
-    }
-
     openModal('memberAiSummaryModal');
     const listEl = document.getElementById('memberAiSummaryList');
     if (listEl) listEl.innerHTML = `
@@ -3014,7 +2966,7 @@ Ví dụ đúng cấu trúc câu (không copy nguyên văn, chỉ theo cấu tr�
 CHỈ trả về DUY NHẤT 1 JSON array (không markdown, không giải thích thêm ngoài JSON), đủ tất cả ${stats.length} người, đúng thứ tự đã cho, đúng cấu trúc:
 [{"name":"Tên (giữ đúng như trong dữ liệu)","summary":"Câu tóm tắt"}]`;
 
-        const { content: rawContent } = await callOpenRouterChat(apiKey, getOpenRouterModel(), [{ role: 'user', content: prompt }], 'Trippy - AI Member Summary');
+        const { content: rawContent } = await callOpenRouterChat('member-summary', getOpenRouterModel(), [{ role: 'user', content: prompt }]);
 
         const parsed = extractJsonPayload(rawContent);
         const items = Array.isArray(parsed) ? parsed : (parsed && Array.isArray(parsed.items) ? parsed.items : null);
@@ -3037,7 +2989,7 @@ CHỈ trả về DUY NHẤT 1 JSON array (không markdown, không giải thích 
             <div style="text-align:center; padding: 30px 10px; color: var(--red);">
                 <div style="font-size: 2rem; margin-bottom: 10px;">😵</div>
                 <div style="font-size: 0.8rem; line-height:1.5;">Không hỏi được AI: ${esc(e.message || 'Lỗi không xác định')}</div>
-                <div style="font-size: 0.65rem; color: var(--text3); margin-top: 6px;">Kiểm tra lại API Key hoặc thử lại sau.</div>
+                <div style="font-size: 0.65rem; color: var(--text3); margin-top: 6px;">Thử đổi model AI trong Cài đặt hoặc thử lại sau.</div>
             </div>`;
     } finally {
         _isGeneratingMemberSummary = false;
@@ -6899,13 +6851,6 @@ window.generatePackingChecklist = generatePackingChecklist = async () => {
         return;
     }
 
-    const apiKey = getOpenRouterApiKey();
-    if (!apiKey) {
-        showToast("Chưa cấu hình OpenRouter API Key! Nhờ Admin set biến VITE_OPENROUTER_API_KEY trên Vercel.", "error");
-        openSettingsPage();
-        return;
-    }
-
     openModal('aiPackingModal');
     const listEl = document.getElementById('aiPackingList');
     if (listEl) listEl.innerHTML = `
@@ -6940,7 +6885,7 @@ Tối đa 10 món, không lặp ý. Mỗi món chỉ 2-5 từ, phần lý do dư
 Chỉ trả về DUY NHẤT 1 JSON array (không markdown, không giải thích thêm ngoài JSON), đúng cấu trúc:
 [{"name":"Tên món đồ","reason":"Lý do ngắn dựa vào lịch trình/thời tiết"}]`;
 
-        const { content: rawContent } = await callOpenRouterChat(apiKey, getOpenRouterModel(), [{ role: 'user', content: prompt }], 'Trippy - AI Packing List');
+        const { content: rawContent } = await callOpenRouterChat('packing', getOpenRouterModel(), [{ role: 'user', content: prompt }]);
 
         const parsed = extractJsonPayload(rawContent);
         const items = Array.isArray(parsed) ? parsed : (parsed && Array.isArray(parsed.items) ? parsed.items : null);
@@ -6964,7 +6909,7 @@ Chỉ trả về DUY NHẤT 1 JSON array (không markdown, không giải thích 
             <div style="text-align:center; padding: 30px 10px; color: var(--red);">
                 <div style="font-size: 2rem; margin-bottom: 10px;">😵</div>
                 <div style="font-size: 0.8rem; line-height:1.5;">Không hỏi được AI: ${esc(e.message || 'Lỗi không xác định')}</div>
-                <div style="font-size: 0.65rem; color: var(--text3); margin-top: 6px;">Kiểm tra lại API Key trong Cài đặt hoặc thử lại sau.</div>
+                <div style="font-size: 0.65rem; color: var(--text3); margin-top: 6px;">Thử đổi model AI trong Cài đặt hoặc thử lại sau.</div>
             </div>`;
     } finally {
         _isGeneratingPacking = false;
@@ -6987,13 +6932,6 @@ window.checkItineraryReality = checkItineraryReality = async () => {
     // Chặn gọi chồng, tránh nút bị kẹt mãi ở "Đang soi..." (giống lỗi từng gặp ở nút packing)
     if (_isCheckingItinerary) {
         showToast("Đang soi rồi, chờ chút nhé!", "info");
-        return;
-    }
-
-    const apiKey = getOpenRouterApiKey();
-    if (!apiKey) {
-        showToast("Chưa cấu hình OpenRouter API Key! Nhờ Admin set biến VITE_OPENROUTER_API_KEY trên Vercel.", "error");
-        openSettingsPage();
         return;
     }
 
@@ -7025,7 +6963,7 @@ Giọng văn: thẳng thắn, hơi khó tính nhưng xây dựng, kèm gợi ý 
 Chỉ trả về DUY NHẤT 1 JSON array (không markdown, không giải thích thêm ngoài JSON, mảng rỗng [] nếu không có vấn đề gì), đúng cấu trúc:
 [{"day":"Ngày X (dd/mm)","issue":"Mô tả ngắn vấn đề phát hiện được","suggestion":"Gợi ý xử lý ngắn gọn"}]`;
 
-        const { content: rawContent } = await callOpenRouterChat(apiKey, getOpenRouterModel(), [{ role: 'user', content: prompt }], 'Trippy - AI Itinerary Reality Check');
+        const { content: rawContent } = await callOpenRouterChat('reality-check', getOpenRouterModel(), [{ role: 'user', content: prompt }]);
 
         const parsed = extractJsonPayload(rawContent);
         const warnings = Array.isArray(parsed) ? parsed : (parsed && Array.isArray(parsed.warnings) ? parsed.warnings : null);
@@ -7039,7 +6977,7 @@ Chỉ trả về DUY NHẤT 1 JSON array (không markdown, không giải thích 
             <div style="text-align:center; padding: 30px 10px; color: var(--red);">
                 <div style="font-size: 2rem; margin-bottom: 10px;">😵</div>
                 <div style="font-size: 0.8rem; line-height:1.5;">Không hỏi được AI: ${esc(e.message || 'Lỗi không xác định')}</div>
-                <div style="font-size: 0.65rem; color: var(--text3); margin-top: 6px;">Kiểm tra lại API Key trong Cài đặt hoặc thử lại sau.</div>
+                <div style="font-size: 0.65rem; color: var(--text3); margin-top: 6px;">Thử đổi model AI trong Cài đặt hoặc thử lại sau.</div>
             </div>`;
     } finally {
         _isCheckingItinerary = false;

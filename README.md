@@ -101,6 +101,48 @@ trình duyệt thật** (môi trường của mình không có browser), nên b�
 realtime, upload ảnh Cloudinary, export Excel/ảnh) trước khi thay thế hẳn bản
 HTML cũ.
 
+## 🤖 Khoá AI (Gemini + OpenRouter) — chỉ đặt ở server
+
+Các tính năng AI (gợi ý món ngon/địa điểm, AI lập lịch trình, chat AI, gợi ý đồ mang, tóm tắt quỹ,
+soi lịch trình) **không gọi thẳng** Gemini/OpenRouter từ trình duyệt nữa mà đi qua 2 Vercel Function:
+
+| Endpoint | Nhà cung cấp | Tác vụ được phép (`task`) |
+|---|---|---|
+| `/api/ai/gemini` | Gemini | `suggest`, `itinerary` |
+| `/api/ai/openrouter` | OpenRouter | `chat`, `member-summary`, `packing`, `reality-check` |
+
+Proxy chỉ nhận đúng các tác vụ trên, chỉ các model có trong ô chọn model ở Cài đặt (danh sách nằm ở
+`api/_lib/ai.ts`, thêm model mới thì sửa cả `index.html` lẫn file này), giới hạn độ dài đầu vào, và từ chối
+request đến từ trang web khác (header `Origin`).
+
+> ⚠️ **Không bao giờ** đặt khoá AI vào biến có tiền tố `VITE_` — Vite nhúng các biến đó vào bundle JS công khai.
+> Khoá cũ trong `VITE_GEMINI_API_KEY` / `VITE_OPENROUTER_API_KEY` đã bị lộ theo cách này, phải thu hồi và tạo khoá mới.
+
+### Biến môi trường trên Vercel
+
+Vercel → Project → **Settings → Environment Variables**:
+
+| Biến | Type | Giá trị |
+|---|---|---|
+| `GEMINI_API_KEY` | Secret | Khoá mới từ https://aistudio.google.com/apikey |
+| `OPENROUTER_API_KEY` | Secret | Khoá mới từ https://openrouter.ai/keys (nên đặt Credit limit) |
+
+Xoá 2 biến cũ `VITE_GEMINI_API_KEY`, `VITE_OPENROUTER_API_KEY`, rồi **Redeploy** (biến môi trường chỉ có hiệu lực
+ở lần deploy sau).
+
+### Chạy thử AI ở local
+
+`npm run dev` (Vite) không chạy được thư mục `api/`, nên dùng Vercel CLI:
+
+```bash
+npm i -g vercel
+vercel link                 # liên kết thư mục với project trên Vercel (1 lần)
+vercel env pull .env.local  # kéo biến môi trường về (hoặc tự điền GEMINI_API_KEY / OPENROUTER_API_KEY vào .env.local)
+vercel dev
+```
+
+`.env.local` đã bị `.gitignore` (`*.local`), không bị commit.
+
 ## 🔔 Push notification (iOS / Android / Desktop)
 
 Dùng **Web Push chuẩn + VAPID** (thiết bị đăng ký thẳng với Apple/Google qua `pushManager.subscribe`,
